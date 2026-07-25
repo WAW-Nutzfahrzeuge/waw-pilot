@@ -653,9 +653,9 @@ export async function SaleDetail({
                         hasSignatureStampAssets={sale.has_signature_stamp_assets}
                     />
 
-                    <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="overflow-hidden rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm">
                         <CardContent className="p-0">
-                            <div className="border-b border-slate-200 p-5">
+                            <div className="border-b-2 border-slate-900 p-5">
                                 <SectionTitle
                                     icon={FileWarning}
                                     title="Pflichtdokumente"
@@ -717,13 +717,14 @@ export async function SaleDetail({
                                 </div>
                             </div>
 
-                            <div className="divide-y divide-slate-100">
+                            <div className="divide-y-2 divide-slate-900/20">
                                 {sale.required_documents.map((requiredDocument) => (
                                     <div
                                         key={requiredDocument.documentType}
                                         id={`document-${requiredDocument.documentType}`}
-                                        className="p-5"
+                                        className="bg-white p-5"
                                     >
+                                        <div className="rounded-3xl border border-slate-900/15 bg-slate-50/70 p-4">
                                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                                             <div>
                                                 <div className="flex items-center gap-2">
@@ -795,9 +796,10 @@ export async function SaleDetail({
                                                 {requiredDocument.isAvailable ? "Vorhanden" : "Fehlt"}
                                             </StatusBadge>
                                         </div>
+                                        </div>
 
                                         {requiredDocument.uploadOptions ? (
-                                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <div className="mt-4 grid gap-3 border-t-2 border-slate-900/20 pt-4 md:grid-cols-2">
                                                 {requiredDocument.uploadOptions.map((uploadOption) => {
                                                     const isExistingOption =
                                                         requiredDocument.document?.document_type ===
@@ -824,13 +826,15 @@ export async function SaleDetail({
                                                 })}
                                             </div>
                                         ) : (
-                                            <SaleDocumentUploadForm
-                                                saleId={sale.id}
-                                                documentType={requiredDocument.documentType}
-                                                documentLabel={requiredDocument.label}
-                                                existingDocumentId={requiredDocument.document?.id ?? null}
-                                                existingFileName={requiredDocument.document?.file_name ?? null}
-                                            />
+                                            <div className="mt-4 border-t-2 border-slate-900/20 pt-4">
+                                                <SaleDocumentUploadForm
+                                                    saleId={sale.id}
+                                                    documentType={requiredDocument.documentType}
+                                                    documentLabel={requiredDocument.label}
+                                                    existingDocumentId={requiredDocument.document?.id ?? null}
+                                                    existingFileName={requiredDocument.document?.file_name ?? null}
+                                                />
+                                            </div>
                                         )}
                                     </div>
                                 ))}

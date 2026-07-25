@@ -52,10 +52,10 @@ export function SaleGeneratedDocumentsCard({
     return (
         <Card
             id="automatic-documents"
-            className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+            className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-slate-900/25 bg-white/90 shadow-sm"
         >
             <CardContent className="p-0">
-                <div className="border-b border-slate-200 bg-white px-5 py-5 sm:px-6">
+                <div className="border-b-2 border-slate-900 bg-white px-5 py-5 sm:px-6">
                     <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                         <div className="min-w-0">
                             <div className="flex items-start gap-3">
@@ -95,7 +95,7 @@ export function SaleGeneratedDocumentsCard({
                     </div>
                 </div>
 
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y-2 divide-slate-900/20">
                     {documents.map((document) => (
                         <GeneratedDocumentRow
                             key={document.type}
@@ -134,46 +134,48 @@ function GeneratedDocumentRow({
             Boolean(document.signedDocument));
 
     return (
-        <div id={`document-${document.documentType}`} className="scroll-mt-28 p-5">
+        <div id={`document-${document.documentType}`} className="scroll-mt-28 bg-white p-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0 flex-1">
-                    <DocumentCard
-                        className="border-0 bg-transparent p-0 shadow-none"
-                        icon={<DocumentIcon status={document.status} />}
-                        title={<span className="text-xl font-extrabold text-slate-950">{document.label}</span>}
-                        description={document.description}
-                        status={
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                <StatusBadge tone={document.statusTone}>
-                                    {document.statusLabel}
-                                </StatusBadge>
+                    <div className="rounded-3xl border border-slate-900/20 bg-slate-50/70 p-4">
+                        <DocumentCard
+                            className="border-0 bg-transparent p-0 shadow-none"
+                            icon={<DocumentIcon status={document.status} />}
+                            title={<span className="text-xl font-extrabold text-slate-950">{document.label}</span>}
+                            description={document.description}
+                            status={
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    <StatusBadge tone={document.statusTone}>
+                                        {document.statusLabel}
+                                    </StatusBadge>
 
-                                {showSignatureStatus ? (
-                                    <StatusBadge tone="warning">
-                                        Unterschrift nötig
-                                    </StatusBadge>
-                                ) : (
-                                    <StatusBadge tone="neutral">
-                                        {document.requiresSignature
-                                            ? "Kein Rücklauf hier"
-                                            : "Keine Unterschrift"}
-                                    </StatusBadge>
-                                )}
+                                    {showSignatureStatus ? (
+                                        <StatusBadge tone="warning">
+                                            Unterschrift nötig
+                                        </StatusBadge>
+                                    ) : (
+                                        <StatusBadge tone="neutral">
+                                            {document.requiresSignature
+                                                ? "Kein Rücklauf hier"
+                                                : "Keine Unterschrift"}
+                                        </StatusBadge>
+                                    )}
 
-                                {document.generationMode !== "automatic" ? (
-                                    <StatusBadge
-                                        tone={
-                                            document.generationMode === "not_relevant"
-                                                ? "neutral"
-                                                : "info"
-                                        }
-                                    >
-                                        {getGenerationModeLabel(document)}
-                                    </StatusBadge>
-                                ) : null}
-                            </div>
-                        }
-                    />
+                                    {document.generationMode !== "automatic" ? (
+                                        <StatusBadge
+                                            tone={
+                                                document.generationMode === "not_relevant"
+                                                    ? "neutral"
+                                                    : "info"
+                                            }
+                                        >
+                                            {getGenerationModeLabel(document)}
+                                        </StatusBadge>
+                                    ) : null}
+                                </div>
+                            }
+                        />
+                    </div>
 
                     {wasJustGenerated ? (
                         <TemporarySuccessMessage
@@ -249,7 +251,7 @@ function GeneratedDocumentRow({
                         </div>
                     ) : null}
 
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="mt-4 grid gap-3 border-t-2 border-slate-900/20 pt-4 md:grid-cols-2">
                         <DocumentFileStatus
                             title="Generiertes Dokument"
                             document={document.generatedDocument}
@@ -263,7 +265,7 @@ function GeneratedDocumentRow({
                                 emptyText="Noch nicht unterschrieben hochgeladen."
                             />
                         ) : (
-                            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                            <div className="rounded-2xl border border-slate-900/15 bg-slate-50 p-4">
                                 <div className="flex items-start gap-3">
                                     <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400">
                                         <Info className="size-4" />
@@ -282,7 +284,7 @@ function GeneratedDocumentRow({
                     </div>
 
                     {isAutomaticDocument && document.requiresSignature && document.generatedDocument ? (
-                        <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="mt-4 rounded-3xl border border-slate-900/20 bg-slate-50 p-4">
                             <p className="text-sm font-extrabold text-slate-950">
                                 Unterschriebenes Dokument hochladen
                             </p>
@@ -303,14 +305,14 @@ function GeneratedDocumentRow({
                     ) : null}
                 </div>
 
-                <div className="flex flex-col gap-2 xl:w-48">
+                <div className="flex flex-col gap-2 border-t-2 border-slate-900/20 pt-4 xl:w-48 xl:border-t-0 xl:pl-4 xl:pt-0">
                     {isAutomaticDocument ? (
                         <form action={generateSaleDocumentAction}>
                             <input type="hidden" name="sale_id" value={saleId} />
                             <input type="hidden" name="document_type" value={document.type} />
 
                             {document.type === "handover_protocol" ? (
-                                <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-bold leading-5 text-slate-600">
+                                <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-2xl border border-slate-900/20 bg-white p-3 text-xs font-bold leading-5 text-slate-600">
                                     <input
                                         type="checkbox"
                                         name="include_signature_stamp"
@@ -330,7 +332,7 @@ function GeneratedDocumentRow({
                             ) : null}
 
                             {document.dateSuggestion ? (
-                                <div className="mb-2 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 text-xs font-bold leading-5 text-cyan-900">
+                                <div className="mb-2 rounded-2xl border border-slate-900/20 bg-cyan-50 p-3 text-xs font-bold leading-5 text-cyan-900">
                                     <p>{document.dateSuggestion.explanation}</p>
                                     <label className="mt-2 block text-slate-700">
                                         Dokumentdatum
@@ -347,9 +349,6 @@ function GeneratedDocumentRow({
                                             }
                                         />
                                     </label>
-                                    <p className="mt-2 text-[11px] text-cyan-700">
-                                        Der Vorschlag ist ein Schätzwert und kann vor der PDF-Erstellung manuell angepasst werden.
-                                    </p>
                                 </div>
                             ) : null}
 
@@ -363,7 +362,7 @@ function GeneratedDocumentRow({
                     )}
 
                     {canOpenGenerated || canOpenSigned ? (
-                        <p className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
+                        <p className="rounded-2xl border border-slate-900/15 bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
                             Dokumentkarte anklicken zum Öffnen.
                         </p>
                     ) : null}
@@ -470,7 +469,7 @@ function DocumentFileStatus({
 }) {
     if (!document) {
         return (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <div className="rounded-2xl border border-slate-900/15 bg-slate-50 p-4">
                 <div className="flex items-start gap-3">
                     <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-400">
                         <FileText className="size-4" />
@@ -492,7 +491,7 @@ function DocumentFileStatus({
         <Link
             href={`/api/documents/${document.id}/file`}
             target="_blank"
-            className="block rounded-2xl border border-emerald-100 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-100 hover:shadow-sm"
+            className="block rounded-2xl border border-slate-900/20 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:border-slate-900/30 hover:bg-emerald-100 hover:shadow-sm"
         >
             <div className="flex items-start gap-3">
                 <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700">
