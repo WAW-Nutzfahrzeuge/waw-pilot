@@ -558,7 +558,7 @@ export async function SaleDetail({
                     <div className="space-y-6">
                         <Card
                             id="invoice-payments"
-                            className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                            className="scroll-mt-24 rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm"
                         >
                             <CardContent className="p-5">
                                 <SectionTitle
@@ -567,81 +567,82 @@ export async function SaleDetail({
                                     description="Normale Rechnung, Proforma-Rechnung, Anzahlungsrechnung und PDF."
                                 />
 
-                            <SaleInvoiceTypeActions
-                                saleId={sale.id}
-                                existingInvoiceTypes={existingInvoiceTypes}
-                                damageNotes={sale.vehicle.damage_notes}
-                                allowDamageNotesOnInvoice={
-                                    sale.vehicle.show_damage_on_invoice
-                                }
-                                includeDamageNotesOnInvoice={
-                                    sale.include_damage_notes_on_invoice
-                                }
-                                hasSignatureStampAssets={sale.has_signature_stamp_assets}
-                                initialIncludeSignatureStamp={sale.invoices.some(
-                                    (invoice) => invoice.include_signature_stamp,
-                                )}
-                            />
-
-                            {sale.invoices.length > 0 ? (
-                                <div className="mt-5 space-y-4">
-                                    {sale.invoices.map((invoice) => (
-                                        <InvoiceCard
-                                            key={invoice.id}
-                                            saleId={sale.id}
-                                            invoice={invoice}
-                                            datevStatus={sale.datev_status}
-                                            highlighted={highlightInvoiceId === invoice.id}
-                                            isZugferdServiceConfigured={
-                                                isZugferdServiceConfigured
-                                            }
-                                        />
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="mt-5">
-                                    <EmptyBox text="Für diesen Verkauf wurde noch keine Rechnung erzeugt." />
-                                </div>
-                            )}
-
-                            <div className="mt-6">
-                                <SaleCorrectionsCard
+                                <SaleInvoiceTypeActions
                                     saleId={sale.id}
-                                    originalInvoice={
-                                        sale.invoices.find(
-                                            (invoice) => invoice.invoice_type === "standard",
-                                        ) ?? null
+                                    existingInvoiceTypes={existingInvoiceTypes}
+                                    damageNotes={sale.vehicle.damage_notes}
+                                    allowDamageNotesOnInvoice={
+                                        sale.vehicle.show_damage_on_invoice
                                     }
-                                    invoices={sale.invoices}
-                                    refunds={sale.refunds}
-                                    summary={sale.correction_summary}
+                                    includeDamageNotesOnInvoice={
+                                        sale.include_damage_notes_on_invoice
+                                    }
+                                    hasSignatureStampAssets={sale.has_signature_stamp_assets}
+                                    initialIncludeSignatureStamp={sale.invoices.some(
+                                        (invoice) => invoice.include_signature_stamp,
+                                    )}
                                 />
-                            </div>
 
-                            <div className="mt-6">
-                                <SalePaymentsCard
-                                    saleId={sale.id}
-                                    totalAmount={sale.gross_amount}
-                                    paidAmount={sale.paid_amount}
-                                    remainingAmount={sale.remaining_amount}
-                                    paymentStatus={sale.payment_status}
-                                    payments={sale.payments}
-                                />
-                            </div>
+                                {sale.invoices.length > 0 ? (
+                                    <div className="mt-6 divide-y-2 divide-slate-900/20">
+                                        {sale.invoices.map((invoice) => (
+                                            <div key={invoice.id} className="py-5 first:pt-0 last:pb-0">
+                                                <InvoiceCard
+                                                    saleId={sale.id}
+                                                    invoice={invoice}
+                                                    datevStatus={sale.datev_status}
+                                                    highlighted={highlightInvoiceId === invoice.id}
+                                                    isZugferdServiceConfigured={
+                                                        isZugferdServiceConfigured
+                                                    }
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="mt-6 border-t-2 border-slate-900/20 pt-5">
+                                        <EmptyBox text="Für diesen Verkauf wurde noch keine Rechnung erzeugt." />
+                                    </div>
+                                )}
 
-                            <div className="mt-6">
-                                <SectionTitle
-                                    icon={Mail}
-                                    title="Versandhistorie"
-                                    description="Per E-Mail gesendete Rechnungen und Dokumente aus dieser Verkaufsakte."
-                                />
-                                <div className="mt-4">
-                                    <EmailHistoryTable
-                                        emails={emailHistory.emails}
-                                        emptyText="Für diese Verkaufsakte wurden noch keine E-Mails versendet."
+                                <div className="mt-6 border-t-2 border-slate-900/30 pt-6">
+                                    <SaleCorrectionsCard
+                                        saleId={sale.id}
+                                        originalInvoice={
+                                            sale.invoices.find(
+                                                (invoice) => invoice.invoice_type === "standard",
+                                            ) ?? null
+                                        }
+                                        invoices={sale.invoices}
+                                        refunds={sale.refunds}
+                                        summary={sale.correction_summary}
                                     />
                                 </div>
-                            </div>
+
+                                <div className="mt-6 border-t-2 border-slate-900/30 pt-6">
+                                    <SalePaymentsCard
+                                        saleId={sale.id}
+                                        totalAmount={sale.gross_amount}
+                                        paidAmount={sale.paid_amount}
+                                        remainingAmount={sale.remaining_amount}
+                                        paymentStatus={sale.payment_status}
+                                        payments={sale.payments}
+                                    />
+                                </div>
+
+                                <div className="mt-6 border-t-2 border-slate-900/30 pt-6">
+                                    <SectionTitle
+                                        icon={Mail}
+                                        title="Versandhistorie"
+                                        description="Per E-Mail gesendete Rechnungen und Dokumente aus dieser Verkaufsakte."
+                                    />
+                                    <div className="mt-4">
+                                        <EmailHistoryTable
+                                            emails={emailHistory.emails}
+                                            emptyText="Für diese Verkaufsakte wurden noch keine E-Mails versendet."
+                                        />
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
                     </div>
@@ -954,13 +955,13 @@ function InvoiceCard({
 
     return (
         <TemporaryHighlight active={highlighted}>
-        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-3xl border border-slate-900/20 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
-                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    <h3 className="text-lg font-extrabold leading-tight text-slate-950">
                         {getInvoiceTypeLabel(invoice.invoice_type)}
-                    </p>
-                    <p className="mt-1 text-2xl font-extrabold text-cyan-700">
+                    </h3>
+                    <p className="mt-2 text-2xl font-extrabold text-cyan-700">
                         {invoice.invoice_number}
                     </p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
