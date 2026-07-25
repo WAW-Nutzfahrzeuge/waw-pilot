@@ -91,11 +91,8 @@ export async function drawCompanyDocumentHeader(
     const topY = ctx.height - ctx.margin + 4;
 
     if (logoImage) {
-        const logoWidth = 126;
-        const logoHeight = Math.min(
-            58,
-            (logoImage.height / logoImage.width) * logoWidth,
-        );
+        const logoWidth = 120;
+        const logoHeight = 95;
 
         ctx.page.drawImage(logoImage, {
             x: ctx.margin,
@@ -142,7 +139,7 @@ export async function drawCompanyDocumentHeader(
         y -= 11;
     });
 
-    const bottomY = ctx.height - ctx.margin - 72;
+    const bottomY = topY - 112;
     drawHorizontalLine(ctx, bottomY, {
         color: pdfTheme.colors.lightBorder,
         thickness: 0.75,

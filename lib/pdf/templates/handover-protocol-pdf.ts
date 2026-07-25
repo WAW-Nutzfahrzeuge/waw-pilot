@@ -61,7 +61,7 @@ function getConstructionYearLabel(data: SaleGeneratedDocumentData): string {
     if (!data.vehicle) return "—";
 
     return data.vehicle.constructionYear
-        ? `Baujahr ${data.vehicle.constructionYear}`
+        ? String(data.vehicle.constructionYear)
         : "—";
 }
 
@@ -107,7 +107,7 @@ async function drawSignatureStampImages(
         const height = Math.min(76, (stampImage.height / stampImage.width) * width);
 
         ctx.page.drawImage(stampImage, {
-            x: ctx.margin + 162,
+            x: ctx.margin + 190,
             y: signatureY + 2,
             width,
             height,
@@ -282,14 +282,17 @@ export async function generateHandoverProtocolPdf(
 
     y -= 72;
 
-    const signatureY = y;
+    const signatureY = y - 18;
     const signatureLineWidth = 230;
+    const includeSignatureStamp = Boolean(options.signatureStamp?.include);
 
-    drawText(ctx, "Unterschrift und Stempel", ctx.margin, signatureY + 28, {
-        size: 10,
-        bold: true,
-        color: pdfTheme.colors.text,
-    });
+    if (!includeSignatureStamp) {
+        drawText(ctx, "Unterschrift und Stempel", ctx.margin, signatureY + 28, {
+            size: 10,
+            bold: true,
+            color: pdfTheme.colors.text,
+        });
+    }
 
     drawSimpleLine(
         ctx,
@@ -303,7 +306,7 @@ export async function generateHandoverProtocolPdf(
 
     const dateX = ctx.margin + 310;
 
-    drawText(ctx, `Datum: ${getDocumentDate(data)}`, dateX, signatureY + 28, {
+    drawText(ctx, `Datum: ${getDocumentDate(data)}`, dateX, signatureY + 48, {
         size: 10,
         bold: true,
         color: pdfTheme.colors.text,
