@@ -416,8 +416,9 @@ export async function SaleDetail({
                 />
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                <div className="space-y-6">
+            <section className="space-y-6">
+                <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+                    <div className="space-y-6">
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -552,19 +553,19 @@ export async function SaleDetail({
                             </div>
                         </CardContent>
                     </Card>
-                </div>
+                    </div>
 
-                <div className="space-y-6">
-                    <Card
-                        id="invoice-payments"
-                        className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
-                    >
-                        <CardContent className="p-5">
-                            <SectionTitle
-                                icon={Receipt}
-                                title="Rechnungen & Zahlung"
-                                description="Normale Rechnung, Proforma-Rechnung, Anzahlungsrechnung und PDF."
-                            />
+                    <div className="space-y-6">
+                        <Card
+                            id="invoice-payments"
+                            className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        >
+                            <CardContent className="p-5">
+                                <SectionTitle
+                                    icon={Receipt}
+                                    title="Rechnungen & Zahlung"
+                                    description="Normale Rechnung, Proforma-Rechnung, Anzahlungsrechnung und PDF."
+                                />
 
                             <SaleInvoiceTypeActions
                                 saleId={sale.id}
@@ -641,8 +642,12 @@ export async function SaleDetail({
                                     />
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+
+                <div className="mx-auto w-full space-y-6">
 
                     <SaleExportDetailsForm details={exportDetails} />
 
