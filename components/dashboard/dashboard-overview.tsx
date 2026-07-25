@@ -41,21 +41,20 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
                 title="Dashboard"
                 description="Live-Kennzahlen aus Supabase: Bestand, Kunden, Verkäufe, Dokumente, Kennzeichen und Kassenbuch."
                 action={
-                    <Button
-                        asChild
-                        className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                    >
-                        <Link href="/dashboard/checks">
-                            Pflichtprüfung öffnen
-                            <ArrowUpRight className="ml-2 size-4" />
-                        </Link>
-                    </Button>
+                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-stretch">
+                        <Button
+                            asChild
+                            className="h-10 rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                        >
+                            <Link href="/dashboard/checks">
+                                Pflichtprüfung öffnen
+                                <ArrowUpRight className="ml-2 size-4" />
+                            </Link>
+                        </Button>
+                        <MonthFilter value={selectedMonthFilter} updateUrl />
+                    </div>
                 }
             />
-
-            <div className="flex justify-end">
-                <MonthFilter value={selectedMonthFilter} updateUrl />
-            </div>
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <DashboardStatCard
