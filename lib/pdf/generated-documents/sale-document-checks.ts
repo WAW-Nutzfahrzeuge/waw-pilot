@@ -77,8 +77,6 @@ type DocumentRow = {
 };
 
 const saleGeneratedDocumentTypes = new Set<GeneratedDocumentType>([
-    "invoice_pdf",
-    "proforma_invoice",
     "handover_protocol",
     "entry_certificate",
     "transport_proof",
@@ -142,19 +140,10 @@ function getNonAutomaticStatus(params: {
     return "generator_planned";
 }
 
-function getExternalAction(
-    type: GeneratedDocumentType,
-): Pick<
+function getExternalAction(): Pick<
     SaleGeneratedDocumentCheck,
     "externalActionLabel" | "externalActionHref"
 > {
-    if (type === "invoice_pdf" || type === "proforma_invoice") {
-        return {
-            externalActionLabel: "Rechnungen & Zahlung öffnen",
-            externalActionHref: "#invoice-payments",
-        };
-    }
-
     return {
         externalActionLabel: null,
         externalActionHref: null,
@@ -261,7 +250,7 @@ export async function getSaleGeneratedDocumentChecks(
         );
 
         const generationMode = getGenerationMode({ definition, saleType });
-        const externalAction = getExternalAction(definition.type);
+        const externalAction = getExternalAction();
         const dateSuggestion =
             isSupportedSaleGeneratedDocumentType(definition.type)
                 ? new DocumentDatePolicy().suggest({

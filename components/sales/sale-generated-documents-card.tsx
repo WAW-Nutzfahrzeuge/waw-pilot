@@ -122,8 +122,6 @@ function GeneratedDocumentRow({
     wasJustGenerated: boolean;
     hasSignatureStampAssets: boolean;
 }) {
-    const canOpenGenerated = Boolean(document.generatedDocument?.id);
-    const canOpenSigned = Boolean(document.signedDocument?.id);
     const isAutomaticDocument = document.generationMode === "automatic";
     const canGenerateNow = document.canGenerate && isAutomaticDocument;
     const showMissingFields = document.status === "missing_data";
@@ -361,11 +359,6 @@ function GeneratedDocumentRow({
                         <DocumentContextAction document={document} />
                     )}
 
-                    {canOpenGenerated || canOpenSigned ? (
-                        <p className="rounded-2xl border border-slate-900/15 bg-slate-50 px-3 py-2 text-center text-xs font-bold leading-5 text-slate-500">
-                            Dokumentkarte anklicken zum Öffnen.
-                        </p>
-                    ) : null}
                 </div>
             </div>
         </div>
@@ -449,13 +442,15 @@ function DocumentContextAction({
         );
     }
 
-    return (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-extrabold leading-5 text-slate-500">
-            {document.generationMode === "not_relevant"
-                ? "Keine Aktion nötig"
-                : "Noch kein Generator"}
-        </div>
-    );
+    if (document.generationMode === "not_relevant") {
+        return (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-center text-xs font-extrabold leading-5 text-slate-500">
+                Keine Aktion nötig
+            </div>
+        );
+    }
+
+    return null;
 }
 
 function DocumentFileStatus({
