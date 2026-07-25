@@ -11,7 +11,6 @@ import {
     FileText,
     FileWarning,
     Search,
-    Upload,
 } from "lucide-react";
 
 import type { DocumentRow } from "@/lib/documents/document-queries";
@@ -394,15 +393,6 @@ export function DocumentsOverview({
                 eyebrow="Dokumentenarchiv"
                 title="Dokumente"
                 description="Alle Rechnungen, Verkaufsunterlagen, Fahrzeugdokumente und Kassenbuch-Belege zentral prüfen, öffnen und herunterladen."
-                action={
-                    <Button
-                        disabled
-                        className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <Upload className="mr-2 size-4" />
-                        Upload später
-                    </Button>
-                }
             />
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
