@@ -7,6 +7,7 @@ type SettingsPageProps = {
     searchParams: Promise<{
         signatureUploaded?: string;
         stampUploaded?: string;
+        companySaved?: string;
         assetUploadError?: string;
         termsUploaded?: string;
         termsRemoved?: string;
@@ -23,6 +24,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     return (
         <CompanySettingsForm
             company={company}
+            companySaved={resolvedSearchParams.companySaved === "1"}
             signatureUploaded={resolvedSearchParams.signatureUploaded === "1"}
             stampUploaded={resolvedSearchParams.stampUploaded === "1"}
             assetUploadError={resolvedSearchParams.assetUploadError}

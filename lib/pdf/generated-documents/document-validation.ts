@@ -88,6 +88,8 @@ export type GeneratedDocumentValidationData = {
         email?: string | null;
         website?: string | null;
         phone?: string | null;
+        mobilePhone1?: string | null;
+        mobilePhone2?: string | null;
         vatId?: string | null;
         taxNumber?: string | null;
     } | null;

@@ -3,6 +3,7 @@ import path from "path";
 import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { normalizeEmailLanguage } from "@/lib/customers/email-languages";
+import { formatIban } from "@/lib/settings/company-bank-details";
 import {
     embedCompanyPdfImage,
     type CompanySignatureStampAssets,
@@ -37,10 +38,18 @@ export type InvoicePdfData = {
         city: string;
         country: string;
         email: string | null;
+        website: string | null;
         phone: string | null;
+        mobilePhone1: string | null;
+        mobilePhone2: string | null;
         vatId: string | null;
         taxNumber: string | null;
         registrationId: string | null;
+        bankName: string | null;
+        bankBlz: string | null;
+        bankIban: string | null;
+        bankBic: string | null;
+        bankAccountHolder: string | null;
     };
 
     customer: {
@@ -797,12 +806,13 @@ export async function generateInvoicePdf(
             `${data.company.postalCode} ${data.company.city}`,
             "",
             `Tel: ${safeText(data.company.phone)}`,
-            "Mobil 1: +49 (0)160-5265022",
-            "Mobil 2: +49 (0)172-4538149",
+            data.company.mobilePhone1 ? `Mobil 1: ${data.company.mobilePhone1}` : null,
+            data.company.mobilePhone2 ? `Mobil 2: ${data.company.mobilePhone2}` : null,
             `E-Mail: ${safeText(data.company.email)}`,
+            data.company.website ? `Web: ${data.company.website}` : null,
             `Steuer-Nr: ${safeText(data.company.taxNumber)}`,
             safeText(data.company.vatId),
-        ],
+        ].filter((line): line is string => line !== null),
         infoBoxX + 6,
         infoBoxY + infoBoxHeight - 35,
         {
@@ -825,17 +835,18 @@ export async function generateInvoicePdf(
         page,
         [
             "Bankverbindung | bank information:",
-            "Kreditinstitut/Bank: Hamburger Sparkasse",
-            "BLZ: 20050550",
-            "IBAN: DE91 2005 0550 1324 1235 69",
-            "BIC: HASPDEHHXXX",
+            `Kontoinhaber: ${safeText(data.company.bankAccountHolder ?? data.company.legalName)}`,
+            `Kreditinstitut/Bank: ${safeText(data.company.bankName)}`,
+            data.company.bankBlz ? `BLZ: ${data.company.bankBlz}` : null,
+            `IBAN: ${safeText(formatIban(data.company.bankIban))}`,
+            data.company.bankBic ? `BIC: ${data.company.bankBic}` : null,
             "",
             "Verwendungszweck | reason for payment:",
             getPaymentReasonLabel(data.invoiceType),
             data.invoiceType === "proforma"
                 ? "Fahrgestellnummer / vehicle identification number"
                 : "Fahrgestell-Nr. | Vehicle Identification Number (VIN)",
-        ],
+        ].filter((line): line is string => line !== null),
         infoBoxX + 6,
         bankBoxY + bankBoxHeight - 13,
         {

@@ -13,6 +13,8 @@ type CompanyRelation = {
     email: string | null;
     website?: string | null;
     phone: string | null;
+    mobile_phone_1?: string | null;
+    mobile_phone_2?: string | null;
     vat_id: string | null;
     tax_number: string | null;
 };
@@ -140,7 +142,10 @@ export async function getSaleGeneratedDocumentData(
                 city,
                 country,
                 email,
+                website,
                 phone,
+                mobile_phone_1,
+                mobile_phone_2,
                 vat_id,
                 tax_number
             ),
@@ -229,6 +234,8 @@ export async function getSaleGeneratedDocumentData(
                 email: company.email,
                 website: company.website ?? null,
                 phone: company.phone,
+                mobilePhone1: company.mobile_phone_1 ?? null,
+                mobilePhone2: company.mobile_phone_2 ?? null,
                 vatId: company.vat_id,
                 taxNumber: company.tax_number,
             }

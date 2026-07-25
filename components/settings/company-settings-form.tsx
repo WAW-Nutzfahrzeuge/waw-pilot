@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, useActionState, useState } from "react";
+import { type ChangeEvent, useActionState, useEffect, useRef, useState } from "react";
 import {
     Building2,
     CheckCircle2,
@@ -8,6 +8,7 @@ import {
     ImageIcon,
     Mail,
     MapPin,
+    Landmark,
     Save,
     ShieldCheck,
     Stamp,
@@ -45,6 +46,7 @@ import { Label } from "@/components/ui/label";
 
 type CompanySettingsFormProps = {
     company: CompanySettings;
+    companySaved?: boolean;
     signatureUploaded?: boolean;
     stampUploaded?: boolean;
     assetUploadError?: string;
@@ -64,16 +66,25 @@ function createInitialState(company: CompanySettings): UpdateCompanySettingsStat
             city: company.city ?? "",
             country: company.country ?? "Deutschland",
             email: company.email ?? "",
+            website: company.website ?? "",
             phone: company.phone ?? "",
+            mobile_phone_1: company.mobile_phone_1 ?? "",
+            mobile_phone_2: company.mobile_phone_2 ?? "",
             vat_id: company.vat_id ?? "",
             tax_number: company.tax_number ?? "",
             commercial_register_number: company.commercial_register_number ?? "",
+            bank_name: company.bank_name ?? "",
+            bank_blz: company.bank_blz ?? "",
+            bank_iban: company.bank_iban ?? "",
+            bank_bic: company.bank_bic ?? "",
+            bank_account_holder: company.bank_account_holder ?? company.legal_name ?? "",
         },
     };
 }
 
 export function CompanySettingsForm({
     company,
+    companySaved = false,
     signatureUploaded = false,
     stampUploaded = false,
     assetUploadError,
@@ -85,8 +96,25 @@ export function CompanySettingsForm({
         updateCompanySettingsAction,
         createInitialState(company),
     );
+    const statusMessageRef = useRef<HTMLDivElement | null>(null);
 
     const values = state.values;
+
+    useEffect(() => {
+        const hasErrorMessage =
+            Boolean(state.message && !state.success) ||
+            Boolean(assetUploadError) ||
+            Boolean(termsUploadError);
+        const hasSuccessMessage = companySaved || Boolean(state.message && state.success);
+
+        if (!hasErrorMessage && !hasSuccessMessage) return;
+
+        statusMessageRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+        statusMessageRef.current?.focus({ preventScroll: true });
+    }, [assetUploadError, companySaved, state.message, state.success, termsUploadError]);
 
     return (
         <div className="space-y-6">
@@ -95,6 +123,18 @@ export function CompanySettingsForm({
                 title="Firmendaten"
                 description="Stammdaten für Rechnungen, Dokumente, Exporte und interne Prozesse verwalten."
             />
+
+            {companySaved ? (
+                <div
+                    ref={statusMessageRef}
+                    role="status"
+                    tabIndex={-1}
+                    className="scroll-mt-4 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 shadow-sm outline-none"
+                >
+                    <CheckCircle2 className="mr-2 inline size-4" />
+                    Firmendaten wurden erfolgreich gespeichert.
+                </div>
+            ) : null}
 
             {signatureUploaded ? (
                 <FlashMessage message="Digitale Unterschrift wurde hochgeladen." />
@@ -113,13 +153,23 @@ export function CompanySettingsForm({
             ) : null}
 
             {assetUploadError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm">
+                <div
+                    ref={companySaved ? undefined : statusMessageRef}
+                    role="alert"
+                    tabIndex={-1}
+                    className="scroll-mt-4 rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
+                >
                     {getAssetUploadErrorMessage(assetUploadError)}
                 </div>
             ) : null}
 
             {termsUploadError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm">
+                <div
+                    ref={assetUploadError || companySaved ? undefined : statusMessageRef}
+                    role="alert"
+                    tabIndex={-1}
+                    className="scroll-mt-4 rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
+                >
                     {getTermsUploadErrorMessage(termsUploadError)}
                 </div>
             ) : null}
@@ -127,10 +177,13 @@ export function CompanySettingsForm({
             <form action={formAction} className="space-y-6">
                 {state.message ? (
                     <div
+                        ref={!assetUploadError && !termsUploadError && !companySaved ? statusMessageRef : undefined}
+                        role={state.success ? "status" : "alert"}
+                        tabIndex={-1}
                         className={
                             state.success
-                                ? "rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700"
-                                : "rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700"
+                                ? "scroll-mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 outline-none"
+                                : "scroll-mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
                         }
                     >
                         {state.success ? (
@@ -215,9 +268,27 @@ export function CompanySettingsForm({
                             />
 
                             <FormField
+                                label="Website"
+                                name="website"
+                                defaultValue={values.website}
+                            />
+
+                            <FormField
                                 label="Telefon"
                                 name="phone"
                                 defaultValue={values.phone}
+                            />
+
+                            <FormField
+                                label="Mobile 1"
+                                name="mobile_phone_1"
+                                defaultValue={values.mobile_phone_1}
+                            />
+
+                            <FormField
+                                label="Mobile 2"
+                                name="mobile_phone_2"
+                                defaultValue={values.mobile_phone_2}
                             />
                         </div>
                     </CardContent>
@@ -248,6 +319,50 @@ export function CompanySettingsForm({
                                 label="Handelsregisternummer"
                                 name="commercial_register_number"
                                 defaultValue={values.commercial_register_number}
+                            />
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <CardContent className="space-y-5 p-5">
+                        <SectionTitle
+                            icon={Landmark}
+                            title="Bankverbindung"
+                            description="Diese Bankdaten werden zentral auf Rechnungen und E-Rechnungsdaten verwendet."
+                        />
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <FormField
+                                label="Kontoinhaber"
+                                name="bank_account_holder"
+                                defaultValue={values.bank_account_holder}
+                            />
+
+                            <FormField
+                                label="Bankname *"
+                                name="bank_name"
+                                defaultValue={values.bank_name}
+                                required
+                            />
+
+                            <FormField
+                                label="IBAN *"
+                                name="bank_iban"
+                                defaultValue={values.bank_iban}
+                                required
+                            />
+
+                            <FormField
+                                label="BIC"
+                                name="bank_bic"
+                                defaultValue={values.bank_bic}
+                            />
+
+                            <FormField
+                                label="BLZ"
+                                name="bank_blz"
+                                defaultValue={values.bank_blz}
                             />
                         </div>
                     </CardContent>

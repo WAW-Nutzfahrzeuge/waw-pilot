@@ -19,6 +19,9 @@ export type CompanyDocumentIdentity = {
     country: string;
     email: string;
     website: string;
+    phone: string | null;
+    mobilePhone1: string | null;
+    mobilePhone2: string | null;
 };
 
 const fallbackCompanyIdentity: CompanyDocumentIdentity = {
@@ -29,6 +32,9 @@ const fallbackCompanyIdentity: CompanyDocumentIdentity = {
     country: "Deutschland",
     email: "info@waw-nutzfahrzeuge.de",
     website: "www.waw-nutzfahrzeuge.de",
+    phone: null,
+    mobilePhone1: null,
+    mobilePhone2: null,
 };
 
 let cachedLogoBytes: Uint8Array | null = null;
@@ -47,6 +53,11 @@ export function resolveCompanyDocumentIdentity(
         country: company?.country?.trim() || fallbackCompanyIdentity.country,
         email: company?.email?.trim() || fallbackCompanyIdentity.email,
         website: company?.website?.trim() || fallbackCompanyIdentity.website,
+        phone: company?.phone?.trim() || fallbackCompanyIdentity.phone,
+        mobilePhone1:
+            company?.mobilePhone1?.trim() || fallbackCompanyIdentity.mobilePhone1,
+        mobilePhone2:
+            company?.mobilePhone2?.trim() || fallbackCompanyIdentity.mobilePhone2,
     };
 }
 
@@ -116,9 +127,12 @@ export async function drawCompanyDocumentHeader(
     [
         identity.street,
         `${identity.postalCode} ${identity.city}`.trim(),
+        identity.phone ? `Tel.: ${identity.phone}` : null,
+        identity.mobilePhone1 ? `Mobil 1: ${identity.mobilePhone1}` : null,
+        identity.mobilePhone2 ? `Mobil 2: ${identity.mobilePhone2}` : null,
         identity.email,
         identity.website,
-    ].forEach((line) => {
+    ].filter((line): line is string => line !== null).forEach((line) => {
         drawText(ctx, line, blockX, y, {
             size: 8,
             color: pdfTheme.colors.mutedText,

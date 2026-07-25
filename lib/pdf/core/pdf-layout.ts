@@ -257,7 +257,10 @@ export function drawCompanyBlock(
         `${company.postalCode} ${company.city}`,
         company.country,
         company.email ? `E-Mail: ${company.email}` : null,
+        company.website ? `Web: ${company.website}` : null,
         company.phone ? `Tel.: ${company.phone}` : null,
+        company.mobilePhone1 ? `Mobil 1: ${company.mobilePhone1}` : null,
+        company.mobilePhone2 ? `Mobil 2: ${company.mobilePhone2}` : null,
         company.vatId ? `USt-ID: ${company.vatId}` : null,
         company.taxNumber ? `St.-Nr.: ${company.taxNumber}` : null,
     ]);

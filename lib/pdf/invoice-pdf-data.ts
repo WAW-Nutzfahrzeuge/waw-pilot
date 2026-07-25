@@ -13,10 +13,18 @@ type CompanyRelation = {
     city: string;
     country: string;
     email: string | null;
+    website: string | null;
     phone: string | null;
+    mobile_phone_1: string | null;
+    mobile_phone_2: string | null;
     vat_id: string | null;
     tax_number: string | null;
     commercial_register_number: string | null;
+    bank_name: string | null;
+    bank_blz: string | null;
+    bank_iban: string | null;
+    bank_bic: string | null;
+    bank_account_holder: string | null;
 };
 
 type CustomerRelation = {
@@ -94,10 +102,18 @@ const invoicePdfBaseSelect = `
         city,
         country,
         email,
+        website,
         phone,
+        mobile_phone_1,
+        mobile_phone_2,
         vat_id,
         tax_number,
-        commercial_register_number
+        commercial_register_number,
+        bank_name,
+        bank_blz,
+        bank_iban,
+        bank_bic,
+        bank_account_holder
       ),
       customers (
         type,
@@ -282,10 +298,18 @@ export async function getInvoicePdfData(
             city: company.city,
             country: company.country,
             email: company.email,
+            website: company.website,
             phone: company.phone,
+            mobilePhone1: company.mobile_phone_1,
+            mobilePhone2: company.mobile_phone_2,
             vatId: company.vat_id,
             taxNumber: company.tax_number,
             registrationId: company.commercial_register_number,
+            bankName: company.bank_name,
+            bankBlz: company.bank_blz,
+            bankIban: company.bank_iban,
+            bankBic: company.bank_bic,
+            bankAccountHolder: company.bank_account_holder,
         },
         customer: {
             name: getCustomerName(customer),

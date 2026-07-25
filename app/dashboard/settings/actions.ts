@@ -14,6 +14,7 @@ import {
     maxImageAssetFileSizeBytes,
     maxTermsPdfFileSizeBytes,
 } from "@/lib/documents/upload-validation";
+import { isValidBic, isValidIban, normalizeBic, normalizeIban } from "@/lib/settings/company-bank-details";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type UpdateCompanySettingsState = {
@@ -26,10 +27,18 @@ export type UpdateCompanySettingsState = {
         city: string;
         country: string;
         email: string;
+        website: string;
         phone: string;
+        mobile_phone_1: string;
+        mobile_phone_2: string;
         vat_id: string;
         tax_number: string;
         commercial_register_number: string;
+        bank_name: string;
+        bank_blz: string;
+        bank_iban: string;
+        bank_bic: string;
+        bank_account_holder: string;
     };
 };
 
@@ -58,13 +67,21 @@ function getFormValues(formData: FormData): UpdateCompanySettingsState["values"]
         city: getStringValue(formData, "city"),
         country: getStringValue(formData, "country") || "Deutschland",
         email: getStringValue(formData, "email"),
+        website: getStringValue(formData, "website"),
         phone: getStringValue(formData, "phone"),
+        mobile_phone_1: getStringValue(formData, "mobile_phone_1"),
+        mobile_phone_2: getStringValue(formData, "mobile_phone_2"),
         vat_id: getStringValue(formData, "vat_id"),
         tax_number: getStringValue(formData, "tax_number"),
         commercial_register_number: getStringValue(
             formData,
             "commercial_register_number",
         ),
+        bank_name: getStringValue(formData, "bank_name"),
+        bank_blz: getStringValue(formData, "bank_blz"),
+        bank_iban: normalizeIban(getStringValue(formData, "bank_iban")),
+        bank_bic: normalizeBic(getStringValue(formData, "bank_bic")),
+        bank_account_holder: getStringValue(formData, "bank_account_holder"),
     };
 }
 
@@ -156,6 +173,30 @@ export async function updateCompanySettingsAction(
         };
     }
 
+    if (!values.bank_name || !values.bank_iban) {
+        return {
+            success: false,
+            message: "Bitte hinterlege mindestens Bankname und IBAN. Diese Angaben werden auf Rechnungen benötigt.",
+            values,
+        };
+    }
+
+    if (!isValidIban(values.bank_iban)) {
+        return {
+            success: false,
+            message: "Bitte gib eine gültige IBAN ein.",
+            values,
+        };
+    }
+
+    if (!isValidBic(values.bank_bic)) {
+        return {
+            success: false,
+            message: "Bitte gib eine gültige BIC ein oder lasse das Feld leer.",
+            values,
+        };
+    }
+
     const { data, error } = await supabase
         .from("companies")
         .update({
@@ -165,10 +206,18 @@ export async function updateCompanySettingsAction(
             city: values.city,
             country: values.country,
             email: values.email || null,
+            website: values.website || null,
             phone: values.phone || null,
+            mobile_phone_1: values.mobile_phone_1 || null,
+            mobile_phone_2: values.mobile_phone_2 || null,
             vat_id: values.vat_id || null,
             tax_number: values.tax_number || null,
             commercial_register_number: values.commercial_register_number || null,
+            bank_name: values.bank_name,
+            bank_blz: values.bank_blz || null,
+            bank_iban: values.bank_iban,
+            bank_bic: values.bank_bic || null,
+            bank_account_holder: values.bank_account_holder || values.legal_name,
             updated_at: new Date().toISOString(),
         })
         .eq("id", companyId)
@@ -198,7 +247,7 @@ export async function updateCompanySettingsAction(
     revalidatePath("/dashboard/sales");
     revalidatePath("/dashboard/reports");
 
-    redirect("/dashboard/settings");
+    redirect("/dashboard/settings?companySaved=1");
 }
 
 export async function uploadCompanySignatureAssetAction(formData: FormData) {

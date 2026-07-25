@@ -1,10 +1,6 @@
 import { getInvoiceTypeLabel } from "@/lib/invoices/invoice-numbering";
 import type { InvoicePdfData } from "@/lib/pdf/invoice-pdf";
 
-const SELLER_IBAN = "DE91200505501324123569";
-const SELLER_BIC = "HASPDEHHXXX";
-const SELLER_BANK_NAME = "Hamburger Sparkasse";
-
 export type ZugferdValidationIssue = {
     source?: "FACTUR_X" | "EN16931" | "XRECHNUNG" | "PDF_A";
     severity: "error" | "warning" | "notice";
@@ -264,7 +260,8 @@ export function buildCanonicalInvoiceData(
             "Für die E-Rechnung fehlt eine eindeutige Verkäuferkennung. Bitte hinterlege die USt-IdNr. oder Handelsregisternummer von W.A.W Nutzfahrzeuge.",
         );
     }
-    if (!SELLER_IBAN) missingFields.push("Bankverbindung fehlt");
+    if (!isPresent(data.company.bankIban)) missingFields.push("Bankverbindung: IBAN fehlt");
+    if (!isPresent(data.company.bankName)) missingFields.push("Bankverbindung: Bankname fehlt");
 
     if (!isPresent(data.customer.name)) missingFields.push("Kundenname fehlt");
     if (!isPresent(data.customer.street)) missingFields.push("Kundenstraße fehlt");
@@ -360,9 +357,9 @@ export function buildCanonicalInvoiceData(
         },
         payment: {
             terms: "Zahlbar innerhalb von 7 Tagen ohne Abzug.",
-            iban: SELLER_IBAN,
-            bic: SELLER_BIC,
-            bankName: SELLER_BANK_NAME,
+            iban: data.company.bankIban ?? "",
+            bic: data.company.bankBic ?? "",
+            bankName: data.company.bankName ?? "",
         },
     };
 }
