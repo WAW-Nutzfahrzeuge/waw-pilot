@@ -36,6 +36,7 @@ import { formatDate } from "@/lib/format/date";
 import { getDocumentTypeLabel } from "@/lib/documents/document-helpers";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -454,6 +455,7 @@ export async function SaleDetail({
                                     value={sale.customer.tax_number ?? "—"}
                                 />
                                 <InfoRow label="USt-ID" value={sale.customer.vat_id ?? "—"} />
+                                <BzstVatValidationLink />
                             </div>
 
                             {showBzstVerification ? (

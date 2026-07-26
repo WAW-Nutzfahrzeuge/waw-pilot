@@ -10,6 +10,10 @@ import {
     normalizeEmailLanguage,
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
+import {
+    uploadCustomerBzstEvidenceDocuments,
+    validateCustomerBzstEvidenceFiles,
+} from "@/lib/customers/customer-bzst-evidence-upload";
 
 type CreateCustomerState = {
     success: boolean;
@@ -78,7 +82,7 @@ export async function createCustomerAction(
     const preferredLanguage = getEmailLanguage(formData);
     const phone = getStringValue(formData, "phone");
     const taxNumber = getStringValue(formData, "tax_number");
-    const vatId = getStringValue(formData, "vat_id");
+    const vatId = type === "company" ? getStringValue(formData, "vat_id") : null;
     const commercialRegisterNumber = getStringValue(
         formData,
         "commercial_register_number",
@@ -113,6 +117,15 @@ export async function createCustomerAction(
         };
     }
 
+    const evidenceValidationError =
+        type === "company" ? validateCustomerBzstEvidenceFiles(formData) : null;
+    if (evidenceValidationError) {
+        return {
+            success: false,
+            message: evidenceValidationError,
+        };
+    }
+
     const { data: customer, error } = await supabase
         .from("customers")
         .insert({
@@ -131,7 +144,8 @@ export async function createCustomerAction(
             phone,
             tax_number: taxNumber,
             vat_id: vatId,
-            commercial_register_number: commercialRegisterNumber,
+            commercial_register_number:
+                type === "company" ? commercialRegisterNumber : null,
             notes,
         })
         .select("id")
@@ -152,6 +166,22 @@ export async function createCustomerAction(
         firstName,
         lastName,
     });
+
+    if (type === "company") {
+        const evidenceUpload = await uploadCustomerBzstEvidenceDocuments({
+            supabase,
+            companyId,
+            customerId: customer.id as string,
+            formData,
+        });
+
+        if (!evidenceUpload.success) {
+            return {
+                success: false,
+                message: `Kunde wurde angelegt, aber ${evidenceUpload.message}`,
+            };
+        }
+    }
 
     await logActivity({
         action: `Kunde ${customerName} angelegt`,

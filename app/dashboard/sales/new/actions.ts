@@ -18,6 +18,10 @@ import {
     normalizeEmailLanguage,
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
+import {
+    uploadCustomerBzstEvidenceDocuments,
+    validateCustomerBzstEvidenceFiles,
+} from "@/lib/customers/customer-bzst-evidence-upload";
 import { isAllowedArrivalPeriod } from "@/lib/sales/export-date-rules";
 import {
     evaluateVehicleSaleEligibility,
@@ -393,7 +397,7 @@ async function createBuyerCustomerFromSaleForm(
         deliveryType: saleType,
         billingCountry: country,
     });
-    const vatId = rawVatId ? normalizeVatId(rawVatId) : null;
+    const vatId = type === "company" && rawVatId ? normalizeVatId(rawVatId) : null;
     const relevantTaxNumber = taxNumber;
 
     if (!street || !postalCode || !city) {
@@ -440,6 +444,15 @@ async function createBuyerCustomerFromSaleForm(
         };
     }
 
+    const evidenceValidationError =
+        type === "company" ? validateCustomerBzstEvidenceFiles(formData) : null;
+    if (evidenceValidationError) {
+        return {
+            success: false,
+            message: evidenceValidationError,
+        };
+    }
+
     const duplicateCustomer = await findDuplicateCustomer({
         supabase,
         companyId,
@@ -480,7 +493,8 @@ async function createBuyerCustomerFromSaleForm(
             phone,
             tax_number: relevantTaxNumber,
             vat_id: vatId,
-            commercial_register_number: commercialRegisterNumber,
+            commercial_register_number:
+                type === "company" ? commercialRegisterNumber : null,
             notes: "Direkt beim Verkauf angelegt.",
         })
         .select("id")
@@ -493,6 +507,22 @@ async function createBuyerCustomerFromSaleForm(
                 error?.message ?? "Keine Kunden-ID erhalten"
             }`,
         };
+    }
+
+    if (type === "company") {
+        const evidenceUpload = await uploadCustomerBzstEvidenceDocuments({
+            supabase,
+            companyId,
+            customerId: customer.id as string,
+            formData,
+        });
+
+        if (!evidenceUpload.success) {
+            return {
+                success: false,
+                message: `Neuer Käufer wurde angelegt, aber ${evidenceUpload.message}`,
+            };
+        }
     }
 
     return {

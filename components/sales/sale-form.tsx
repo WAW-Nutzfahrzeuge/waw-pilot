@@ -42,6 +42,7 @@ import {
 } from "@/utils/sale-tax-rules";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
+import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -615,6 +616,16 @@ export function SaleForm({
                                         type="email"
                                     />
                                     <EmailLanguageField />
+                                    {newCustomerType === "private" ? (
+                                        <FormField
+                                            label={getRequiredLabel(
+                                                "Steuernummer",
+                                                requiresNewCustomerTaxNumber,
+                                            )}
+                                            name="new_customer_tax_number"
+                                            required={requiresNewCustomerTaxNumber}
+                                        />
+                                    ) : null}
                                     <FormField
                                         label="Telefon"
                                         name="new_customer_phone"
@@ -627,26 +638,35 @@ export function SaleForm({
                                             );
                                         }}
                                     />
-                                    <FormField
-                                        label={getRequiredLabel(
-                                            "Steuernummer",
-                                            requiresNewCustomerTaxNumber,
-                                        )}
-                                        name="new_customer_tax_number"
-                                        required={requiresNewCustomerTaxNumber}
-                                    />
-                                    <FormField
-                                        label={getRequiredLabel(
-                                            "USt-ID | VAT | NIP",
-                                            requiresNewCustomerVatId,
-                                        )}
-                                        name="new_customer_vat_id"
-                                        required={requiresNewCustomerVatId}
-                                    />
-                                    <FormField
-                                        label="Handelsregister"
-                                        name="new_customer_commercial_register_number"
-                                    />
+                                    {newCustomerType === "company" ? (
+                                        <>
+                                            <FormField
+                                                label={getRequiredLabel(
+                                                    "Steuernummer",
+                                                    requiresNewCustomerTaxNumber,
+                                                )}
+                                                name="new_customer_tax_number"
+                                                required={requiresNewCustomerTaxNumber}
+                                            />
+                                            <FormField
+                                                label={getRequiredLabel(
+                                                    "USt-ID | VAT | NIP",
+                                                    requiresNewCustomerVatId,
+                                                )}
+                                                name="new_customer_vat_id"
+                                                required={requiresNewCustomerVatId}
+                                            />
+                                            <div className="md:col-span-2">
+                                                <BzstVatValidationLink />
+                                            </div>
+                                            <FormField
+                                                label="Handelsregister"
+                                                name="new_customer_commercial_register_number"
+                                            />
+                                            <FileField label="Beweisbild 1" name="bzst_evidence_1" />
+                                            <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                                        </>
+                                    ) : null}
                                 </div>
                             </div>
                         )}
@@ -1617,6 +1637,23 @@ function FormField({
                     {description}
                 </p>
             ) : null}
+        </div>
+    );
+}
+
+function FileField({ label, name }: { label: string; name: string }) {
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={name} className="font-bold text-slate-700">
+                {label}
+            </Label>
+            <Input
+                id={name}
+                name={name}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
+            />
         </div>
     );
 }

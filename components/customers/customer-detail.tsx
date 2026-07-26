@@ -21,6 +21,7 @@ import {
 } from "@/lib/customers/email-languages";
 import { formatCurrency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/date";
+import { getDocumentTypeLabel } from "@/lib/documents/document-helpers";
 import {
     getPaymentStatusLabel,
     getPaymentStatusTone,
@@ -59,6 +60,12 @@ export function CustomerDetail({
     const buyerVehicles = customer.vehicles.filter(
         (vehicle) => vehicle.role === "buyer",
     );
+    const bzstEvidenceCount = customer.documents.filter(
+        (document) =>
+            document.status === "available" &&
+            (document.document_type === "bzst_vat_verification_primary" ||
+                document.document_type === "bzst_vat_verification_secondary"),
+    ).length;
 
     return (
         <div className="space-y-6">
@@ -485,6 +492,13 @@ export function CustomerDetail({
                                     title="Dokumente"
                                     description="Alle Dokumente, die diesem Kunden zugeordnet sind."
                                 />
+                                {bzstEvidenceCount > 0 ? (
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <StatusBadge tone={bzstEvidenceCount === 2 ? "success" : "warning"}>
+                                            BZSt-Beweisbilder: {bzstEvidenceCount} von 2 vorhanden
+                                        </StatusBadge>
+                                    </div>
+                                ) : null}
                             </div>
 
                             {customer.documents.length > 0 ? (
@@ -496,10 +510,11 @@ export function CustomerDetail({
                                         >
                                             <div>
                                                 <p className="font-extrabold text-slate-950">
-                                                    {document.file_name}
+                                                    {getCustomerDocumentDisplayName(document)}
                                                 </p>
                                                 <p className="mt-1 text-sm font-medium text-slate-500">
-                                                    {document.document_type} · {document.status}
+                                                    {getDocumentTypeLabel(document.document_type)} ·{" "}
+                                                    {document.file_name}
                                                 </p>
                                             </div>
 
@@ -581,6 +596,20 @@ function SectionTitle({
             </div>
         </div>
     );
+}
+
+function getCustomerDocumentDisplayName(
+    document: CustomerDetailType["documents"][number],
+): string {
+    if (document.document_type === "bzst_vat_verification_primary") {
+        return "Beweisbild 1";
+    }
+
+    if (document.document_type === "bzst_vat_verification_secondary") {
+        return "Beweisbild 2";
+    }
+
+    return getDocumentTypeLabel(document.document_type);
 }
 
 function InfoRow({

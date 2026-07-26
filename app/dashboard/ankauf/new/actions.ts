@@ -9,6 +9,10 @@ import {
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
 import {
+    uploadCustomerBzstEvidenceDocuments,
+    validateCustomerBzstEvidenceFiles,
+} from "@/lib/customers/customer-bzst-evidence-upload";
+import {
     getDocumentTooLargeMessage,
     getDocumentUploadFailedMessage,
     getUnsupportedVehicleDocumentTypeMessage,
@@ -340,6 +344,12 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
         return { success: false as const, message: "Bitte gib eine gültige Telefonnummer für den Verkäufer ein." };
     }
 
+    const evidenceValidationError =
+        type === "company" ? validateCustomerBzstEvidenceFiles(formData) : null;
+    if (evidenceValidationError) {
+        return { success: false as const, message: evidenceValidationError };
+    }
+
     const { data: customer, error } = await supabase
         .from("customers")
         .insert({
@@ -356,12 +366,13 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
             email,
             preferred_language: getEmailLanguage(formData),
             phone,
-            vat_id: getStringValue(formData, "new_seller_vat_id"),
+            vat_id:
+                type === "company" ? getStringValue(formData, "new_seller_vat_id") : null,
             tax_number: getStringValue(formData, "new_seller_tax_number"),
-            commercial_register_number: getStringValue(
-                formData,
-                "new_seller_commercial_register_number",
-            ),
+            commercial_register_number:
+                type === "company"
+                    ? getStringValue(formData, "new_seller_commercial_register_number")
+                    : null,
         })
         .select("id")
         .single();
@@ -369,6 +380,22 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
     if (error || !customer) {
         console.error("[purchase] seller create failed", error);
         return { success: false as const, message: "Der Verkäufer konnte nicht angelegt werden." };
+    }
+
+    if (type === "company") {
+        const evidenceUpload = await uploadCustomerBzstEvidenceDocuments({
+            supabase,
+            companyId,
+            customerId: customer.id as string,
+            formData,
+        });
+
+        if (!evidenceUpload.success) {
+            return {
+                success: false as const,
+                message: `Der Verkäufer wurde angelegt, aber ${evidenceUpload.message}`,
+            };
+        }
     }
 
     await logActivity({

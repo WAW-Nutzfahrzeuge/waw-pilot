@@ -19,6 +19,7 @@ import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
 import { PersonTypeCards } from "@/components/customers/person-type-cards";
+import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -488,9 +489,21 @@ function SellerCreateFields({
                         ))}
                     </select>
                 </div>
-                <FormField label="USt-ID | VAT | NIP" name="new_seller_vat_id" />
-                <FormField label="Steuernummer" name="new_seller_tax_number" />
-                <FormField label="Handelsregister" name="new_seller_commercial_register_number" />
+                {sellerType === "private" ? (
+                    <FormField label="Steuernummer" name="new_seller_tax_number" />
+                ) : null}
+                {sellerType === "company" ? (
+                    <>
+                        <div className="space-y-2">
+                            <FormField label="USt-ID | VAT | NIP" name="new_seller_vat_id" />
+                            <BzstVatValidationLink />
+                        </div>
+                        <FormField label="Steuernummer" name="new_seller_tax_number" />
+                        <FormField label="Handelsregister" name="new_seller_commercial_register_number" />
+                        <FileField label="Beweisbild 1" name="bzst_evidence_1" />
+                        <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                    </>
+                ) : null}
                 </div>
             </div>
         </div>
@@ -647,6 +660,23 @@ function FormField({
                 defaultValue={defaultValue}
                 placeholder={placeholder}
                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium"
+            />
+        </div>
+    );
+}
+
+function FileField({ label, name }: { label: string; name: string }) {
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={name} className="font-bold text-slate-700">
+                {label}
+            </Label>
+            <Input
+                id={name}
+                name={name}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
             />
         </div>
     );

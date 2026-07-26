@@ -8,6 +8,7 @@ import { createCustomerAction } from "@/app/dashboard/customers/new/actions";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import { PersonTypeCards, type PersonType } from "@/components/customers/person-type-cards";
+import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -95,6 +96,9 @@ export function CustomerForm() {
                             )}
                             <FormField label="E-Mail" name="email" type="email" />
                             <EmailLanguageField defaultValue="de" />
+                            {customerType === "private" ? (
+                                <FormField label="Steuernummer" name="tax_number" />
+                            ) : null}
                             <FormField
                                 label="Telefon"
                                 name="phone"
@@ -135,21 +139,35 @@ export function CustomerForm() {
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
-                                Steuer & Register
+                                {customerType === "company" ? "Steuer & Register" : "Notizen"}
                             </h2>
                             <p className="mt-1 text-sm font-medium text-slate-500">
-                                Optional für Rechnungen, Export und Pflichtprüfung.
+                                {customerType === "company"
+                                    ? "Optional für Rechnungen, Export und Pflichtprüfung."
+                                    : "Interne Hinweise zum Kunden."}
                             </p>
                         </div>
 
-                        <div className="grid gap-4 md:grid-cols-3">
-                            <FormField label="Steuernummer" name="tax_number" />
-                            <FormField label="USt-ID" name="vat_id" />
-                            <FormField
-                                label="Handelsregister"
-                                name="commercial_register_number"
-                            />
-                        </div>
+                        {customerType === "company" ? (
+                            <div className="grid gap-4 md:grid-cols-3">
+                                <FormField label="Steuernummer" name="tax_number" />
+                                <div className="space-y-2">
+                                    <FormField label="USt-ID" name="vat_id" />
+                                    <BzstVatValidationLink />
+                                </div>
+                                <FormField
+                                    label="Handelsregister"
+                                    name="commercial_register_number"
+                                />
+                            </div>
+                        ) : null}
+
+                        {customerType === "company" ? (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                <FileField label="Beweisbild 1" name="bzst_evidence_1" />
+                                <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                            </div>
+                        ) : null}
 
                         <div className="space-y-2">
                             <Label htmlFor="notes" className="font-bold text-slate-700">
@@ -253,6 +271,23 @@ function FormField({
                 title={title}
                 onInput={onInput}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
+            />
+        </div>
+    );
+}
+
+function FileField({ label, name }: { label: string; name: string }) {
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={name} className="font-bold text-slate-700">
+                {label}
+            </Label>
+            <Input
+                id={name}
+                name={name}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
             />
         </div>
     );
