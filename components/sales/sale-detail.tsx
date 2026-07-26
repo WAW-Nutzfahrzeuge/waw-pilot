@@ -50,6 +50,7 @@ import { SendStampDocumentsDialog } from "@/components/sales/send-stamp-document
 import { ZugferdInvoiceActions } from "@/components/sales/zugferd-invoice-actions";
 import { SalePaymentsCard } from "@/components/sales/sale-payments-card";
 import { SaleCorrectionsCard } from "@/components/sales/sale-corrections-card";
+import { DownloadSaleFileButton } from "@/components/sales/download-sale-file-button";
 import { getCurrentCompanyId } from "@/lib/company";
 import { createEmailRepository } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 import { EmailHistoryTable } from "@/src/modules/email/presentation/components/email-history-table";
@@ -163,16 +164,19 @@ export async function SaleDetail({
                 title={`Verkauf ${sale.invoice?.invoice_number ?? sale.vehicle.internal_number}`}
                 description="Detailansicht mit Kunde, Fahrzeug, Rechnungen, Zahlung und Pflichtdokumenten."
                 action={
-                    <Button
-                        asChild
-                        variant="outline"
-                        className="rounded-2xl border-slate-200 bg-white font-bold"
-                    >
-                        <Link href="/dashboard/sales">
-                            <ArrowLeft className="mr-2 size-4" />
-                            Zurück
-                        </Link>
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        <DownloadSaleFileButton saleId={sale.id} />
+                        <Button
+                            asChild
+                            variant="outline"
+                            className="h-11 rounded-2xl border-slate-200 bg-white font-bold"
+                        >
+                            <Link href="/dashboard/sales">
+                                <ArrowLeft className="mr-2 size-4" />
+                                Zurück
+                            </Link>
+                        </Button>
+                    </div>
                 }
             />
 
@@ -230,14 +234,12 @@ export async function SaleDetail({
             ) : null}
 
             {correctionError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
-                    <p className="font-extrabold text-red-950">
-                        Rechnungskorrektur konnte nicht gespeichert werden.
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-red-800">
-                        {getCorrectionErrorMessage(correctionError)}
-                    </p>
-                </div>
+                <FlashMessage
+                    tone="danger"
+                    durationMs={5000}
+                    message="Rechnungskorrektur konnte nicht gespeichert werden."
+                    description={getCorrectionErrorMessage(correctionError)}
+                />
             ) : null}
 
             {zugferdCreated ? (
