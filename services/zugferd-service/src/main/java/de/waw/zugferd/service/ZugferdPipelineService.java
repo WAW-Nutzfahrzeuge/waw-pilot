@@ -75,13 +75,7 @@ public class ZugferdPipelineService {
     }
 
     public HealthResponse health() {
-        return new HealthResponse(
-                "ok",
-                MUSTANG_VERSION,
-                VERAPDF_VERSION,
-                commandStatus(List.of(ghostscriptCommand, "--version")),
-                commandStatus(List.of(veraPdfCommand, "--version"))
-        );
+        return new HealthResponse("ok");
     }
 
     public GenerateResponse generate(GenerateRequest request) throws Exception {
@@ -624,15 +618,6 @@ public class ZugferdPipelineService {
                     true
             ));
             return false;
-        }
-    }
-
-    private String commandStatus(List<String> command) {
-        try {
-            ProcessRunner.ProcessResult result = processRunner.run(command, Duration.ofSeconds(5));
-            return result.exitCode() == 0 ? "available" : "error";
-        } catch (Exception error) {
-            return "missing";
         }
     }
 

@@ -138,11 +138,15 @@ export async function generateValidatedZugferdPdf({
             const body = (await response.json()) as {
                 issues?: ZugferdValidationIssue[];
                 message?: string;
+                error?: {
+                    message?: string;
+                };
             };
+            const message = body.message ?? body.error?.message;
             issues =
                 body.issues ??
-                (body.message
-                    ? [{ severity: "error", message: body.message }]
+                (message
+                    ? [{ severity: "error", message }]
                     : []);
         } catch {
             issues = [];

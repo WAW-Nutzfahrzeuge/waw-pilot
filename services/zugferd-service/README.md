@@ -1,94 +1,254 @@
 # WAW ZUGFeRD Service
 
-Separater, zustandsloser HTTP-Service für echte ZUGFeRD-/Factur-X-Erzeugung
-und Validierung.
+Zustandsloser HTTP-Service fuer die technische Erzeugung und Validierung von
+ZUGFeRD-/Factur-X-Rechnungen im Profil EN16931.
 
-Der Service ist bewusst von der Next.js-App getrennt, weil Mustangproject,
-Ghostscript und veraPDF Java-/CLI-Komponenten sind und nicht zuverlässig in
-Vercel-/Serverless-Funktionen laufen.
+Der Service ist bewusst von der Next.js-App getrennt. WAW Pilot bleibt die
+Quelle fuer Kunden-, Fahrzeug-, Verkaufs-, VAT-, Nummernkreis-, Mandanten- und
+Dokumentmetadaten. Dieser Dienst verarbeitet nur den bereits vorbereiteten
+kanonischen Rechnungsdatensatz und die sichtbare Rechnungs-PDF.
 
-## Verwendete Komponenten
+## Unterstuetzte Formate
+
+- Implementiert: ZUGFeRD 2.5 / Factur-X 1.09, Profil EN16931
+- Implementiert: PDF/A-3b-Konvertierung und VeraPDF-Pruefung
+- Implementiert: EN16931-/Factur-X-Pruefung ueber Mustangproject
+- Nicht implementiert: separater XRechnung-Export
+- Nicht enthalten: KoSIT-Validator
+
+## Komponenten
 
 - Java 21
-- Mustangproject `2.24.0`
-- veraPDF `1.30.2`
-- Ghostscript aus dem Debian/Ubuntu-Paket für die PDF/A-3b-Konvertierung
+- Spring Boot 3.3.7
+- Mustangproject 2.24.0
+- VeraPDF 1.30.2
+- Ghostscript aus dem Linux-Paket
+- sRGB ICC-Profil aus `icc-profiles-free`
 
-Wichtiger Befund zur Mustang-API:
-Mustang bettet ZUGFeRD/Factur-X über `ZUGFeRDExporterFromPDFA` in eine
-PDF/A-Eingangsdatei ein. Eine normale PDF wird nicht als ausreichend betrachtet.
-Der Service konvertiert deshalb die sichtbare Rechnung zuerst nach PDF/A-3b und
-gibt das Ergebnis erst frei, wenn veraPDF die fertige Datei als PDF/A-3b bestätigt.
-
-## Lokaler Start
-
-Im Repository-Root:
-
-```bash
-ZUGFERD_SERVICE_API_KEY=local-zugferd-secret docker compose up --build zugferd-service
-```
-
-Danach in `.env.local` der Next.js-App:
-
-```env
-ZUGFERD_SERVICE_URL=http://localhost:8087
-ZUGFERD_SERVICE_API_KEY=local-zugferd-secret
-```
-
-Next.js neu starten, dann ist der Button `ZUGFeRD erstellen und prüfen` aktiv.
-
-## Endpoints
+## API
 
 ### `GET /health`
 
-Kein Auth nötig. Prüft nur, ob der Dienst läuft und ob Ghostscript/veraPDF
-auffindbar sind.
+Ohne Authentifizierung. Antwortet bewusst knapp:
+
+```json
+{
+  "status": "ok"
+}
+```
+
+Der Health Check erzeugt keine Rechnung und gibt keine Secrets, Pfade oder
+Systemdetails aus.
 
 ### `POST /generate`
 
-Auth:
+Erzeugt eine validierte ZUGFeRD-/Factur-X-PDF.
 
 ```text
 Authorization: Bearer <ZUGFERD_SERVICE_API_KEY>
 Content-Type: application/json
 ```
 
-Request aus WAW Pilot:
+Antwort bei Erfolg:
 
 ```json
 {
+  "pdfBase64": "...",
+  "fileName": "rechnung-026-001-zugferd.pdf",
+  "sha256": "...",
   "standardVersion": "ZUGFeRD 2.5 / Factur-X 1.09",
   "profile": "EN16931",
-  "invoice": {},
-  "visiblePdfBase64": "..."
+  "validation": {
+    "status": "valid",
+    "xmlValid": true,
+    "pdfAValid": true,
+    "consistencyValid": true
+  }
 }
 ```
 
-Pipeline:
+### `POST /validate`
 
-1. Eingangs-PDF wird temporär gespeichert.
-2. Ghostscript konvertiert sie nach PDF/A-3b.
-3. Mustangproject erzeugt `factur-x.xml` aus den kanonischen Rechnungsdaten.
-4. Mustangproject validiert XML/EN16931.
-5. Mustangproject bettet XML in die PDF/A-Datei ein.
-6. Mustangproject validiert die fertige hybride Datei.
-7. veraPDF prüft unabhängig PDF/A-3b.
-8. Der Service prüft PDF/XML-Konsistenz gegen die kanonischen Rechnungsdaten.
-9. Nur bei vollständigem Erfolg wird die PDF base64-kodiert zurückgegeben.
+Fuehrt dieselbe Pipeline aus und liefert ein Validierungsergebnis zurueck.
 
-Temporäre Dateien werden in jedem Fall nach dem Request gelöscht.
+## Pipeline
+
+1. Request validieren.
+2. Sichtbare PDF aus Base64 dekodieren.
+3. PDF temporaer unter einem request-eigenen Verzeichnis speichern.
+4. Ghostscript konvertiert die PDF nach PDF/A-3b.
+5. Mustangproject erzeugt `factur-x.xml` aus den kanonischen Rechnungsdaten.
+6. Mustangproject validiert XML/EN16931.
+7. Mustangproject bettet XML in die PDF/A-Datei ein.
+8. Mustangproject validiert die fertige hybride Datei.
+9. VeraPDF prueft PDF/A-3b.
+10. Der Service prueft Konsistenz zwischen XML und Ausgangsdaten.
+11. Nur bei vollstaendigem Erfolg wird die fertige PDF base64-kodiert
+    zurueckgegeben.
+
+Temporaere Dateien werden in einem `finally`-Block geloescht. Der Container
+benoetigt keinen persistenten Datentraeger.
+
+## Environment Variables
+
+Pflicht:
+
+```env
+ZUGFERD_SERVICE_API_KEY=
+```
+
+Der Service startet nicht mit leerem oder offensichtlich unsicherem API-Key.
+Verwende lokal und in Render nur eigene ausreichend lange Werte. Keine echten
+Secrets in Git speichern.
+
+Optional:
+
+```env
+PORT=8080
+MAX_UPLOAD_MB=20
+GHOSTSCRIPT_COMMAND=gs
+VERAPDF_COMMAND=verapdf
+ICC_PROFILE_PATH=/usr/share/color/icc/ghostscript/srgb.icc
+```
+
+`MAX_UPLOAD_MB` begrenzt die dekodierte Eingangs-PDF. Der Default ist 20 MB.
+Sehr grosse JSON-Requests werden zusaetzlich ueber den `Content-Length`-Header
+fruehzeitig mit HTTP 413 abgelehnt.
+
+Supabase-Variablen werden nicht benoetigt. Der Service speichert keine Dateien
+selbst. WAW Pilot speichert die Rueckgabe in Supabase Storage.
+
+## Lokaler Docker-Build
+
+Im Repository-Root:
+
+```bash
+docker build -t waw-zugferd-service ./services/zugferd-service
+```
+
+## Lokaler Start
+
+```bash
+docker run --rm \
+  -p 8087:8080 \
+  -e ZUGFERD_SERVICE_API_KEY=replace-with-a-local-development-secret \
+  -e MAX_UPLOAD_MB=20 \
+  waw-zugferd-service
+```
+
+Alternativ mit Docker Compose:
+
+```bash
+ZUGFERD_SERVICE_API_KEY=replace-with-a-local-development-secret \
+docker compose up --build zugferd-service
+```
+
+Danach in der Next.js-App lokal:
+
+```env
+ZUGFERD_SERVICE_URL=http://localhost:8087
+ZUGFERD_SERVICE_API_KEY=replace-with-the-same-local-development-secret
+```
+
+## Lokaler Health Check
+
+```bash
+curl -fsS http://localhost:8087/health
+```
+
+## Authentifizierung testen
+
+Ohne Token:
+
+```bash
+curl -i -X POST http://localhost:8087/generate \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Mit falschem Token:
+
+```bash
+curl -i -X POST http://localhost:8087/generate \
+  -H "Authorization: Bearer wrong-token" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Mit gueltigem Token muss ein fachlich vollstaendiger Request aus WAW Pilot
+gesendet werden. Verwende keine realen Kundendaten in Test-Fixtures.
+
+## Fehlerantworten
+
+Fehlerantworten sind JSON und enthalten keine Stacktraces, Secrets,
+vollstaendigen Rechnungsdaten oder internen Dateipfade.
+
+Beispiel:
+
+```json
+{
+  "error": {
+    "code": "EN16931_VALIDATION_FAILED",
+    "message": "Die EN-16931-Validierung ist fehlgeschlagen."
+  },
+  "message": "Die EN-16931-Validierung ist fehlgeschlagen.",
+  "issues": []
+}
+```
+
+Relevante Codes:
+
+- `UNAUTHORIZED`
+- `INVALID_REQUEST`
+- `PAYLOAD_TOO_LARGE`
+- `PDF_CONVERSION_FAILED`
+- `XML_GENERATION_FAILED`
+- `ZUGFERD_EMBEDDING_FAILED`
+- `EN16931_VALIDATION_FAILED`
+- `PDFA_VALIDATION_FAILED`
+- `INTERNAL_ERROR`
+
+## Render Deployment
+
+Dieses Repository enthaelt eine `render.yaml` fuer einen einzelnen Docker Web
+Service.
+
+Blueprint-Konfiguration:
+
+- `type`: `web`
+- `runtime`: `docker`
+- `rootDir`: `services/zugferd-service`
+- `dockerfilePath`: `./Dockerfile`
+- `dockerContext`: `.`
+- `healthCheckPath`: `/health`
+- `plan`: `free` fuer Entwicklung und Tests
+- kein Persistent Disk
+- keine Datenbank
+- keine Supabase-Variablen
+
+`ZUGFERD_SERVICE_API_KEY` wird in Render als Secret-Variable gesetzt und steht
+nicht im Repository. Anschliessend wird in WAW Pilot nur
+`ZUGFERD_SERVICE_URL` und derselbe serverseitige `ZUGFERD_SERVICE_API_KEY`
+konfiguriert. Keine `NEXT_PUBLIC_`-Variable fuer das Secret verwenden.
 
 ## Sicherheit
 
-- Keine Datenbank
-- Kein persistenter Zustand
-- Auth per Bearer Secret
-- Keine Rechnungsinhalte in Logs
-- Uploadgrößenlimit über `MAX_UPLOAD_MB`
-- Temporäre Arbeitsverzeichnisse werden nach jedem Request gelöscht
+- `/health` ist oeffentlich.
+- `/generate` und `/validate` verlangen `Authorization: Bearer ...`.
+- Der API-Key wird nicht geloggt.
+- Rechnungsinhalte werden nicht vollstaendig geloggt.
+- Client-Dateipfade werden nicht akzeptiert.
+- Kommandozeilenoptionen kommen nicht aus dem Request.
+- Temp-Dateien werden nach jedem Request bestmoeglich geloescht.
+- Der Runtime-Container laeuft als Nicht-Root-Benutzer.
 
-## Hinweise
+## Fehlerdiagnose
 
-Wenn Ghostscript keine veraPDF-konforme PDF/A-3b erzeugen kann, schlägt der
-Request fehl. Das ist Absicht: WAW Pilot darf keine nicht validierte ZUGFeRD-Datei
-speichern, herunterladen oder per E-Mail versenden.
+- Startfehler: `ZUGFERD_SERVICE_API_KEY` fehlt oder ist zu schwach.
+- HTTP 401: Authorization-Header fehlt oder passt nicht.
+- HTTP 413: Request zu gross.
+- HTTP 422: Fachliche oder technische Validierung fehlgeschlagen.
+- HTTP 500: Unerwarteter interner Fehler ohne Details im Response-Body.
+
+Wenn VeraPDF oder Ghostscript keine konforme PDF/A-3b erzeugen koennen, wird
+keine ZUGFeRD-Datei freigegeben. Das ist beabsichtigt.

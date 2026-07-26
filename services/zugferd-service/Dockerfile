@@ -31,7 +31,12 @@ RUN curl -fsSL "https://software.verapdf.org/rel/${VERAPDF_MINOR}/verapdf-greenf
     && rm -rf /tmp/verapdf-installer /tmp/verapdf-installer.zip /tmp/verapdf-auto-install.xml
 
 WORKDIR /app
-COPY --from=build /app/target/zugferd-service-0.1.0.jar /app/zugferd-service.jar
+
+RUN groupadd --system app \
+    && useradd --system --gid app --home-dir /app --shell /usr/sbin/nologin app \
+    && chown app:app /app /tmp
+
+COPY --from=build --chown=app:app /app/target/zugferd-service-0.1.0.jar /app/zugferd-service.jar
 
 ENV PORT=8080
 ENV GHOSTSCRIPT_COMMAND=gs
@@ -40,7 +45,9 @@ ENV ICC_PROFILE_PATH=/usr/share/color/icc/ghostscript/srgb.icc
 
 EXPOSE 8080
 
+USER app
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS http://localhost:8080/health >/dev/null || exit 1
+    CMD curl -fsS "http://localhost:${PORT:-8080}/health" >/dev/null || exit 1
 
 ENTRYPOINT ["java", "-jar", "/app/zugferd-service.jar"]

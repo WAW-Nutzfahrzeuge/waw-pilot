@@ -12,6 +12,12 @@
 
 # testing
 /coverage
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
 
 # next.js
 /.next/
@@ -23,6 +29,17 @@
 # misc
 .DS_Store
 *.pem
+.idea/
+.vscode/
+*.iml
+*.pdf
+*.xml
+*.tmp
+*.temp
+*.validation.json
+!pom.xml
+!services/zugferd-service/pom.xml
+!services/zugferd-service/verapdf-auto-install.xml
 
 # debug
 npm-debug.log*

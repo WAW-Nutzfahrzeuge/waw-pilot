@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: waw-zugferd-service
+    runtime: docker
+    plan: free
+    rootDir: services/zugferd-service
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeployTrigger: off
+    envVars:
+      - key: ZUGFERD_SERVICE_API_KEY
+        sync: false
+      - key: MAX_UPLOAD_MB
+        value: "20"
+      - key: GHOSTSCRIPT_COMMAND
+        value: gs
+      - key: VERAPDF_COMMAND
+        value: verapdf
+      - key: ICC_PROFILE_PATH
+        value: /usr/share/color/icc/ghostscript/srgb.icc

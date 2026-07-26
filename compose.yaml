@@ -3,7 +3,7 @@ services:
     build:
       context: ./services/zugferd-service
     environment:
-      ZUGFERD_SERVICE_API_KEY: ${ZUGFERD_SERVICE_API_KEY:-local-zugferd-secret}
+      ZUGFERD_SERVICE_API_KEY: ${ZUGFERD_SERVICE_API_KEY:?ZUGFERD_SERVICE_API_KEY is required}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
     ports:
       - "${ZUGFERD_SERVICE_PORT:-8087}:8080"
