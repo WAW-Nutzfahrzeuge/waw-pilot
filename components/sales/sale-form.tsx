@@ -57,6 +57,7 @@ const initialState = {
 type BuyerMode = "existing" | "new";
 type VehicleMode = "existing" | "new";
 type NewCustomerType = "company" | "private";
+type FormFieldSnapshot = Record<string, string | boolean>;
 type SaleType = "inland" | "eu" | "export_third_country";
 
 type SaleFormProps = {
@@ -82,6 +83,73 @@ function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
 }
 
+function captureFormSnapshot(form: HTMLFormElement): FormFieldSnapshot {
+    const snapshot: FormFieldSnapshot = {};
+
+    Array.from(form.elements).forEach((element) => {
+        if (
+            !(
+                element instanceof HTMLInputElement ||
+                element instanceof HTMLSelectElement ||
+                element instanceof HTMLTextAreaElement
+            ) ||
+            !element.name
+        ) {
+            return;
+        }
+
+        if (element instanceof HTMLInputElement && element.type === "radio") {
+            if (element.checked) snapshot[element.name] = element.value;
+            return;
+        }
+
+        if (element instanceof HTMLInputElement && element.type === "checkbox") {
+            snapshot[element.name] = element.checked;
+            return;
+        }
+
+        snapshot[element.name] = element.value;
+    });
+
+    return snapshot;
+}
+
+function restoreFormSnapshot(
+    form: HTMLFormElement,
+    snapshot: FormFieldSnapshot,
+): void {
+    Array.from(form.elements).forEach((element) => {
+        if (
+            !(
+                element instanceof HTMLInputElement ||
+                element instanceof HTMLSelectElement ||
+                element instanceof HTMLTextAreaElement
+            ) ||
+            !element.name
+        ) {
+            return;
+        }
+
+        const value = snapshot[element.name];
+
+        if (typeof value === "undefined") return;
+
+        if (element instanceof HTMLInputElement && element.type === "radio") {
+            element.checked = value === element.value;
+            return;
+        }
+
+        if (element instanceof HTMLInputElement && element.type === "checkbox") {
+            element.checked = value === true;
+            return;
+        }
+
+        if (typeof value === "string") {
+            element.value = value;
+        }
+    });
+}
+
 export function SaleForm({
                              customers,
                              vehicles,
@@ -93,6 +161,8 @@ export function SaleForm({
         initialState,
     );
     const errorMessageRef = useRef<HTMLDivElement | null>(null);
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const lastSubmittedFormSnapshotRef = useRef<FormFieldSnapshot | null>(null);
 
     const [buyerMode, setBuyerMode] = useState<BuyerMode>(
         defaultCustomerId || customers.length > 0 ? "existing" : "new",
@@ -179,6 +249,14 @@ export function SaleForm({
             block: "start",
         });
         errorMessageRef.current?.focus({ preventScroll: true });
+
+        const snapshot = lastSubmittedFormSnapshotRef.current;
+        if (!snapshot || !formRef.current) return;
+
+        requestAnimationFrame(() => {
+            if (!formRef.current) return;
+            restoreFormSnapshot(formRef.current, snapshot);
+        });
     }, [state.message]);
 
     function handleSaleTypeChange(nextSaleType: SaleType) {
@@ -271,7 +349,16 @@ export function SaleForm({
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedFormSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 <input type="hidden" name="vehicle_mode" value={vehicleMode} />
                 {state.message ? (
                     <div
@@ -540,26 +627,26 @@ export function SaleForm({
                                             );
                                         }}
                                     />
-                                    {taxConfiguration.showVatId ? (
-                                        <FormField
-                                            label={getRequiredLabel(
-                                                taxConfiguration.vatIdLabel,
-                                                requiresNewCustomerVatId,
-                                            )}
-                                            name="new_customer_vat_id"
-                                            required={requiresNewCustomerVatId}
-                                        />
-                                    ) : null}
-                                    {taxConfiguration.showTaxNumber ? (
-                                        <FormField
-                                            label={getRequiredLabel(
-                                                "Steuernummer",
-                                                requiresNewCustomerTaxNumber,
-                                            )}
-                                            name="new_customer_tax_number"
-                                            required={requiresNewCustomerTaxNumber}
-                                        />
-                                    ) : null}
+                                    <FormField
+                                        label={getRequiredLabel(
+                                            "Steuernummer",
+                                            requiresNewCustomerTaxNumber,
+                                        )}
+                                        name="new_customer_tax_number"
+                                        required={requiresNewCustomerTaxNumber}
+                                    />
+                                    <FormField
+                                        label={getRequiredLabel(
+                                            "USt-ID | VAT | NIP",
+                                            requiresNewCustomerVatId,
+                                        )}
+                                        name="new_customer_vat_id"
+                                        required={requiresNewCustomerVatId}
+                                    />
+                                    <FormField
+                                        label="Handelsregister"
+                                        name="new_customer_commercial_register_number"
+                                    />
                                 </div>
                             </div>
                         )}

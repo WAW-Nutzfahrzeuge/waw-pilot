@@ -384,13 +384,17 @@ async function createBuyerCustomerFromSaleForm(
     const phone = getStringValue(formData, "new_customer_phone");
     const rawVatId = getStringValue(formData, "new_customer_vat_id");
     const taxNumber = getStringValue(formData, "new_customer_tax_number");
+    const commercialRegisterNumber = getStringValue(
+        formData,
+        "new_customer_commercial_register_number",
+    );
     const taxConfiguration = getSaleTaxConfiguration({
         buyerType: type,
         deliveryType: saleType,
         billingCountry: country,
     });
-    const vatId = taxConfiguration.showVatId ? normalizeVatId(rawVatId) : null;
-    const relevantTaxNumber = taxConfiguration.showTaxNumber ? taxNumber : null;
+    const vatId = rawVatId ? normalizeVatId(rawVatId) : null;
+    const relevantTaxNumber = taxNumber;
 
     if (!street || !postalCode || !city) {
         return {
@@ -476,7 +480,7 @@ async function createBuyerCustomerFromSaleForm(
             phone,
             tax_number: relevantTaxNumber,
             vat_id: vatId,
-            commercial_register_number: null,
+            commercial_register_number: commercialRegisterNumber,
             notes: "Direkt beim Verkauf angelegt.",
         })
         .select("id")
