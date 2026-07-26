@@ -353,14 +353,12 @@ export async function SaleDetail({
             ) : null}
 
             {paymentError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
-                    <p className="font-extrabold text-red-950">
-                        Zahlung konnte nicht gespeichert werden.
-                    </p>
-                    <p className="mt-1 text-sm font-semibold text-red-800">
-                        {getPaymentErrorMessage(paymentError)}
-                    </p>
-                </div>
+                <FlashMessage
+                    tone="danger"
+                    durationMs={5000}
+                    message="Zahlung konnte nicht gespeichert werden."
+                    description={getPaymentErrorMessage(paymentError)}
+                />
             ) : null}
 
             {recordSaved ? (
