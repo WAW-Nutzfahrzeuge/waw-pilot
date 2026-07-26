@@ -27,6 +27,7 @@ export type UpdateCompanySettingsState = {
         city: string;
         country: string;
         email: string;
+        invoice_sender_email: string;
         website: string;
         phone: string;
         mobile_phone_1: string;
@@ -59,6 +60,14 @@ function getStringValue(formData: FormData, key: string): string {
     return value.trim();
 }
 
+function normalizeEmailAddressInput(value: string): string {
+    const trimmedValue = value.trim();
+    const addressMatch = trimmedValue.match(/<([^<>]+)>$/);
+    const emailValue = addressMatch?.[1] ?? trimmedValue;
+
+    return emailValue.trim().toLowerCase();
+}
+
 function getFormValues(formData: FormData): UpdateCompanySettingsState["values"] {
     return {
         legal_name: getStringValue(formData, "legal_name"),
@@ -67,6 +76,9 @@ function getFormValues(formData: FormData): UpdateCompanySettingsState["values"]
         city: getStringValue(formData, "city"),
         country: getStringValue(formData, "country") || "Deutschland",
         email: getStringValue(formData, "email"),
+        invoice_sender_email: normalizeEmailAddressInput(
+            getStringValue(formData, "invoice_sender_email"),
+        ),
         website: getStringValue(formData, "website"),
         phone: getStringValue(formData, "phone"),
         mobile_phone_1: getStringValue(formData, "mobile_phone_1"),
@@ -122,6 +134,10 @@ function getAssetField(assetType: string | null) {
     }
 
     return null;
+}
+
+function isValidEmailAddress(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function redirectWithAssetUploadError(errorCode: string): never {
@@ -197,6 +213,17 @@ export async function updateCompanySettingsAction(
         };
     }
 
+    if (
+        values.invoice_sender_email &&
+        !isValidEmailAddress(values.invoice_sender_email)
+    ) {
+        return {
+            success: false,
+            message: "Bitte gib eine gültige Rechnungs-Absender-E-Mail ein.",
+            values,
+        };
+    }
+
     const { data, error } = await supabase
         .from("companies")
         .update({
@@ -206,6 +233,7 @@ export async function updateCompanySettingsAction(
             city: values.city,
             country: values.country,
             email: values.email || null,
+            invoice_sender_email: values.invoice_sender_email || null,
             website: values.website || null,
             phone: values.phone || null,
             mobile_phone_1: values.mobile_phone_1 || null,

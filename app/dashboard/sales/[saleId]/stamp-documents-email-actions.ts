@@ -9,11 +9,13 @@ import {
 import {
     EmailConfigurationError,
 } from "@/lib/email/resend";
+import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import {
     getAvailableStampDocuments,
     getStampDocumentType,
 } from "@/lib/sales/stamp-documents";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createSendEmailUseCase } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
 export type SendStampDocumentsEmailState = {
@@ -102,25 +104,13 @@ function isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function getConfiguredMailSender(): { senderName: string; senderEmail: string } {
-    const configuredSender = process.env.MAIL_FROM?.trim();
+async function getCurrentAuthUserId(): Promise<string | null> {
+    const authSupabase = await createAuthServerSupabaseClient();
+    const {
+        data: { user },
+    } = await authSupabase.auth.getUser();
 
-    if (!configuredSender) {
-        throw new EmailConfigurationError();
-    }
-
-    const senderMatch = configuredSender.match(/^(.*?)<([^>]+)>$/);
-    if (senderMatch) {
-        return {
-            senderName: senderMatch[1]?.trim() || "WAW Nutzfahrzeuge",
-            senderEmail: senderMatch[2]?.trim() || configuredSender,
-        };
-    }
-
-    return {
-        senderName: "WAW Nutzfahrzeuge",
-        senderEmail: configuredSender,
-    };
+    return user?.id ?? null;
 }
 
 export async function sendStampDocumentsEmailAction(
@@ -256,11 +246,13 @@ export async function sendStampDocumentsEmailAction(
     }
 
     try {
-        const sender = getConfiguredMailSender();
+        const sender = await getInvoiceMailSender(companyId);
+        const actorId = await getCurrentAuthUserId();
         const sendEmail = createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,
+            actorId,
             contextType: "SALE",
             contextId: saleId,
             templateKey: "documents.free",

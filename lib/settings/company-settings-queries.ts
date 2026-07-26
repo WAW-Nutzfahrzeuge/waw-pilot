@@ -11,6 +11,7 @@ export type CompanySettings = {
     city: string;
     country: string;
     email: string | null;
+    invoice_sender_email: string | null;
     website: string | null;
     phone: string | null;
     mobile_phone_1: string | null;
@@ -49,6 +50,7 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             city,
             country,
             email,
+            invoice_sender_email,
             website,
             phone,
             mobile_phone_1,

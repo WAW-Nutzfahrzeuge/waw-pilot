@@ -25,7 +25,7 @@ type SendEmailResult = {
 export class EmailConfigurationError extends Error {
     constructor() {
         super(
-            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und MAIL_FROM konfigurieren.",
+            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
         );
         this.name = "EmailConfigurationError";
     }
@@ -51,7 +51,7 @@ export async function sendEmailWithResend({
     idempotencyKey,
 }: SendEmailParams): Promise<SendEmailResult> {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = explicitFrom ?? process.env.MAIL_FROM;
+    const from = explicitFrom?.trim();
 
     if (!apiKey || !from) {
         throw new EmailConfigurationError();

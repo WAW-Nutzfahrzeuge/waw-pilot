@@ -15,6 +15,7 @@ import {
     getInvoiceEmailTemplate,
     getZugferdInvoiceEmailTemplate,
 } from "@/lib/email/templates/invoice-email";
+import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
 import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
@@ -23,6 +24,7 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import {
     buildCanonicalInvoiceData,
     ZugferdDataValidationError,
@@ -85,6 +87,15 @@ type InvoiceEmailQueryRow = {
         | InvoiceEmailDocumentRelation[]
         | null;
 };
+
+async function getCurrentAuthUserId(): Promise<string | null> {
+    const authSupabase = await createAuthServerSupabaseClient();
+    const {
+        data: { user },
+    } = await authSupabase.auth.getUser();
+
+    return user?.id ?? null;
+}
 
 type ZugferdInvoiceEmailQueryRow = {
     id: string;
@@ -217,27 +228,6 @@ function getInvoiceEmailSuccessRedirect(
     return `/dashboard/sales/${saleId}?invoiceEmailSent=${encodeURIComponent(
         email,
     )}&highlightInvoiceId=${invoiceId}`;
-}
-
-function getConfiguredMailSender(): { senderName: string; senderEmail: string } {
-    const configuredSender = process.env.MAIL_FROM?.trim();
-
-    if (!configuredSender) {
-        throw new EmailConfigurationError();
-    }
-
-    const senderMatch = configuredSender.match(/^(.*?)<([^>]+)>$/);
-    if (senderMatch) {
-        return {
-            senderName: senderMatch[1]?.trim() || "WAW Nutzfahrzeuge",
-            senderEmail: senderMatch[2]?.trim() || configuredSender,
-        };
-    }
-
-    return {
-        senderName: "WAW Nutzfahrzeuge",
-        senderEmail: configuredSender,
-    };
 }
 
 function getZugferdErrorRedirect(
@@ -806,11 +796,13 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     let deliveryErrorCode: string | null = null;
 
     try {
-        const sender = getConfiguredMailSender();
+        const sender = await getInvoiceMailSender(companyId);
+        const actorId = await getCurrentAuthUserId();
         const sendEmail = createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,
+            actorId,
             contextType: "INVOICE",
             contextId: invoiceId,
             templateKey: "invoice.send",
@@ -1203,11 +1195,13 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
 
     try {
         const fileBytes = Buffer.from(await fileData.arrayBuffer());
-        const sender = getConfiguredMailSender();
+        const sender = await getInvoiceMailSender(companyId);
+        const actorId = await getCurrentAuthUserId();
         const sendEmail = createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,
+            actorId,
             contextType: "INVOICE",
             contextId: invoiceId,
             templateKey: "invoice.zugferd.send",

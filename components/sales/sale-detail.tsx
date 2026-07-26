@@ -1120,7 +1120,7 @@ function getInvoiceEmailErrorMessage(errorCode: string): string {
         missingPdf:
             "Für diese Rechnung wurde noch kein PDF erzeugt. Bitte generiere zuerst das PDF.",
         mailNotConfigured:
-            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und MAIL_FROM konfigurieren.",
+            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
         sendFailed:
             "Rechnung konnte nicht per E-Mail gesendet werden. Bitte versuche es erneut.",
     };
@@ -1156,7 +1156,7 @@ function getZugferdErrorMessage(errorCode: string): string {
             "ZUGFeRD-Service ist noch nicht eingerichtet. Bitte ZUGFERD_SERVICE_URL und ZUGFERD_SERVICE_API_KEY konfigurieren.",
         validationFailed: "ZUGFeRD konnte nicht validiert werden.",
         mailNotConfigured:
-            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und MAIL_FROM konfigurieren.",
+            "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
         createFailed:
             "ZUGFeRD-Rechnung konnte nicht erstellt werden. Bitte prüfe die Daten und versuche es erneut.",
         zugferdSendFailed:

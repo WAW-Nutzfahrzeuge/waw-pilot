@@ -35,7 +35,7 @@ Aktueller Phase-J-Prüfbericht:
 
 ## Optionale Dienste
 
-- Resend für E-Mail-Versand: `RESEND_API_KEY`, `MAIL_FROM`
+- Resend für E-Mail-Versand: `RESEND_API_KEY`; die Rechnungs-Absender-E-Mail wird in den Firmeneinstellungen gepflegt
 - ZUGFeRD-Service: `ZUGFERD_SERVICE_URL`, `ZUGFERD_SERVICE_API_KEY`
 
 Siehe zusätzlich:

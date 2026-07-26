@@ -66,6 +66,7 @@ function createInitialState(company: CompanySettings): UpdateCompanySettingsStat
             city: company.city ?? "",
             country: company.country ?? "Deutschland",
             email: company.email ?? "",
+            invoice_sender_email: company.invoice_sender_email ?? "",
             website: company.website ?? "",
             phone: company.phone ?? "",
             mobile_phone_1: company.mobile_phone_1 ?? "",
@@ -265,6 +266,12 @@ export function CompanySettingsForm({
                                 name="email"
                                 type="email"
                                 defaultValue={values.email}
+                            />
+
+                            <FormField
+                                label="Rechnungs-Absender-E-Mail"
+                                name="invoice_sender_email"
+                                defaultValue={values.invoice_sender_email}
                             />
 
                             <FormField
@@ -567,12 +574,14 @@ function FormField({
                        type = "text",
                        required = false,
                        defaultValue,
+                       description,
                    }: {
     label: string;
     name: string;
     type?: string;
     required?: boolean;
     defaultValue?: string;
+    description?: string;
 }) {
     return (
         <div className="space-y-2">
@@ -587,6 +596,11 @@ function FormField({
                 defaultValue={defaultValue}
                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
+            {description ? (
+                <p className="text-xs font-medium leading-5 text-slate-500">
+                    {description}
+                </p>
+            ) : null}
         </div>
     );
 }
