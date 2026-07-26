@@ -1154,6 +1154,16 @@ function getZugferdErrorMessage(errorCode: string): string {
             "Die ZUGFeRD-Rechnung wurde noch nicht erfolgreich validiert. Bitte erstelle und prüfe sie zuerst.",
         serviceNotConfigured:
             "ZUGFeRD-Service ist noch nicht eingerichtet. Bitte ZUGFERD_SERVICE_URL und ZUGFERD_SERVICE_API_KEY konfigurieren.",
+        serviceUnauthorized:
+            "Der ZUGFeRD-Service hat die Anfrage abgelehnt. Bitte prüfe ZUGFERD_SERVICE_API_KEY in Vercel und Render.",
+        payloadTooLarge:
+            "Die Rechnungsdatei ist zu groß für den ZUGFeRD-Service.",
+        serviceTimeout:
+            "Der ZUGFeRD-Service hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.",
+        serviceUnavailable:
+            "Der ZUGFeRD-Service ist aktuell nicht erreichbar. Bitte versuche es erneut.",
+        serviceError:
+            "Der ZUGFeRD-Service konnte die Rechnung nicht verarbeiten. Bitte versuche es erneut.",
         validationFailed: "ZUGFeRD konnte nicht validiert werden.",
         mailNotConfigured:
             "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",

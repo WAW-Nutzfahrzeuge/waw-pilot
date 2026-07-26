@@ -3,7 +3,14 @@ import type {
     ZugferdValidationIssue,
 } from "@/lib/zugferd/canonical-invoice";
 
-const ZUGFERD_SERVICE_TIMEOUT_MS = 90_000;
+const ZUGFERD_SERVICE_TIMEOUT_MS = 120_000;
+
+type ZugferdServiceRequestErrorCode =
+    | "UNAUTHORIZED"
+    | "PAYLOAD_TOO_LARGE"
+    | "TIMEOUT"
+    | "SERVICE_UNAVAILABLE"
+    | "SERVICE_ERROR";
 
 export type ZugferdServiceValidationSummary = {
     status: "valid" | "invalid";
@@ -43,6 +50,17 @@ export class ZugferdServiceValidationError extends Error {
         super("ZUGFeRD konnte nicht validiert werden.");
         this.name = "ZugferdServiceValidationError";
         this.issues = issues;
+    }
+}
+
+export class ZugferdServiceRequestError extends Error {
+    constructor(
+        readonly code: ZugferdServiceRequestErrorCode,
+        message: string,
+        readonly status?: number,
+    ) {
+        super(message);
+        this.name = "ZugferdServiceRequestError";
     }
 }
 
@@ -112,27 +130,44 @@ export async function generateValidatedZugferdPdf({
     visiblePdfBase64: string;
 }): Promise<ZugferdServiceResult> {
     const { url, apiKey } = getServiceConfig();
-    const response = await fetchWithTimeout(
-        `${url}/generate`,
-        {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
+    let response: Response;
+
+    try {
+        response = await fetchWithTimeout(
+            `${url}/generate`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    standardVersion: "ZUGFeRD 2.5 / Factur-X 1.09",
+                    profile: "EN16931",
+                    invoiceProfile: "ZUGFERD_EN16931",
+                    invoice,
+                    visiblePdfBase64,
+                }),
             },
-            body: JSON.stringify({
-                standardVersion: "ZUGFeRD 2.5 / Factur-X 1.09",
-                profile: "EN16931",
-                invoiceProfile: "ZUGFERD_EN16931",
-                invoice,
-                visiblePdfBase64,
-            }),
-        },
-        ZUGFERD_SERVICE_TIMEOUT_MS,
-    );
+            ZUGFERD_SERVICE_TIMEOUT_MS,
+        );
+    } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+            throw new ZugferdServiceRequestError(
+                "TIMEOUT",
+                "Der ZUGFeRD-Service hat nicht rechtzeitig geantwortet.",
+            );
+        }
+
+        throw new ZugferdServiceRequestError(
+            "SERVICE_UNAVAILABLE",
+            "Der ZUGFeRD-Service ist aktuell nicht erreichbar.",
+        );
+    }
 
     if (!response.ok) {
         let issues: ZugferdValidationIssue[] = [];
+        let message: string | null = null;
 
         try {
             const body = (await response.json()) as {
@@ -142,7 +177,7 @@ export async function generateValidatedZugferdPdf({
                     message?: string;
                 };
             };
-            const message = body.message ?? body.error?.message;
+            message = body.message ?? body.error?.message ?? null;
             issues =
                 body.issues ??
                 (message
@@ -150,6 +185,31 @@ export async function generateValidatedZugferdPdf({
                     : []);
         } catch {
             issues = [];
+        }
+
+        if (response.status === 401 || response.status === 403) {
+            throw new ZugferdServiceRequestError(
+                "UNAUTHORIZED",
+                message ??
+                    "Der ZUGFeRD-Service hat die Anfrage nicht autorisiert.",
+                response.status,
+            );
+        }
+
+        if (response.status === 413) {
+            throw new ZugferdServiceRequestError(
+                "PAYLOAD_TOO_LARGE",
+                message ?? "Die Rechnungs-PDF ist zu groß für den ZUGFeRD-Service.",
+                response.status,
+            );
+        }
+
+        if (response.status >= 500) {
+            throw new ZugferdServiceRequestError(
+                "SERVICE_ERROR",
+                message ?? "Der ZUGFeRD-Service konnte die Anfrage nicht verarbeiten.",
+                response.status,
+            );
         }
 
         throw new ZugferdServiceValidationError(

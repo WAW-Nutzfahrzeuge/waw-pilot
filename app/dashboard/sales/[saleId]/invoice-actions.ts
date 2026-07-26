@@ -32,6 +32,7 @@ import {
 } from "@/lib/zugferd/canonical-invoice";
 import {
     generateValidatedZugferdPdf,
+    ZugferdServiceRequestError,
     ZugferdServiceConfigurationError,
     ZugferdServiceValidationError,
     type ZugferdServiceValidationSummary,
@@ -1006,6 +1007,28 @@ export async function createZugferdInvoiceAction(formData: FormData) {
                     invoiceId,
                     "validationFailed",
                     getZugferdIssueMessages(error.issues),
+                ),
+            );
+        }
+
+        if (error instanceof ZugferdServiceRequestError) {
+            await markZugferdInvalid(invoiceId, companyId, [
+                { severity: "error", message: error.message },
+            ]);
+
+            const errorCodeByServiceCode: Record<string, string> = {
+                UNAUTHORIZED: "serviceUnauthorized",
+                PAYLOAD_TOO_LARGE: "payloadTooLarge",
+                TIMEOUT: "serviceTimeout",
+                SERVICE_UNAVAILABLE: "serviceUnavailable",
+                SERVICE_ERROR: "serviceError",
+            };
+
+            redirect(
+                getZugferdErrorRedirect(
+                    saleId,
+                    invoiceId,
+                    errorCodeByServiceCode[error.code] ?? "serviceError",
                 ),
             );
         }
