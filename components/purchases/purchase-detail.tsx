@@ -242,7 +242,10 @@ export function PurchaseDetail({ purchase }: PurchaseDetailProps) {
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card
+                        id="documents"
+                        className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                    >
                         <CardContent className="p-5">
                             <SectionTitle
                                 icon={FileText}

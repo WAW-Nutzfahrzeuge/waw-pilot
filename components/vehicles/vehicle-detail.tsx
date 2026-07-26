@@ -324,7 +324,10 @@ export function VehicleDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card
+                        id="documents"
+                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                    >
                         <CardContent className="p-0">
                             <div className="border-b border-slate-200 p-5">
                                 <SectionTitle

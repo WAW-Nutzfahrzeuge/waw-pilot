@@ -179,10 +179,37 @@ function getRelationId(row: SupabaseDocumentRow, relationType: string): string |
     );
 }
 
-function getDocumentReviewHref(params: {
-    documentId: string;
-}): string {
-    return `/dashboard/documents/${params.documentId}/review`;
+function getDocumentContextHref(params: {
+    saleId: string | null;
+    invoiceId: string | null;
+    vehicleId: string | null;
+    customerId: string | null;
+    purchaseId: string | null;
+    licensePlateCaseId: string | null;
+}): string | null {
+    if (params.saleId) {
+        return params.invoiceId
+            ? `/dashboard/sales/${params.saleId}#invoice-payments`
+            : `/dashboard/sales/${params.saleId}#documents`;
+    }
+
+    if (params.purchaseId) {
+        return `/dashboard/ankauf/${params.purchaseId}#documents`;
+    }
+
+    if (params.licensePlateCaseId) {
+        return `/dashboard/plates/${params.licensePlateCaseId}#license-plate-documents`;
+    }
+
+    if (params.vehicleId) {
+        return `/dashboard/vehicles/${params.vehicleId}#documents`;
+    }
+
+    if (params.customerId) {
+        return `/dashboard/customers/${params.customerId}#documents`;
+    }
+
+    return null;
 }
 
 export function mapSupabaseDocumentRowToListItem(
@@ -231,8 +258,13 @@ export function mapSupabaseDocumentRowToListItem(
         vehicleId,
         purchaseId,
         licensePlateCaseId,
-        reviewHref: getDocumentReviewHref({
-            documentId: row.id,
+        reviewHref: getDocumentContextHref({
+            saleId,
+            invoiceId,
+            vehicleId,
+            customerId,
+            purchaseId,
+            licensePlateCaseId,
         }),
         hasActiveFile: Boolean(activeVersion?.storage_path ?? row.file_path),
     };
