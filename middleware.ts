@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+import {
+    canAccessDashboardPath,
+    getDefaultDashboardPath,
+    normalizeUserRole,
+} from "@/lib/auth/roles";
+
 function redirectWithSupabaseCookies(url: URL, response: NextResponse) {
     const redirectResponse = NextResponse.redirect(url);
 
@@ -50,9 +56,7 @@ export async function middleware(request: NextRequest) {
 
     const pathname = request.nextUrl.pathname;
 
-    const isAuthPage =
-        pathname === "/login" ||
-        pathname === "/register";
+    const isAuthPage = pathname === "/login";
 
     const isDashboardPage = pathname.startsWith("/dashboard");
 
@@ -65,11 +69,67 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isAuthPage && user) {
+        const companyId = process.env.NEXT_PUBLIC_WAW_COMPANY_ID;
+
+        if (!companyId) {
+            return response;
+        }
+
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("auth_user_id", user.id)
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+        const role = normalizeUserRole(profile?.role);
+
+        if (!role) {
+            await supabase.auth.signOut();
+
+            return response;
+        }
+
         const redirectUrl = request.nextUrl.clone();
-        redirectUrl.pathname = "/dashboard";
+        redirectUrl.pathname = getDefaultDashboardPath(role);
         redirectUrl.search = "";
 
         return redirectWithSupabaseCookies(redirectUrl, response);
+    }
+
+    if (isDashboardPage && user) {
+        const companyId = process.env.NEXT_PUBLIC_WAW_COMPANY_ID;
+
+        if (!companyId) {
+            return response;
+        }
+
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("auth_user_id", user.id)
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+        const role = normalizeUserRole(profile?.role);
+
+        if (!role) {
+            await supabase.auth.signOut();
+
+            const redirectUrl = request.nextUrl.clone();
+            redirectUrl.pathname = "/login";
+            redirectUrl.search = "";
+
+            return redirectWithSupabaseCookies(redirectUrl, response);
+        }
+
+        if (!canAccessDashboardPath(role, pathname)) {
+            const redirectUrl = request.nextUrl.clone();
+            redirectUrl.pathname = getDefaultDashboardPath(role);
+            redirectUrl.search = "";
+
+            return redirectWithSupabaseCookies(redirectUrl, response);
+        }
     }
 
     return response;
@@ -79,6 +139,5 @@ export const config = {
     matcher: [
         "/dashboard/:path*",
         "/login",
-        "/register",
     ],
 };

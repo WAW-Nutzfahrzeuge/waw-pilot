@@ -16,6 +16,8 @@ import {
     Wrench,
 } from "lucide-react";
 
+import type { UserRole } from "@/lib/auth/roles";
+
 export const mainNavigation = [
     {
         title: "Dashboard",
@@ -96,3 +98,17 @@ export const secondaryNavigation = [
         icon: Wrench,
     },
 ];
+
+export function getNavigationForRole(role: UserRole) {
+    if (role === "admin") {
+        return {
+            main: mainNavigation,
+            secondary: secondaryNavigation,
+        };
+    }
+
+    return {
+        main: mainNavigation.filter((item) => item.href === "/dashboard/plates"),
+        secondary: [],
+    };
+}

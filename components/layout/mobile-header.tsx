@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Menu } from "lucide-react";
 
 import { SidebarContent } from "@/components/layout/app-sidebar";
+import type { UserRole } from "@/lib/auth/roles";
 import { Button } from "@/components/ui/button";
 import {
     Sheet,
@@ -14,7 +15,7 @@ import {
     SheetTrigger,
 } from "@/components/ui/sheet";
 
-export function MobileHeader() {
+export function MobileHeader({ role }: { role: UserRole }) {
     const [open, setOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
 
@@ -66,7 +67,10 @@ export function MobileHeader() {
                     >
                         <SheetTitle className="sr-only">Navigation</SheetTitle>
                         <div className="flex h-full flex-col">
-                            <SidebarContent onNavigate={() => setOpen(false)} />
+                            <SidebarContent
+                                role={role}
+                                onNavigate={() => setOpen(false)}
+                            />
                         </div>
                     </SheetContent>
                 </Sheet>

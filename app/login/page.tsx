@@ -13,10 +13,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     return (
         <AuthShell
             title="Einloggen"
-            description="Melde dich an, um Fahrzeuge, Ankäufe, Verkäufe, Dokumente und Berichte zentral zu verwalten."
-            footerText="Noch kein Konto?"
-            footerHref="/register"
-            footerLinkLabel="Registrieren"
+            description="Melde dich mit deinem freigeschalteten internen Benutzerkonto an."
         >
             <LoginForm redirectedFrom={resolvedSearchParams.redirectedFrom ?? ""} />
         </AuthShell>

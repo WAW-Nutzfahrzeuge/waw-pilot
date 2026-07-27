@@ -5,7 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 
-import { mainNavigation, secondaryNavigation } from "@/lib/navigation";
+import type { UserRole } from "@/lib/auth/roles";
+import { getNavigationForRole } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 function isNavigationItemActive(pathname: string, href: string): boolean {
@@ -16,16 +17,23 @@ function isNavigationItemActive(pathname: string, href: string): boolean {
     return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AppSidebar() {
+export function AppSidebar({ role }: { role: UserRole }) {
     return (
         <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-white/10 bg-slate-950 text-white shadow-2xl shadow-slate-950/15 lg:flex lg:flex-col">
-            <SidebarContent />
+            <SidebarContent role={role} />
         </aside>
     );
 }
 
-export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarContent({
+    role,
+    onNavigate,
+}: {
+    role: UserRole;
+    onNavigate?: () => void;
+}) {
     const pathname = usePathname();
+    const navigation = getNavigationForRole(role);
 
     return (
         <>
@@ -58,7 +66,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
             <div className="flex-1 overflow-y-auto px-3 py-5">
                 <nav className="space-y-1.5">
-                    {mainNavigation.map((item) => {
+                    {navigation.main.map((item) => {
                         const isActive = isNavigationItemActive(pathname, item.href);
 
                         return (
@@ -92,7 +100,7 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
                 <div className="mt-7 border-t border-white/10 pt-6">
                     <nav className="space-y-1.5">
-                        {secondaryNavigation.map((item) => {
+                        {navigation.secondary.map((item) => {
                             const isActive = isNavigationItemActive(pathname, item.href);
 
                             return (

@@ -8,9 +8,9 @@ type AuthShellProps = {
     title: string;
     description: string;
     children: React.ReactNode;
-    footerText: string;
-    footerHref: string;
-    footerLinkLabel: string;
+    footerText?: string;
+    footerHref?: string;
+    footerLinkLabel?: string;
 };
 
 export function AuthShell({
@@ -73,15 +73,17 @@ export function AuthShell({
 
                             {children}
 
-                            <p className="mt-6 text-center text-sm font-semibold text-slate-300">
-                                {footerText}{" "}
-                                <Link
-                                    href={footerHref}
-                                    className="font-extrabold text-cyan-300 transition hover:text-cyan-200"
-                                >
-                                    {footerLinkLabel}
-                                </Link>
-                            </p>
+                            {footerText && footerHref && footerLinkLabel ? (
+                                <p className="mt-6 text-center text-sm font-semibold text-slate-300">
+                                    {footerText}{" "}
+                                    <Link
+                                        href={footerHref}
+                                        className="font-extrabold text-cyan-300 transition hover:text-cyan-200"
+                                    >
+                                        {footerLinkLabel}
+                                    </Link>
+                                </p>
+                            ) : null}
                         </section>
                     </BorderGlow>
 
