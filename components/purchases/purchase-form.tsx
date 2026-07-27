@@ -64,6 +64,7 @@ export function PurchaseForm({
     const [vehicleMode, setVehicleMode] = useState<SelectionMode>("existing");
     const [sellerMode, setSellerMode] = useState<SelectionMode>("existing");
     const [sellerType, setSellerType] = useState<"company" | "private">("company");
+    const [newSellerVatId, setNewSellerVatId] = useState("");
     const today = new Date().toISOString().slice(0, 10);
     const backHref =
         mode === "edit" && initialValues?.id
@@ -220,7 +221,12 @@ export function PurchaseForm({
                         ) : (
                             <SellerCreateFields
                                 sellerType={sellerType}
-                                onSellerTypeChange={setSellerType}
+                                onSellerTypeChange={(nextSellerType) => {
+                                    setSellerType(nextSellerType);
+                                    if (nextSellerType === "private") setNewSellerVatId("");
+                                }}
+                                vatId={newSellerVatId}
+                                onVatIdChange={setNewSellerVatId}
                             />
                         )}
                     </CardContent>
@@ -432,9 +438,13 @@ function VehicleCreateFields() {
 function SellerCreateFields({
     sellerType,
     onSellerTypeChange,
+    vatId,
+    onVatIdChange,
 }: {
     sellerType: "company" | "private";
     onSellerTypeChange: (type: "company" | "private") => void;
+    vatId: string;
+    onVatIdChange: (value: string) => void;
 }) {
     return (
         <div className="space-y-5 rounded-[1.75rem] border border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
@@ -495,13 +505,22 @@ function SellerCreateFields({
                 {sellerType === "company" ? (
                     <>
                         <div className="space-y-2">
-                            <FormField label="USt-ID | VAT | NIP" name="new_seller_vat_id" />
+                            <FormField
+                                label="USt-ID | VAT | NIP"
+                                name="new_seller_vat_id"
+                                value={vatId}
+                                onChange={(event) => onVatIdChange(event.target.value)}
+                            />
                             <BzstVatValidationLink />
                         </div>
                         <FormField label="Steuernummer" name="new_seller_tax_number" />
                         <FormField label="Handelsregister" name="new_seller_commercial_register_number" />
-                        <FileField label="Beweisbild 1" name="bzst_evidence_1" />
-                        <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                        {vatId.trim() ? (
+                            <>
+                                <FileField label="Beweisbild 1" name="bzst_evidence_1" />
+                                <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                            </>
+                        ) : null}
                     </>
                 ) : null}
                 </div>
@@ -638,6 +657,8 @@ function FormField({
     required = false,
     defaultValue,
     placeholder,
+    value,
+    onChange,
 }: {
     label: string;
     name: string;
@@ -645,6 +666,8 @@ function FormField({
     required?: boolean;
     defaultValue?: string | number;
     placeholder?: string;
+    value?: string;
+    onChange?: ChangeEventHandler<HTMLInputElement>;
 }) {
     return (
         <div className="space-y-2">
@@ -659,6 +682,8 @@ function FormField({
                 required={required}
                 defaultValue={defaultValue}
                 placeholder={placeholder}
+                value={value}
+                onChange={onChange}
                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
         </div>
@@ -676,7 +701,7 @@ function FileField({ label, name }: { label: string; name: string }) {
                 name={name}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-1.5 py-1.5 font-medium file:mr-3 file:h-9 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-0 file:text-sm file:font-bold file:leading-9 file:text-cyan-800"
             />
         </div>
     );

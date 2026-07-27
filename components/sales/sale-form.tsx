@@ -174,6 +174,7 @@ export function SaleForm({
 
     const [newCustomerType, setNewCustomerType] =
         useState<NewCustomerType>("company");
+    const [newCustomerVatId, setNewCustomerVatId] = useState("");
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
 
     const today = new Date().toISOString().slice(0, 10);
@@ -295,6 +296,7 @@ export function SaleForm({
 
     function handleNewCustomerTypeChange(nextCustomerType: NewCustomerType) {
         setNewCustomerType(nextCustomerType);
+        if (nextCustomerType === "private") setNewCustomerVatId("");
         setVatRate(
             String(
                 getSaleTaxConfiguration({
@@ -654,6 +656,10 @@ export function SaleForm({
                                                     requiresNewCustomerVatId,
                                                 )}
                                                 name="new_customer_vat_id"
+                                                value={newCustomerVatId}
+                                                onChange={(event) =>
+                                                    setNewCustomerVatId(event.target.value)
+                                                }
                                                 required={requiresNewCustomerVatId}
                                             />
                                             <div className="md:col-span-2">
@@ -663,8 +669,12 @@ export function SaleForm({
                                                 label="Handelsregister"
                                                 name="new_customer_commercial_register_number"
                                             />
-                                            <FileField label="Beweisbild 1" name="bzst_evidence_1" />
-                                            <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                                            {newCustomerVatId.trim() ? (
+                                                <>
+                                                    <FileField label="Beweisbild 1" name="bzst_evidence_1" />
+                                                    <FileField label="Beweisbild 2" name="bzst_evidence_2" />
+                                                </>
+                                            ) : null}
                                         </>
                                     ) : null}
                                 </div>
@@ -1652,7 +1662,7 @@ function FileField({ label, name }: { label: string; name: string }) {
                 name={name}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-1.5 py-1.5 font-medium file:mr-3 file:h-9 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-0 file:text-sm file:font-bold file:leading-9 file:text-cyan-800"
             />
         </div>
     );

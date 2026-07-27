@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState, type FormEventHandler } from "react";
+import {
+    useActionState,
+    useState,
+    type ChangeEventHandler,
+    type FormEventHandler,
+} from "react";
 import { Save } from "lucide-react";
 
 import { createCustomerAction } from "@/app/dashboard/customers/new/actions";
@@ -27,6 +32,7 @@ export function CustomerForm() {
         initialState,
     );
     const [customerType, setCustomerType] = useState<PersonType>("company");
+    const [vatId, setVatId] = useState("");
 
     return (
         <div className="space-y-6">
@@ -65,7 +71,10 @@ export function CustomerForm() {
 
                         <PersonTypeCards
                             value={customerType}
-                            onChange={setCustomerType}
+                            onChange={(nextCustomerType) => {
+                                setCustomerType(nextCustomerType);
+                                if (nextCustomerType === "private") setVatId("");
+                            }}
                             inputName="type"
                         />
                     </CardContent>
@@ -152,7 +161,12 @@ export function CustomerForm() {
                             <div className="grid gap-4 md:grid-cols-3">
                                 <FormField label="Steuernummer" name="tax_number" />
                                 <div className="space-y-2">
-                                    <FormField label="USt-ID" name="vat_id" />
+                                    <FormField
+                                        label="USt-ID"
+                                        name="vat_id"
+                                        value={vatId}
+                                        onChange={(event) => setVatId(event.target.value)}
+                                    />
                                     <BzstVatValidationLink />
                                 </div>
                                 <FormField
@@ -162,7 +176,7 @@ export function CustomerForm() {
                             </div>
                         ) : null}
 
-                        {customerType === "company" ? (
+                        {customerType === "company" && vatId.trim() ? (
                             <div className="grid gap-4 md:grid-cols-2">
                                 <FileField label="Beweisbild 1" name="bzst_evidence_1" />
                                 <FileField label="Beweisbild 2" name="bzst_evidence_2" />
@@ -246,6 +260,8 @@ function FormField({
                        pattern,
                        title,
                        onInput,
+                       value,
+                       onChange,
                    }: {
     label: string;
     name: string;
@@ -255,6 +271,8 @@ function FormField({
     pattern?: string;
     title?: string;
     onInput?: FormEventHandler<HTMLInputElement>;
+    value?: string;
+    onChange?: ChangeEventHandler<HTMLInputElement>;
 }) {
     return (
         <div className="space-y-2">
@@ -270,6 +288,8 @@ function FormField({
                 pattern={pattern}
                 title={title}
                 onInput={onInput}
+                value={value}
+                onChange={onChange}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
         </div>
@@ -287,7 +307,7 @@ function FileField({ label, name }: { label: string; name: string }) {
                 name={name}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
-                className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium file:mr-3 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-2 file:text-sm file:font-bold file:text-cyan-800"
+                className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-1.5 py-1.5 font-medium file:mr-3 file:h-9 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-0 file:text-sm file:font-bold file:leading-9 file:text-cyan-800"
             />
         </div>
     );
