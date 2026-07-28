@@ -4,8 +4,11 @@ import { type ChangeEvent, useActionState, useEffect, useRef, useState } from "r
 import {
     Building2,
     CheckCircle2,
+    Eye,
+    EyeOff,
     FileSignature,
     ImageIcon,
+    KeyRound,
     Mail,
     MapPin,
     Landmark,
@@ -20,9 +23,11 @@ import {
     removeCompanySignatureAssetAction,
     removeCompanyTermsPdfAction,
     updateCompanySettingsAction,
+    updateUserPasswordAction,
     uploadCompanySignatureAssetAction,
     uploadCompanyTermsPdfAction,
     type UpdateCompanySettingsState,
+    type UpdateUserPasswordState,
 } from "@/app/dashboard/settings/actions";
 import type { CompanySettings } from "@/lib/settings/company-settings-queries";
 import {
@@ -46,6 +51,7 @@ import { Label } from "@/components/ui/label";
 
 type CompanySettingsFormProps = {
     company: CompanySettings;
+    userEmail: string;
     companySaved?: boolean;
     signatureUploaded?: boolean;
     stampUploaded?: boolean;
@@ -83,8 +89,14 @@ function createInitialState(company: CompanySettings): UpdateCompanySettingsStat
     };
 }
 
+const initialPasswordState: UpdateUserPasswordState = {
+    success: false,
+    message: "",
+};
+
 export function CompanySettingsForm({
     company,
+    userEmail,
     companySaved = false,
     signatureUploaded = false,
     stampUploaded = false,
@@ -97,7 +109,12 @@ export function CompanySettingsForm({
         updateCompanySettingsAction,
         createInitialState(company),
     );
+    const [passwordState, passwordFormAction, isPasswordPending] = useActionState(
+        updateUserPasswordAction,
+        initialPasswordState,
+    );
     const statusMessageRef = useRef<HTMLDivElement | null>(null);
+    const passwordMessageRef = useRef<HTMLDivElement | null>(null);
 
     const values = state.values;
 
@@ -117,6 +134,16 @@ export function CompanySettingsForm({
         statusMessageRef.current?.focus({ preventScroll: true });
     }, [assetUploadError, companySaved, state.message, state.success, termsUploadError]);
 
+    useEffect(() => {
+        if (!passwordState.message) return;
+
+        passwordMessageRef.current?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+        });
+        passwordMessageRef.current?.focus({ preventScroll: true });
+    }, [passwordState.message]);
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -124,6 +151,74 @@ export function CompanySettingsForm({
                 title="Firmendaten"
                 description="Stammdaten für Rechnungen, Dokumente, Exporte und interne Prozesse verwalten."
             />
+
+            <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <CardContent className="space-y-5 p-5">
+                    <SectionTitle
+                        icon={KeyRound}
+                        title="Benutzerkonto"
+                        description="E-Mail-Adresse anzeigen und Passwort für den angemeldeten Benutzer ändern."
+                    />
+
+                    {passwordState.message ? (
+                        <div
+                            ref={passwordMessageRef}
+                            role={passwordState.success ? "status" : "alert"}
+                            tabIndex={-1}
+                            className={
+                                passwordState.success
+                                    ? "scroll-mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 outline-none"
+                                    : "scroll-mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
+                            }
+                        >
+                            {passwordState.success ? (
+                                <CheckCircle2 className="mr-2 inline size-4" />
+                            ) : null}
+                            {passwordState.message}
+                        </div>
+                    ) : null}
+
+                    <form action={passwordFormAction} className="space-y-4">
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <div className="space-y-2">
+                                <Label htmlFor="account_email" className="font-bold text-slate-700">
+                                    E-Mail
+                                </Label>
+                                <Input
+                                    id="account_email"
+                                    type="email"
+                                    value={userEmail}
+                                    readOnly
+                                    className="h-12 rounded-2xl border-slate-200 bg-slate-100 font-medium text-slate-600"
+                                />
+                            </div>
+
+                            <PasswordField
+                                label="Neues Passwort"
+                                name="new_password"
+                                autoComplete="new-password"
+                            />
+
+                            <PasswordField
+                                label="Neues Passwort bestätigen"
+                                name="password_confirm"
+                                autoComplete="new-password"
+                            />
+                        </div>
+
+                        <div className="flex justify-end">
+                            <Button
+                                type="submit"
+                                disabled={isPasswordPending}
+                                className="h-12 rounded-2xl bg-slate-950 px-6 font-extrabold text-white hover:bg-slate-800"
+                            >
+                                <KeyRound className="mr-2 size-4" />
+                                {isPasswordPending ? "Ändert..." : "Passwort ändern"}
+                            </Button>
+                        </div>
+                    </form>
+                </CardContent>
+            </Card>
 
             {companySaved ? (
                 <div
@@ -601,6 +696,49 @@ function FormField({
                     {description}
                 </p>
             ) : null}
+        </div>
+    );
+}
+
+function PasswordField({
+    label,
+    name,
+    autoComplete,
+}: {
+    label: string;
+    name: string;
+    autoComplete: string;
+}) {
+    const [isVisible, setIsVisible] = useState(false);
+
+    return (
+        <div className="space-y-2">
+            <Label htmlFor={name} className="font-bold text-slate-700">
+                {label}
+            </Label>
+            <div className="relative">
+                <Input
+                    id={name}
+                    name={name}
+                    type={isVisible ? "text" : "password"}
+                    required
+                    minLength={8}
+                    autoComplete={autoComplete}
+                    className="h-12 rounded-2xl border-slate-200 bg-slate-50 pr-12 font-medium"
+                />
+                <button
+                    type="button"
+                    onClick={() => setIsVisible((currentValue) => !currentValue)}
+                    className="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-100"
+                    aria-label={isVisible ? "Passwort ausblenden" : "Passwort anzeigen"}
+                >
+                    {isVisible ? (
+                        <EyeOff className="size-4" />
+                    ) : (
+                        <Eye className="size-4" />
+                    )}
+                </button>
+            </div>
         </div>
     );
 }

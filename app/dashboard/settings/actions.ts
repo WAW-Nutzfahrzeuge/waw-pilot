@@ -15,6 +15,7 @@ import {
     maxTermsPdfFileSizeBytes,
 } from "@/lib/documents/upload-validation";
 import { isValidBic, isValidIban, normalizeBic, normalizeIban } from "@/lib/settings/company-bank-details";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type UpdateCompanySettingsState = {
@@ -41,6 +42,11 @@ export type UpdateCompanySettingsState = {
         bank_bic: string;
         bank_account_holder: string;
     };
+};
+
+export type UpdateUserPasswordState = {
+    success: boolean;
+    message: string;
 };
 
 type CompanyAssetPathRow = {
@@ -276,6 +282,65 @@ export async function updateCompanySettingsAction(
     revalidatePath("/dashboard/reports");
 
     redirect("/dashboard/settings?companySaved=1");
+}
+
+export async function updateUserPasswordAction(
+    _previousState: UpdateUserPasswordState,
+    formData: FormData,
+): Promise<UpdateUserPasswordState> {
+    const supabase = await createAuthServerSupabaseClient();
+
+    const newPassword = getStringValue(formData, "new_password");
+    const passwordConfirm = getStringValue(formData, "password_confirm");
+
+    if (!newPassword) {
+        return {
+            success: false,
+            message: "Bitte gib ein neues Passwort ein.",
+        };
+    }
+
+    if (newPassword.length < 8) {
+        return {
+            success: false,
+            message: "Das neue Passwort muss mindestens 8 Zeichen lang sein.",
+        };
+    }
+
+    if (newPassword !== passwordConfirm) {
+        return {
+            success: false,
+            message: "Die Passwortbestätigung stimmt nicht überein.",
+        };
+    }
+
+    const {
+        data: { user },
+        error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+        return {
+            success: false,
+            message: "Du bist nicht angemeldet. Bitte melde dich erneut an.",
+        };
+    }
+
+    const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+    });
+
+    if (error) {
+        return {
+            success: false,
+            message: `Passwort konnte nicht geändert werden: ${error.message}`,
+        };
+    }
+
+    return {
+        success: true,
+        message: "Passwort wurde erfolgreich geändert.",
+    };
 }
 
 export async function uploadCompanySignatureAssetAction(formData: FormData) {
