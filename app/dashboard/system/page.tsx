@@ -7,7 +7,9 @@ export default async function SystemPage() {
 
     const { data: companies, error } = await supabase
         .from("companies")
-        .select("*")
+        .select(
+            "id, name, legal_name, email, invoice_sender_email, city, country, created_at",
+        )
         .order("created_at", { ascending: false });
 
     return (

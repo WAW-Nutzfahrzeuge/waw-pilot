@@ -231,7 +231,7 @@ export async function getCustomerDetail(
         );
     }
 
-    const { data: vehiclesData, error: vehiclesError } = await supabase
+    const vehiclesPromise = supabase
         .from("vehicles")
         .select(
             `
@@ -256,9 +256,87 @@ export async function getCustomerDetail(
         .eq("company_id", companyId)
         .or(`seller_customer_id.eq.${customerId},buyer_customer_id.eq.${customerId}`)
         .order("created_at", { ascending: false });
+    const salesPromise = supabase
+        .from("sales")
+        .select(
+            `
+      id,
+      vehicle_id,
+      buyer_customer_id,
+      sale_date,
+      net_amount,
+      gross_amount,
+      status,
+      payment_status
+    `,
+        )
+        .eq("company_id", companyId)
+        .eq("buyer_customer_id", customerId)
+        .order("sale_date", { ascending: false });
+    const invoicesPromise = supabase
+        .from("invoices")
+        .select(
+            `
+      id,
+      sale_id,
+      customer_id,
+      vehicle_id,
+      invoice_number,
+      invoice_date,
+      net_amount,
+      gross_amount,
+      payment_status,
+      pdf_document_id
+    `,
+        )
+        .eq("company_id", companyId)
+        .eq("customer_id", customerId)
+        .order("invoice_date", { ascending: false });
+    const documentsPromise = supabase
+        .from("documents")
+        .select(
+            `
+      id,
+      document_type,
+      source,
+      status,
+      file_name,
+      file_path,
+      mime_type,
+      file_size,
+      created_at
+    `,
+        )
+        .eq("company_id", companyId)
+        .eq("customer_id", customerId)
+        .order("created_at", { ascending: false });
+
+    const [
+        { data: vehiclesData, error: vehiclesError },
+        { data: salesData, error: salesError },
+        { data: invoicesData, error: invoicesError },
+        { data: documentsData, error: documentsError },
+    ] = await Promise.all([
+        vehiclesPromise,
+        salesPromise,
+        invoicesPromise,
+        documentsPromise,
+    ]);
 
     if (vehiclesError) {
         throw new Error(`Kundenfahrzeuge konnten nicht geladen werden: ${vehiclesError.message}`);
+    }
+
+    if (salesError) {
+        throw new Error(`Kundenverkäufe konnten nicht geladen werden: ${salesError.message}`);
+    }
+
+    if (invoicesError) {
+        throw new Error(`Kundenrechnungen konnten nicht geladen werden: ${invoicesError.message}`);
+    }
+
+    if (documentsError) {
+        throw new Error(`Kundendokumente konnten nicht geladen werden: ${documentsError.message}`);
     }
 
     const vehiclesRows = (vehiclesData ?? []) as VehicleRow[];
@@ -283,31 +361,10 @@ export async function getCustomerDetail(
                 : "buyer",
     }));
 
-    const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select(
-            `
-      id,
-      vehicle_id,
-      buyer_customer_id,
-      sale_date,
-      net_amount,
-      gross_amount,
-      status,
-      payment_status
-    `,
-        )
-        .eq("company_id", companyId)
-        .eq("buyer_customer_id", customerId)
-        .order("sale_date", { ascending: false });
-
-    if (salesError) {
-        throw new Error(`Kundenverkäufe konnten nicht geladen werden: ${salesError.message}`);
-    }
-
     const salesRows = (salesData ?? []) as SaleRow[];
-    const saleIds = salesRows.map((sale) => sale.id);
-    const saleVehicleIds = salesRows.map((sale) => sale.vehicle_id);
+    const saleVehicleIds = Array.from(
+        new Set(salesRows.map((sale) => sale.vehicle_id).filter(Boolean)),
+    );
 
     const { data: saleVehiclesData, error: saleVehiclesError } =
         saleVehicleIds.length > 0
@@ -343,42 +400,20 @@ export async function getCustomerDetail(
         );
     }
 
-    const { data: saleInvoicesData, error: saleInvoicesError } =
-        saleIds.length > 0
-            ? await supabase
-                .from("invoices")
-                .select(
-                    `
-            id,
-            sale_id,
-            customer_id,
-            vehicle_id,
-            invoice_number,
-            invoice_date,
-            net_amount,
-            gross_amount,
-            payment_status,
-            pdf_document_id
-          `,
-                )
-                .eq("company_id", companyId)
-                .in("sale_id", saleIds)
-            : { data: [], error: null };
-
-    if (saleInvoicesError) {
-        throw new Error(
-            `Rechnungen zu Kundenverkäufen konnten nicht geladen werden: ${saleInvoicesError.message}`,
-        );
-    }
-
     const saleVehicles = (saleVehiclesData ?? []) as VehicleRow[];
-    const saleInvoices = (saleInvoicesData ?? []) as InvoiceRow[];
+    const invoicesRows = (invoicesData ?? []) as InvoiceRow[];
+    const saleVehicleById = new Map(saleVehicles.map((vehicle) => [vehicle.id, vehicle]));
+    const invoiceBySaleId = new Map(
+        invoicesRows
+            .filter((invoice) => invoice.sale_id)
+            .map((invoice) => [invoice.sale_id, invoice]),
+    );
 
     const sales: CustomerDetailSale[] = salesRows.map((sale) => {
-        const vehicle =
-            saleVehicles.find((item) => item.id === sale.vehicle_id) ?? null;
-        const invoice =
-            saleInvoices.find((item) => item.sale_id === sale.id) ?? null;
+        const vehicle = sale.vehicle_id
+            ? saleVehicleById.get(sale.vehicle_id) ?? null
+            : null;
+        const invoice = invoiceBySaleId.get(sale.id) ?? null;
 
         return {
             id: sale.id,
@@ -395,31 +430,7 @@ export async function getCustomerDetail(
         };
     });
 
-    const { data: invoicesData, error: invoicesError } = await supabase
-        .from("invoices")
-        .select(
-            `
-      id,
-      sale_id,
-      customer_id,
-      vehicle_id,
-      invoice_number,
-      invoice_date,
-      net_amount,
-      gross_amount,
-      payment_status,
-      pdf_document_id
-    `,
-        )
-        .eq("company_id", companyId)
-        .eq("customer_id", customerId)
-        .order("invoice_date", { ascending: false });
-
-    if (invoicesError) {
-        throw new Error(`Kundenrechnungen konnten nicht geladen werden: ${invoicesError.message}`);
-    }
-
-    const invoices = ((invoicesData ?? []) as InvoiceRow[]).map((invoice) => ({
+    const invoices = invoicesRows.map((invoice) => ({
         id: invoice.id,
         sale_id: invoice.sale_id,
         vehicle_id: invoice.vehicle_id,
@@ -430,29 +441,6 @@ export async function getCustomerDetail(
         payment_status: invoice.payment_status,
         pdf_document_id: invoice.pdf_document_id,
     }));
-
-    const { data: documentsData, error: documentsError } = await supabase
-        .from("documents")
-        .select(
-            `
-      id,
-      document_type,
-      source,
-      status,
-      file_name,
-      file_path,
-      mime_type,
-      file_size,
-      created_at
-    `,
-        )
-        .eq("company_id", companyId)
-        .eq("customer_id", customerId)
-        .order("created_at", { ascending: false });
-
-    if (documentsError) {
-        throw new Error(`Kundendokumente konnten nicht geladen werden: ${documentsError.message}`);
-    }
 
     const documents = ((documentsData ?? []) as DocumentRow[]).map((document) => ({
         id: document.id,

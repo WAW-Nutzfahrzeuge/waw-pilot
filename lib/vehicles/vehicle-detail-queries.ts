@@ -192,10 +192,14 @@ function getVehicleDocumentStatus(
     return "missing";
 }
 
-async function getCustomerById(
-    customerId: string | null,
-): Promise<CustomerRow | null> {
-    if (!customerId) return null;
+async function getCustomersByIds(
+    customerIds: Array<string | null>,
+): Promise<Map<string, CustomerRow>> {
+    const uniqueCustomerIds = Array.from(
+        new Set(customerIds.filter((customerId): customerId is string => Boolean(customerId))),
+    );
+
+    if (uniqueCustomerIds.length === 0) return new Map();
 
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -217,15 +221,12 @@ async function getCustomerById(
       phone
     `,
         )
-        .eq("id", customerId)
         .eq("company_id", companyId)
-        .single();
+        .in("id", uniqueCustomerIds);
 
-    if (error || !data) {
-        return null;
-    }
+    if (error || !data) return new Map();
 
-    return data as CustomerRow;
+    return new Map(((data ?? []) as CustomerRow[]).map((customer) => [customer.id, customer]));
 }
 
 export async function getVehicleDetail(
@@ -279,12 +280,11 @@ export async function getVehicleDetail(
         );
     }
 
-    const [seller, buyer] = await Promise.all([
-        getCustomerById(vehicle.seller_customer_id),
-        getCustomerById(vehicle.buyer_customer_id),
+    const customersPromise = getCustomersByIds([
+        vehicle.seller_customer_id,
+        vehicle.buyer_customer_id,
     ]);
-
-    const { data: documentsData, error: documentsError } = await supabase
+    const documentsPromise = supabase
         .from("documents")
         .select(
             `
@@ -302,6 +302,38 @@ export async function getVehicleDetail(
         .eq("company_id", companyId)
         .eq("vehicle_id", vehicleId)
         .order("created_at", { ascending: false });
+    const salesPromise = supabase
+        .from("sales")
+        .select(
+            `
+      id,
+      sale_date,
+      net_amount,
+      gross_amount,
+      status,
+      payment_status,
+      buyer_customer_id
+    `,
+        )
+        .eq("company_id", companyId)
+        .eq("vehicle_id", vehicleId)
+        .order("sale_date", { ascending: false });
+
+    const [
+        customerById,
+        { data: documentsData, error: documentsError },
+        { data: salesData, error: salesError },
+    ] = await Promise.all([
+        customersPromise,
+        documentsPromise,
+        salesPromise,
+    ]);
+    const seller = vehicle.seller_customer_id
+        ? customerById.get(vehicle.seller_customer_id) ?? null
+        : null;
+    const buyer = vehicle.buyer_customer_id
+        ? customerById.get(vehicle.buyer_customer_id) ?? null
+        : null;
 
     if (documentsError) {
         throw new Error(
@@ -321,23 +353,6 @@ export async function getVehicleDetail(
         created_at: document.created_at,
     }));
 
-    const { data: salesData, error: salesError } = await supabase
-        .from("sales")
-        .select(
-            `
-      id,
-      sale_date,
-      net_amount,
-      gross_amount,
-      status,
-      payment_status,
-      buyer_customer_id
-    `,
-        )
-        .eq("company_id", companyId)
-        .eq("vehicle_id", vehicleId)
-        .order("sale_date", { ascending: false });
-
     if (salesError) {
         throw new Error(
             `Fahrzeugverkäufe konnten nicht geladen werden: ${salesError.message}`,
@@ -346,37 +361,32 @@ export async function getVehicleDetail(
 
     const salesRows = (salesData ?? []) as SaleRow[];
     const saleIds = salesRows.map((sale) => sale.id);
-    const buyerCustomerIds = salesRows.map((sale) => sale.buyer_customer_id);
+    const buyerCustomerIds = Array.from(
+        new Set(salesRows.map((sale) => sale.buyer_customer_id).filter(Boolean)),
+    );
 
-    const { data: invoicesData, error: invoicesError } =
+    const invoicesPromise =
         saleIds.length > 0
-            ? await supabase
-                .from("invoices")
-                .select(
-                    `
+            ? supabase
+                  .from("invoices")
+                  .select(
+                      `
             id,
             sale_id,
             invoice_number,
             invoice_date,
             gross_amount
           `,
-                )
-                .eq("company_id", companyId)
-                .in("sale_id", saleIds)
-            : { data: [], error: null };
-
-    if (invoicesError) {
-        throw new Error(
-            `Rechnungen zum Fahrzeug konnten nicht geladen werden: ${invoicesError.message}`,
-        );
-    }
-
-    const { data: saleCustomersData, error: saleCustomersError } =
+                  )
+                  .eq("company_id", companyId)
+                  .in("sale_id", saleIds)
+            : Promise.resolve({ data: [], error: null });
+    const saleCustomersPromise =
         buyerCustomerIds.length > 0
-            ? await supabase
-                .from("customers")
-                .select(
-                    `
+            ? supabase
+                  .from("customers")
+                  .select(
+                      `
             id,
             type,
             company_name,
@@ -389,10 +399,21 @@ export async function getVehicleDetail(
             email,
             phone
           `,
-                )
-                .eq("company_id", companyId)
-                .in("id", buyerCustomerIds)
-            : { data: [], error: null };
+                  )
+                  .eq("company_id", companyId)
+                  .in("id", buyerCustomerIds)
+            : Promise.resolve({ data: [], error: null });
+
+    const [
+        { data: invoicesData, error: invoicesError },
+        { data: saleCustomersData, error: saleCustomersError },
+    ] = await Promise.all([invoicesPromise, saleCustomersPromise]);
+
+    if (invoicesError) {
+        throw new Error(
+            `Rechnungen zum Fahrzeug konnten nicht geladen werden: ${invoicesError.message}`,
+        );
+    }
 
     if (saleCustomersError) {
         throw new Error(
@@ -402,11 +423,18 @@ export async function getVehicleDetail(
 
     const invoices = (invoicesData ?? []) as InvoiceRow[];
     const saleCustomers = (saleCustomersData ?? []) as CustomerRow[];
+    const invoiceBySaleId = new Map(
+        invoices
+            .filter((invoice) => invoice.sale_id)
+            .map((invoice) => [invoice.sale_id, invoice]),
+    );
+    const saleCustomerById = new Map(saleCustomers.map((customer) => [customer.id, customer]));
 
     const sales: VehicleDetailSale[] = salesRows.map((sale) => {
-        const invoice = invoices.find((item) => item.sale_id === sale.id) ?? null;
-        const customer =
-            saleCustomers.find((item) => item.id === sale.buyer_customer_id) ?? null;
+        const invoice = invoiceBySaleId.get(sale.id) ?? null;
+        const customer = sale.buyer_customer_id
+            ? saleCustomerById.get(sale.buyer_customer_id) ?? null
+            : null;
 
         return {
             id: sale.id,
