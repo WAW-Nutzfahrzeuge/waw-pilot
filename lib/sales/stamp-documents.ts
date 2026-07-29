@@ -1,4 +1,5 @@
 import type { EmailLanguage } from "@/lib/customers/email-languages";
+import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
 
 export const STAMP_DOCUMENT_TYPES = [
     {
@@ -137,9 +138,8 @@ W.A.W Nutzfahrzeuge`;
         return { subject, text };
     }
 
-    if (language === "en") {
-        const subject = `Documents for signature and stamp - Vehicle ${vehicleLabel}`;
-        const text = `Hello ${customerName},
+    const englishSubject = `Documents for signature and stamp - Vehicle ${vehicleLabel}`;
+    const englishText = `Hello ${customerName},
 
 please find attached the documents relating to your vehicle ${vehicleLabel}.
 
@@ -153,11 +153,12 @@ Thank you.
 Kind regards
 W.A.W Nutzfahrzeuge`;
 
-        return { subject, text };
+    if (language === "en") {
+        return { subject: englishSubject, text: englishText };
     }
 
     const subject = `Dokumente zum Unterschreiben und Stempeln - Fahrzeug ${vehicleLabel}`;
-    const text = `Guten Tag ${customerName},
+    const germanText = `Guten Tag ${customerName},
 
 anbei erhalten Sie die Unterlagen zu Ihrem Fahrzeug ${vehicleLabel}.
 
@@ -170,6 +171,11 @@ Vielen Dank.
 
 Mit freundlichen Grüßen
 W.A.W Nutzfahrzeuge`;
+    const text = composeBilingualEmailText({
+        language,
+        localizedText: germanText,
+        englishText,
+    });
 
     return { subject, text };
 }

@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { SupabaseDocumentRepository } from "@/src/modules/documents/infrastructure/repositories/supabase-document.repository";
 import { SendEmailUseCase } from "@/src/modules/email/application/use-cases/send-email.use-case";
 import { SupabaseDocumentAttachmentReader } from "@/src/modules/email/infrastructure/attachments/supabase-document-attachment.reader";
@@ -7,8 +7,8 @@ import { ResendEmailProvider } from "@/src/modules/email/infrastructure/provider
 import { SupabaseEmailAuditAdapter } from "@/src/modules/email/infrastructure/logging/supabase-email-audit.adapter";
 import { EmailActivityAdapter } from "@/src/modules/email/infrastructure/logging/email-activity.adapter";
 
-export function createSendEmailUseCase(): SendEmailUseCase {
-    const supabase = createServerSupabaseClient();
+export async function createSendEmailUseCase(): Promise<SendEmailUseCase> {
+    const supabase = await createAuthServerSupabaseClient();
     const documentRepository = new SupabaseDocumentRepository(supabase);
 
     return new SendEmailUseCase(
@@ -20,6 +20,6 @@ export function createSendEmailUseCase(): SendEmailUseCase {
     );
 }
 
-export function createEmailRepository(): SupabaseEmailRepository {
-    return new SupabaseEmailRepository(createServerSupabaseClient());
+export async function createEmailRepository(): Promise<SupabaseEmailRepository> {
+    return new SupabaseEmailRepository(await createAuthServerSupabaseClient());
 }

@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { logActivity } from "@/lib/activity/activity-log";
-import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
 import {
     isSupportedSaleGeneratedDocumentType,
     type GeneratedDocumentType,
@@ -52,8 +51,6 @@ export async function generateSaleDocumentAction(formData: FormData) {
     const documentType = getGeneratedDocumentType(
         getStringValue(formData, "document_type"),
     );
-    const includeSignatureStamp =
-        getStringValue(formData, "include_signature_stamp") === "yes";
     const documentDateOverride = getStringValue(formData, "document_date");
 
     if (!saleId) {
@@ -68,20 +65,10 @@ export async function generateSaleDocumentAction(formData: FormData) {
         throw new Error("Dieser Dokumenttyp wird in der Verkaufsakte nicht erzeugt.");
     }
 
-    if (includeSignatureStamp) {
-        if (documentType !== "handover_protocol") {
-            throw new Error(
-                "Unterschrift und Stempel können aktuell nur beim Übergabeprotokoll eingefügt werden.",
-            );
-        }
-
-        await assertCompanySignatureStampConfigured();
-    }
-
     const generatedDocument = await generateAndStoreSaleGeneratedDocument({
         saleId,
         documentType,
-        includeSignatureStamp,
+        includeSignatureStamp: false,
         documentDateOverride,
     });
 

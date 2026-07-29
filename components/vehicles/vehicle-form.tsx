@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { CalendarDays, FileText, Save, Truck } from "lucide-react";
 
 import { createVehicleAction } from "@/app/dashboard/vehicles/new/actions";
 import type { CustomerRow } from "@/lib/customers/customer-queries";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +40,23 @@ export function VehicleForm({
     );
     const [damageNotes, setDamageNotes] = useState("");
     const hasDamageNotes = damageNotes.trim().length > 0;
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
+
+    useEffect(() => {
+        if (!state.message || state.success) return;
+
+        messageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        messageRef.current?.focus({ preventScroll: true });
+
+        const form = formRef.current;
+        const snapshot = lastSubmittedSnapshotRef.current;
+
+        if (!form || !snapshot) return;
+
+        window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+    }, [state.message, state.success]);
 
     return (
         <div className="space-y-6">
@@ -53,9 +75,22 @@ export function VehicleForm({
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {state.message ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+                    <div
+                        ref={messageRef}
+                        tabIndex={-1}
+                        className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
+                    >
                         {state.message}
                     </div>
                 ) : null}

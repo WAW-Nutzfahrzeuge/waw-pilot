@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState, type ChangeEventHandler } from "react";
+import {
+    useActionState,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ChangeEventHandler,
+} from "react";
 import {
     ArrowLeft,
     CalendarDays,
@@ -18,6 +25,11 @@ import { updatePurchaseCaseAction } from "@/app/dashboard/ankauf/[purchaseId]/ed
 import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
 import { PersonTypeCards } from "@/components/customers/person-type-cards";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
@@ -65,6 +77,9 @@ export function PurchaseForm({
     const [sellerMode, setSellerMode] = useState<SelectionMode>("existing");
     const [sellerType, setSellerType] = useState<"company" | "private">("company");
     const [newSellerVatId, setNewSellerVatId] = useState("");
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
     const today = new Date().toISOString().slice(0, 10);
     const backHref =
         mode === "edit" && initialValues?.id
@@ -117,6 +132,20 @@ export function PurchaseForm({
         [formData.sellers],
     );
 
+    useEffect(() => {
+        if (!state.message || state.success) return;
+
+        messageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        messageRef.current?.focus({ preventScroll: true });
+
+        const form = formRef.current;
+        const snapshot = lastSubmittedSnapshotRef.current;
+
+        if (!form || !snapshot) return;
+
+        window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+    }, [state.message, state.success]);
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -141,7 +170,16 @@ export function PurchaseForm({
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {initialValues?.id ? (
                     <input type="hidden" name="purchase_id" value={initialValues.id} />
                 ) : null}
@@ -149,7 +187,11 @@ export function PurchaseForm({
                 <input type="hidden" name="seller_mode" value={sellerMode} />
 
                 {state.message ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
+                    <div
+                        ref={messageRef}
+                        tabIndex={-1}
+                        className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
+                    >
                         {state.message}
                     </div>
                 ) : null}

@@ -24,14 +24,12 @@ type SaleGeneratedDocumentsCardProps = {
     saleId: string;
     documents: SaleGeneratedDocumentCheck[];
     generatedDocumentType?: string | null;
-    hasSignatureStampAssets?: boolean;
 };
 
 export function SaleGeneratedDocumentsCard({
                                                saleId,
                                                documents,
                                                generatedDocumentType = null,
-                                               hasSignatureStampAssets = false,
                                            }: SaleGeneratedDocumentsCardProps) {
     const missingDataCount = documents.filter(
         (document) => document.status === "missing_data",
@@ -102,7 +100,6 @@ export function SaleGeneratedDocumentsCard({
                             saleId={saleId}
                             document={document}
                             wasJustGenerated={generatedDocumentType === document.type}
-                            hasSignatureStampAssets={hasSignatureStampAssets}
                         />
                     ))}
                 </div>
@@ -115,12 +112,10 @@ function GeneratedDocumentRow({
                                   saleId,
                                   document,
                                   wasJustGenerated,
-                                  hasSignatureStampAssets,
                               }: {
     saleId: string;
     document: SaleGeneratedDocumentCheck;
     wasJustGenerated: boolean;
-    hasSignatureStampAssets: boolean;
 }) {
     const isAutomaticDocument = document.generationMode === "automatic";
     const canGenerateNow = document.canGenerate && isAutomaticDocument;
@@ -308,26 +303,6 @@ function GeneratedDocumentRow({
                         <form action={generateSaleDocumentAction}>
                             <input type="hidden" name="sale_id" value={saleId} />
                             <input type="hidden" name="document_type" value={document.type} />
-
-                            {document.type === "handover_protocol" ? (
-                                <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-2xl border border-slate-900/20 bg-white p-3 text-xs font-bold leading-5 text-slate-600">
-                                    <input
-                                        type="checkbox"
-                                        name="include_signature_stamp"
-                                        value="yes"
-                                        disabled={!hasSignatureStampAssets}
-                                        className="mt-0.5 size-4 rounded border-slate-300 text-cyan-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                    />
-                                    <span>
-                                        Mit Unterschrift & Stempel erzeugen
-                                        {!hasSignatureStampAssets ? (
-                                            <span className="mt-1 block text-amber-700">
-                                                Bitte zuerst in den Einstellungen hinterlegen.
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                </label>
-                            ) : null}
 
                             {document.dateSuggestion ? (
                                 <div className="mb-2 rounded-2xl border border-slate-900/20 bg-cyan-50 p-3 text-xs font-bold leading-5 text-cyan-900">

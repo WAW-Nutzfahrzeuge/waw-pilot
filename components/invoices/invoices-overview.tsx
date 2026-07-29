@@ -41,7 +41,7 @@ type InvoicesOverviewProps = {
     highlightedInvoiceId?: string;
 };
 
-type InvoiceFilter = "all" | "standard" | "proforma" | "down_payment";
+type InvoiceFilter = "all" | "standard" | "proforma";
 
 function normalizeSearchText(value: string): string {
     return value
@@ -230,10 +230,6 @@ export function InvoicesOverview({
         (invoice) => invoice.invoice_type === "proforma",
     ).length;
 
-    const downPaymentInvoices = invoices.filter(
-        (invoice) => invoice.invoice_type === "down_payment",
-    ).length;
-
     const filteredInvoices = useMemo(() => {
         const normalizedQuery = normalizeSearchText(query);
 
@@ -267,14 +263,14 @@ export function InvoicesOverview({
         (invoice) => invoice.datev_status === "not_sent",
     ).length;
 
-    const specialInvoices = proformaInvoices + downPaymentInvoices;
+    const specialInvoices = proformaInvoices;
 
     return (
         <div className="space-y-6">
             <PageHeader
                 eyebrow="Rechnungsverwaltung"
                 title="Rechnungen"
-                description="Normale Rechnungen, Proforma-Rechnungen und Anzahlungsrechnungen mit PDF, Kunde, Fahrzeug und DATEV-Hinweis."
+                description="Normale Rechnungen und Proforma-Rechnungen mit PDF, Kunde, Fahrzeug und DATEV-Hinweis."
                 action={
                     <Button
                         asChild
@@ -368,12 +364,6 @@ export function InvoicesOverview({
                                     onClick={() => setInvoiceFilter("proforma")}
                                     label="Proforma"
                                     count={proformaInvoices}
-                                />
-                                <InvoiceFilterButton
-                                    active={invoiceFilter === "down_payment"}
-                                    onClick={() => setInvoiceFilter("down_payment")}
-                                    label="Anzahlung"
-                                    count={downPaymentInvoices}
                                 />
                             </div>
                         </div>

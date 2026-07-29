@@ -128,18 +128,14 @@ function getSingleRelation<T>(relation: T | T[] | null): T | null {
     return relation;
 }
 
-function getInvoiceTypeValue(formData: FormData): InvoiceType {
+function getInvoiceTypeValue(formData: FormData): InvoiceType | null {
     const value = getStringValue(formData, "invoice_type");
 
-    if (
-        value === "standard" ||
-        value === "proforma" ||
-        value === "down_payment"
-    ) {
+    if (value === "standard" || value === "proforma") {
         return value;
     }
 
-    return "standard";
+    return null;
 }
 
 function addDays(dateString: string, days: number): string {
@@ -195,7 +191,6 @@ function canIncludeVehicleDamageNotes(vehicle: SaleInvoiceVehicleRelation | null
 function getInvoiceActivityLabel(invoiceType: InvoiceType): string {
     if (invoiceType === "standard") return "Rechnung";
     if (invoiceType === "proforma") return "Proforma-Rechnung";
-    if (invoiceType === "down_payment") return "Anzahlungsrechnung";
 
     return getInvoiceTypeLabel(invoiceType);
 }
@@ -332,6 +327,10 @@ export async function createSaleInvoiceAction(formData: FormData) {
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
+    }
+
+    if (!invoiceType) {
+        throw new Error("Dieser Rechnungstyp kann in der Verkaufsakte nicht mehr erstellt werden.");
     }
 
     if (includeSignatureStamp) {
@@ -799,7 +798,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     try {
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getCurrentAuthUserId();
-        const sendEmail = createSendEmailUseCase();
+        const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,
@@ -1220,7 +1219,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
         const fileBytes = Buffer.from(await fileData.arrayBuffer());
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getCurrentAuthUserId();
-        const sendEmail = createSendEmailUseCase();
+        const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,

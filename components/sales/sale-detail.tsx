@@ -125,7 +125,8 @@ export async function SaleDetail({
                                recordSaved = null,
                                recordError = null,
                            }: SaleDetailProps) {
-    const emailHistory = await createEmailRepository().search({
+    const emailRepository = await createEmailRepository();
+    const emailHistory = await emailRepository.search({
         companyId: getCurrentCompanyId(),
         contextType: "SALE",
         contextId: sale.id,
@@ -566,7 +567,7 @@ export async function SaleDetail({
                                 <SectionTitle
                                     icon={Receipt}
                                     title="Rechnungen & Zahlung"
-                                    description="Normale Rechnung, Proforma-Rechnung, Anzahlungsrechnung und PDF."
+                                    description="Normale Rechnung, Proforma-Rechnung und PDF."
                                 />
 
                                 <SaleInvoiceTypeActions
@@ -658,7 +659,6 @@ export async function SaleDetail({
                         saleId={sale.id}
                         documents={generatedDocuments}
                         generatedDocumentType={generatedDocumentType}
-                        hasSignatureStampAssets={sale.has_signature_stamp_assets}
                     />
 
                     <Card className="overflow-hidden rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm">

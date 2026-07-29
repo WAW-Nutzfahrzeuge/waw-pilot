@@ -32,8 +32,10 @@ type PurchaseCaseDetailQueryRow = {
     created_at: string;
 
     customers: SupabaseRelation<{
+        id: string;
         type: "company" | "private";
         company_name: string | null;
+        owner_name: string | null;
         first_name: string | null;
         last_name: string | null;
         street: string | null;
@@ -41,11 +43,14 @@ type PurchaseCaseDetailQueryRow = {
         city: string | null;
         country: string | null;
         email: string | null;
+        preferred_language: string | null;
         phone: string | null;
+        tax_number: string | null;
         vat_id: string | null;
     }>;
 
     vehicles: SupabaseRelation<{
+        id: string;
         internal_number: string;
         manufacturer: string;
         model: string;
@@ -56,6 +61,9 @@ type PurchaseCaseDetailQueryRow = {
         first_registration: string | null;
         purchase_price_net: number | string;
         additional_costs_net: number | string;
+        notes: string | null;
+        damage_notes: string | null;
+        show_damage_on_invoice: boolean | null;
         status: string;
     }>;
 };
@@ -106,15 +114,30 @@ export type PurchaseCaseDetail = {
     created_at: string;
 
     seller: {
+        id: string;
+        type: "company" | "private";
         name: string;
+        company_name: string | null;
+        owner_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
         address: string;
+        street: string | null;
+        postal_code: string | null;
+        city: string | null;
+        country: string | null;
         email: string | null;
+        preferred_language: string | null;
         phone: string | null;
+        tax_number: string | null;
         vat_id: string | null;
     } | null;
 
     vehicle: {
+        id: string;
         internal_number: string;
+        manufacturer: string;
+        model: string;
         name: string;
         vehicle_type: string;
         vin: string;
@@ -123,6 +146,9 @@ export type PurchaseCaseDetail = {
         first_registration: string | null;
         purchase_price_net: number;
         additional_costs_net: number;
+        notes: string | null;
+        damage_notes: string | null;
+        show_damage_on_invoice: boolean;
         status: string;
     } | null;
 
@@ -181,8 +207,10 @@ export async function getPurchaseCaseDetail(
       notes,
       created_at,
       customers:seller_customer_id (
+        id,
         type,
         company_name,
+        owner_name,
         first_name,
         last_name,
         street,
@@ -190,10 +218,13 @@ export async function getPurchaseCaseDetail(
         city,
         country,
         email,
+        preferred_language,
         phone,
+        tax_number,
         vat_id
       ),
       vehicles (
+        id,
         internal_number,
         manufacturer,
         model,
@@ -204,6 +235,9 @@ export async function getPurchaseCaseDetail(
         first_registration,
         purchase_price_net,
         additional_costs_net,
+        notes,
+        damage_notes,
+        show_damage_on_invoice,
         status
       )
     `,
@@ -287,7 +321,13 @@ export async function getPurchaseCaseDetail(
 
         seller: seller
             ? {
+                id: seller.id,
+                type: seller.type,
                 name: getCustomerName(seller),
+                company_name: seller.company_name,
+                owner_name: seller.owner_name,
+                first_name: seller.first_name,
+                last_name: seller.last_name,
                 address: [
                     seller.street,
                     [seller.postal_code, seller.city].filter(Boolean).join(" "),
@@ -295,15 +335,24 @@ export async function getPurchaseCaseDetail(
                 ]
                     .filter(Boolean)
                     .join(", "),
+                street: seller.street,
+                postal_code: seller.postal_code,
+                city: seller.city,
+                country: seller.country,
                 email: seller.email,
+                preferred_language: seller.preferred_language,
                 phone: seller.phone,
+                tax_number: seller.tax_number,
                 vat_id: seller.vat_id,
             }
             : null,
 
         vehicle: vehicle
             ? {
+                id: vehicle.id,
                 internal_number: vehicle.internal_number,
+                manufacturer: vehicle.manufacturer,
+                model: vehicle.model,
                 name: `${vehicle.manufacturer} ${vehicle.model}`,
                 vehicle_type: vehicle.vehicle_type,
                 vin: vehicle.vin,
@@ -312,6 +361,9 @@ export async function getPurchaseCaseDetail(
                 first_registration: vehicle.first_registration,
                 purchase_price_net: Number(vehicle.purchase_price_net ?? 0),
                 additional_costs_net: Number(vehicle.additional_costs_net ?? 0),
+                notes: vehicle.notes,
+                damage_notes: vehicle.damage_notes,
+                show_damage_on_invoice: Boolean(vehicle.show_damage_on_invoice),
                 status: vehicle.status,
             }
             : null,

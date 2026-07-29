@@ -248,7 +248,7 @@ export async function sendStampDocumentsEmailAction(
     try {
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getCurrentAuthUserId();
-        const sendEmail = createSendEmailUseCase();
+        const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({
             companyId,

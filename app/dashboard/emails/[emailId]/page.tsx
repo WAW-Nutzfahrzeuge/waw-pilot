@@ -22,7 +22,7 @@ function formatRecipients(recipients: Array<{ email: string; name: string | null
 
 export default async function EmailDetailPage({ params }: EmailDetailPageProps) {
     const { emailId } = await params;
-    const repository = createEmailRepository();
+    const repository = await createEmailRepository();
     const email = await repository.findDetail({
         companyId: getCurrentCompanyId(),
         emailId,

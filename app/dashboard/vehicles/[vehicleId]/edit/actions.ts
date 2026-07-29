@@ -50,6 +50,15 @@ function getStatusValue(formData: FormData): VehicleStatus {
     return "in_stock";
 }
 
+function getSafeDashboardRedirectPath(value: string | null, fallback: string): string {
+    if (!value) return fallback;
+    if (!value.startsWith("/dashboard/") || value.startsWith("//") || value.includes("://")) {
+        return fallback;
+    }
+
+    return value;
+}
+
 function getVehicleActivityName(vehicle: {
     internal_number: string | null;
     manufacturer: string | null;
@@ -83,6 +92,10 @@ export async function updateVehicleAction(
     const status = getStatusValue(formData);
     const notes = getStringValue(formData, "notes");
     const damageNotes = getStringValue(formData, "damage_notes");
+    const redirectTo = getSafeDashboardRedirectPath(
+        getStringValue(formData, "redirect_to"),
+        `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
+    );
     const showDamageOnInvoice =
         Boolean(damageNotes?.trim()) &&
         getStringValue(formData, "show_damage_on_invoice") === "yes";
@@ -254,9 +267,10 @@ export async function updateVehicleAction(
     revalidatePath("/dashboard");
     revalidatePath("/dashboard/vehicles");
     revalidatePath("/dashboard/vehicles/bestandsliste");
+    revalidatePath("/dashboard/ankauf");
     revalidatePath(`/dashboard/vehicles/${vehicleId}`);
     revalidatePath(`/dashboard/vehicles/${vehicleId}/edit`);
     revalidatePath("/dashboard/activities");
 
-    redirect(`/dashboard/vehicles/${vehicleId}?vehicleSaved=1`);
+    redirect(redirectTo);
 }

@@ -537,6 +537,109 @@ async function createBuyerCustomerFromSaleForm(
     };
 }
 
+async function validateBuyerCustomerFromSaleForm(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    companyId: string,
+    formData: FormData,
+    saleType: SaleType,
+): Promise<{ success: true } | { success: false; message: string }> {
+    const type = getNewCustomerType(formData);
+    const companyName = getStringValue(formData, "new_customer_company_name");
+    const firstName = getStringValue(formData, "new_customer_first_name");
+    const lastName = getStringValue(formData, "new_customer_last_name");
+    const street = getStringValue(formData, "new_customer_street");
+    const postalCode = getStringValue(formData, "new_customer_postal_code");
+    const city = getStringValue(formData, "new_customer_city");
+    const country = getStringValue(formData, "new_customer_country") ?? "Deutschland";
+    const email = getStringValue(formData, "new_customer_email");
+    const phone = getStringValue(formData, "new_customer_phone");
+    const rawVatId = getStringValue(formData, "new_customer_vat_id");
+    const taxNumber = getStringValue(formData, "new_customer_tax_number");
+    const taxConfiguration = getSaleTaxConfiguration({
+        buyerType: type,
+        deliveryType: saleType,
+        billingCountry: country,
+    });
+    const vatId = type === "company" && rawVatId ? normalizeVatId(rawVatId) : null;
+
+    if (!street || !postalCode || !city) {
+        return {
+            success: false,
+            message: "Bitte gib Straße, PLZ und Ort für den neuen Käufer ein.",
+        };
+    }
+
+    if (type === "company" && !companyName) {
+        return {
+            success: false,
+            message: "Bitte gib einen Firmennamen für den neuen Käufer ein.",
+        };
+    }
+
+    if (type === "private" && (!firstName || !lastName)) {
+        return {
+            success: false,
+            message: "Bitte gib Vorname und Nachname für den neuen Käufer ein.",
+        };
+    }
+
+    if (taxConfiguration.showTaxNumber && !taxNumber) {
+        return {
+            success: false,
+            message:
+                "Für Inland-Verkäufe muss beim Kunden eine Steuernummer hinterlegt sein.",
+        };
+    }
+
+    if (taxConfiguration.showVatId && !vatId) {
+        return {
+            success: false,
+            message:
+                "Für EU-Verkäufe muss beim Kunden eine USt-IdNr. hinterlegt sein.",
+        };
+    }
+
+    if (!isValidPhoneNumber(phone)) {
+        return {
+            success: false,
+            message: "Bitte gib eine gültige Telefonnummer ein.",
+        };
+    }
+
+    const evidenceValidationError =
+        type === "company" ? validateCustomerBzstEvidenceFiles(formData) : null;
+    if (evidenceValidationError) {
+        return {
+            success: false,
+            message: evidenceValidationError,
+        };
+    }
+
+    const duplicateCustomer = await findDuplicateCustomer({
+        supabase,
+        companyId,
+        type,
+        companyName,
+        firstName,
+        lastName,
+        email,
+        phone,
+        vatId,
+        postalCode,
+        city,
+    });
+
+    if (duplicateCustomer) {
+        return {
+            success: false,
+            message:
+                "Es gibt bereits einen möglichen passenden Kunden. Bitte wähle den bestehenden Kunden über die Suche aus oder prüfe die Stammdaten.",
+        };
+    }
+
+    return { success: true };
+}
+
 async function findDuplicateCustomer({
     supabase,
     companyId,
@@ -794,6 +897,65 @@ async function createVehicleFromSaleForm(
     };
 }
 
+async function validateVehicleFromSaleForm(
+    supabase: ReturnType<typeof createServerSupabaseClient>,
+    companyId: string,
+    formData: FormData,
+): Promise<{ success: true } | { success: false; message: string }> {
+    const submittedInternalNumber = getStringValue(formData, "new_vehicle_internal_number");
+    const manufacturer = getStringValue(formData, "new_vehicle_manufacturer");
+    const model = getStringValue(formData, "new_vehicle_model");
+    const vehicleType = getStringValue(formData, "new_vehicle_vehicle_type");
+    const vin = getStringValue(formData, "new_vehicle_vin");
+    const normalizedVin = vin ? normalizeVinForSale(vin) : null;
+    const purchasePriceNet = getNumberValue(formData, "new_vehicle_purchase_price_net");
+
+    if (!manufacturer || !model || !vehicleType || !normalizedVin) {
+        return {
+            success: false,
+            message: "Bitte fülle Hersteller, Modell, Fahrzeugtyp und VIN für das neue Fahrzeug aus.",
+        };
+    }
+
+    if (purchasePriceNet === null) {
+        return {
+            success: false,
+            message: "Bitte gib für das neue Fahrzeug einen gültigen Einkaufspreis netto ein.",
+        };
+    }
+
+    const internalNumber =
+        submittedInternalNumber ?? (await getNextVehicleInternalNumber());
+
+    const { data: duplicateVinVehicle, error: duplicateVinError } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("vin", normalizedVin)
+        .limit(1);
+
+    if (duplicateVinError) {
+        console.error("[sale-create] vehicle VIN duplicate preflight failed", duplicateVinError);
+    }
+
+    if ((duplicateVinVehicle ?? []).length > 0) {
+        return { success: false, message: getDuplicateVinMessage() };
+    }
+
+    const { data: duplicateInternalNumberVehicle } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("internal_number", internalNumber)
+        .limit(1);
+
+    if ((duplicateInternalNumberVehicle ?? []).length > 0) {
+        return { success: false, message: getDuplicateInternalNumberMessage() };
+    }
+
+    return { success: true };
+}
+
 async function cleanupInlineSaleCreation({
     supabase,
     companyId,
@@ -910,6 +1072,98 @@ export async function createSaleAction(
             success: false,
             message: "Bitte wähle eine gültige Zahlungsart aus.",
         };
+    }
+
+    if (!saleDate) {
+        return {
+            success: false,
+            message: "Bitte wähle ein Verkaufsdatum aus.",
+        };
+    }
+
+    if (netAmount === null || netAmount <= 0) {
+        return {
+            success: false,
+            message: "Bitte gib einen gültigen Verkaufspreis netto ein.",
+        };
+    }
+
+    if (buyerMode === "new") {
+        const customerPreflight = await validateBuyerCustomerFromSaleForm(
+            supabase,
+            companyId,
+            formData,
+            saleType,
+        );
+
+        if (!customerPreflight.success) {
+            return {
+                success: false,
+                message: customerPreflight.message,
+            };
+        }
+    } else {
+        if (!buyerCustomerId) {
+            return {
+                success: false,
+                message: "Bitte wähle einen Käufer aus oder lege einen neuen Käufer an.",
+            };
+        }
+
+        const { data: buyerCustomerPreflight, error: buyerCustomerPreflightError } =
+            await supabase
+                .from("customers")
+                .select("type, tax_number, vat_id, country")
+                .eq("id", buyerCustomerId)
+                .eq("company_id", companyId)
+                .single();
+
+        if (buyerCustomerPreflightError || !buyerCustomerPreflight) {
+            return {
+                success: false,
+                message: `Käufer konnte nicht geladen werden: ${
+                    buyerCustomerPreflightError?.message ?? "Nicht gefunden"
+                }`,
+            };
+        }
+
+        const buyerPreflightType = buyerCustomerPreflight.type as SaleBuyerType;
+        const taxPreflightConfiguration = getSaleTaxConfiguration({
+            buyerType: buyerPreflightType,
+            deliveryType: saleType,
+            billingCountry: buyerCustomerPreflight.country,
+        });
+
+        if (taxPreflightConfiguration.showTaxNumber && !buyerCustomerPreflight.tax_number) {
+            return {
+                success: false,
+                message:
+                    "Für Inland-Verkäufe muss beim Kunden eine Steuernummer hinterlegt sein.",
+            };
+        }
+
+        if (taxPreflightConfiguration.showVatId && !buyerCustomerPreflight.vat_id) {
+            return {
+                success: false,
+                message:
+                    "Für EU-Verkäufe muss beim Kunden eine USt-IdNr. hinterlegt sein.",
+            };
+        }
+    }
+
+    if (vehicleMode === "new") {
+        const vehiclePreflight = await validateVehicleFromSaleForm(
+            supabase,
+            companyId,
+            formData,
+        );
+
+        if (!vehiclePreflight.success) {
+            return {
+                success: false,
+                message: vehiclePreflight.message,
+            };
+        }
     }
 
     if (vehicleMode === "new") {

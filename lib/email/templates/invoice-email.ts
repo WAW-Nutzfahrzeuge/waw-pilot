@@ -1,4 +1,5 @@
 import { normalizeEmailLanguage, type EmailLanguage } from "@/lib/customers/email-languages";
+import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
 
 type InvoiceEmailTemplateParams = {
     invoiceNumber: string;
@@ -312,7 +313,14 @@ export function getInvoiceEmailTemplate(
     };
 
     const template = templates[normalizedLanguage] ?? templates.en;
-    const text = `${template.greeting}\n\n${template.attachment}\n\n${template.questions}\n\n${template.closing}`;
+    const englishTemplate = templates.en;
+    const localizedText = `${template.greeting}\n\n${template.attachment}\n\n${template.questions}\n\n${template.closing}`;
+    const englishText = `${englishTemplate.greeting}\n\n${englishTemplate.attachment}\n\n${englishTemplate.questions}\n\n${englishTemplate.closing}`;
+    const text = composeBilingualEmailText({
+        language: normalizedLanguage,
+        localizedText,
+        englishText,
+    });
 
     return {
         subject: template.subject,
@@ -368,7 +376,14 @@ export function getZugferdInvoiceEmailTemplate(
         closing: "Mit freundlichen Grüßen\nWAW Nutzfahrzeuge",
     };
     const template = templates[normalizedLanguage] ?? fallbackTemplate;
-    const text = `${template.greeting}\n\n${template.attachment}\n\n${template.questions}\n\n${template.closing}`;
+    const englishTemplate = templates.en ?? fallbackTemplate;
+    const localizedText = `${template.greeting}\n\n${template.attachment}\n\n${template.questions}\n\n${template.closing}`;
+    const englishText = `${englishTemplate.greeting}\n\n${englishTemplate.attachment}\n\n${englishTemplate.questions}\n\n${englishTemplate.closing}`;
+    const text = composeBilingualEmailText({
+        language: normalizedLanguage,
+        localizedText,
+        englishText,
+    });
 
     return {
         subject: template.subject,

@@ -33,9 +33,16 @@ import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { markPurchasePaidAction } from "@/app/dashboard/ankauf/[purchaseId]/payment-actions";
+import { FlashMessage } from "@/components/shared/flash-message";
+import {
+    PurchaseSellerEditDialog,
+    PurchaseVehicleEditDialog,
+} from "@/components/purchases/purchase-record-edit-dialogs";
 
 type PurchaseDetailProps = {
     purchase: PurchaseCaseDetailType;
+    sellerSaved?: boolean;
+    vehicleSaved?: boolean;
 };
 
 const purchaseRequiredDocuments = [
@@ -51,7 +58,11 @@ const purchaseRequiredDocuments = [
     },
 ];
 
-export function PurchaseDetail({ purchase }: PurchaseDetailProps) {
+export function PurchaseDetail({
+                                   purchase,
+                                   sellerSaved = false,
+                                   vehicleSaved = false,
+                               }: PurchaseDetailProps) {
     const primaryDocumentTypes = purchaseRequiredDocuments.map(
         (document) => document.documentType,
     );
@@ -90,6 +101,14 @@ export function PurchaseDetail({ purchase }: PurchaseDetailProps) {
                     </div>
                 }
             />
+
+            {sellerSaved ? (
+                <FlashMessage message="Verkäuferdaten wurden gespeichert." />
+            ) : null}
+
+            {vehicleSaved ? (
+                <FlashMessage message="Fahrzeugdaten wurden gespeichert." />
+            ) : null}
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <DetailStatCard
@@ -130,11 +149,19 @@ export function PurchaseDetail({ purchase }: PurchaseDetailProps) {
                 <div className="space-y-6">
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
-                            <SectionTitle
-                                icon={UserRound}
-                                title="Verkäufer"
-                                description="Verkäuferdaten aus der Ankaufsakte."
-                            />
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <SectionTitle
+                                    icon={UserRound}
+                                    title="Verkäufer"
+                                    description="Verkäuferdaten aus der Ankaufsakte."
+                                />
+                                {purchase.seller ? (
+                                    <PurchaseSellerEditDialog
+                                        purchaseId={purchase.id}
+                                        seller={purchase.seller}
+                                    />
+                                ) : null}
+                            </div>
 
                             {purchase.seller ? (
                                 <div className="mt-5 space-y-3">
@@ -164,11 +191,19 @@ export function PurchaseDetail({ purchase }: PurchaseDetailProps) {
 
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
-                            <SectionTitle
-                                icon={Truck}
-                                title="Fahrzeug"
-                                description="Fahrzeugdaten aus dem Bestand."
-                            />
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <SectionTitle
+                                    icon={Truck}
+                                    title="Fahrzeug"
+                                    description="Fahrzeugdaten aus dem Bestand."
+                                />
+                                {purchase.vehicle ? (
+                                    <PurchaseVehicleEditDialog
+                                        purchaseId={purchase.id}
+                                        vehicle={purchase.vehicle}
+                                    />
+                                ) : null}
+                            </div>
 
                             {purchase.vehicle ? (
                                 <div className="mt-5 space-y-3">

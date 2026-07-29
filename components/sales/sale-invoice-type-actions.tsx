@@ -29,7 +29,6 @@ export function SaleInvoiceTypeActions({
                                        }: SaleInvoiceTypeActionsProps) {
     const hasStandard = existingInvoiceTypes.includes("standard");
     const hasProforma = existingInvoiceTypes.includes("proforma");
-    const hasDownPayment = existingInvoiceTypes.includes("down_payment");
     const hasDamageNotes = Boolean(damageNotes?.trim());
     const canIncludeDamageNotes = hasDamageNotes && allowDamageNotesOnInvoice;
     const [includeDamageNotes, setIncludeDamageNotes] = useState(
@@ -103,7 +102,7 @@ export function SaleInvoiceTypeActions({
                 </span>
             </label>
 
-            <div className="grid gap-3 lg:grid-cols-3">
+            <div className="grid gap-3 lg:grid-cols-2">
                 <form action={createSaleInvoiceAction}>
                     <input type="hidden" name="sale_id" value={saleId} />
                     <input type="hidden" name="invoice_type" value="standard" />
@@ -159,37 +158,6 @@ export function SaleInvoiceTypeActions({
                         }
                         disabled={hasProforma}
                         done={hasProforma}
-                    />
-                </form>
-
-                <form action={createSaleInvoiceAction}>
-                    <input type="hidden" name="sale_id" value={saleId} />
-                    <input type="hidden" name="invoice_type" value="down_payment" />
-                    <input
-                        type="hidden"
-                        name="include_damage_notes_on_invoice"
-                        value={includeDamageNotes ? "yes" : "no"}
-                    />
-                    <input
-                        type="hidden"
-                        name="include_signature_stamp"
-                        value={includeSignatureStamp ? "yes" : "no"}
-                    />
-
-                    <InvoiceSubmitButton
-                        icon="receipt"
-                        label={
-                            hasDownPayment
-                                ? "Anzahlungsrechnung vorhanden"
-                                : "Anzahlungsrechnung erstellen"
-                        }
-                        description={
-                            hasDownPayment
-                                ? "Bereits in der Rechnungsliste unten sichtbar"
-                                : "Eigener Nummernkreis AZ-026"
-                        }
-                        disabled={hasDownPayment}
-                        done={hasDownPayment}
                     />
                 </form>
             </div>

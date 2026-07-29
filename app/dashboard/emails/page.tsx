@@ -12,7 +12,7 @@ type EmailsPageProps = {
 
 export default async function EmailsPage({ searchParams }: EmailsPageProps) {
     const params = (await searchParams) ?? {};
-    const repository = createEmailRepository();
+    const repository = await createEmailRepository();
     const result = await repository.search({
         companyId: getCurrentCompanyId(),
         search: params.q ?? null,
