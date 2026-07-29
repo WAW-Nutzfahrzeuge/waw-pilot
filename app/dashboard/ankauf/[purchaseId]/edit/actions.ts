@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getDecimalFormValue, getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -12,27 +13,6 @@ type UpdatePurchaseCaseState = {
     success: boolean;
     message: string;
 };
-
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getNumberValue(formData: FormData, key: string): number | null {
-    const value = getStringValue(formData, key);
-
-    if (!value) return null;
-
-    const normalizedValue = value.replace(",", ".");
-    const numberValue = Number(normalizedValue);
-
-    return Number.isFinite(numberValue) ? numberValue : null;
-}
 
 function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
@@ -60,14 +40,14 @@ export async function updatePurchaseCaseAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const purchaseId = getStringValue(formData, "purchase_id");
-    const vehicleId = getStringValue(formData, "vehicle_id");
-    const sellerCustomerId = getStringValue(formData, "seller_customer_id");
-    const purchaseDate = getStringValue(formData, "purchase_date");
-    const netAmount = getNumberValue(formData, "net_amount");
-    const vatRate = getNumberValue(formData, "vat_rate") ?? 19;
-    const paymentStatus = getStringValue(formData, "payment_status") ?? "open";
-    const notes = getStringValue(formData, "notes");
+    const purchaseId = getStringFormValue(formData, "purchase_id");
+    const vehicleId = getStringFormValue(formData, "vehicle_id");
+    const sellerCustomerId = getStringFormValue(formData, "seller_customer_id");
+    const purchaseDate = getStringFormValue(formData, "purchase_date");
+    const netAmount = getDecimalFormValue(formData, "net_amount");
+    const vatRate = getDecimalFormValue(formData, "vat_rate") ?? 19;
+    const paymentStatus = getStringFormValue(formData, "payment_status") ?? "open";
+    const notes = getStringFormValue(formData, "notes");
 
     if (!purchaseId) {
         return {
@@ -221,11 +201,13 @@ export async function updatePurchaseCaseAction(
         });
     }
 
-    revalidatePath(`/dashboard/ankauf/${purchaseId}`);
-    revalidatePath("/dashboard/ankauf");
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/checks");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/ankauf/${purchaseId}`,
+        "/dashboard/ankauf",
+        "/dashboard",
+        "/dashboard/checks",
+        "/dashboard/activities",
+    ]);
 
     redirect(`/dashboard/ankauf/${purchaseId}`);
 }

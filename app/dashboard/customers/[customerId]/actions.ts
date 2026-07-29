@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -11,16 +12,6 @@ import {
     normalizeEmailLanguage,
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
-
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function hasFormField(formData: FormData, key: string): boolean {
     return formData.has(key);
@@ -43,7 +34,7 @@ function getCustomerDisplayName(customer: {
 }
 
 function getEmailLanguage(formData: FormData): EmailLanguage {
-    return normalizeEmailLanguage(getStringValue(formData, "preferred_language"));
+    return normalizeEmailLanguage(getStringFormValue(formData, "preferred_language"));
 }
 
 function getSafeDashboardRedirectPath(value: string | null, fallback: string): string {
@@ -59,7 +50,7 @@ export async function updateCustomerMasterDataAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const customerId = getStringValue(formData, "customer_id");
+    const customerId = getStringFormValue(formData, "customer_id");
 
     if (!customerId) {
         throw new Error("Kunde fehlt.");
@@ -72,22 +63,22 @@ export async function updateCustomerMasterDataAction(formData: FormData) {
         .eq("company_id", companyId)
         .maybeSingle();
 
-    const street = getStringValue(formData, "street");
-    const companyName = getStringValue(formData, "company_name");
-    const ownerName = getStringValue(formData, "owner_name");
-    const firstName = getStringValue(formData, "first_name");
-    const lastName = getStringValue(formData, "last_name");
-    const postalCode = getStringValue(formData, "postal_code");
-    const city = getStringValue(formData, "city");
-    const country = getStringValue(formData, "country");
-    const email = getStringValue(formData, "email");
+    const street = getStringFormValue(formData, "street");
+    const companyName = getStringFormValue(formData, "company_name");
+    const ownerName = getStringFormValue(formData, "owner_name");
+    const firstName = getStringFormValue(formData, "first_name");
+    const lastName = getStringFormValue(formData, "last_name");
+    const postalCode = getStringFormValue(formData, "postal_code");
+    const city = getStringFormValue(formData, "city");
+    const country = getStringFormValue(formData, "country");
+    const email = getStringFormValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
-    const phone = getStringValue(formData, "phone");
-    const taxNumber = getStringValue(formData, "tax_number");
-    const vatId = getStringValue(formData, "vat_id");
+    const phone = getStringFormValue(formData, "phone");
+    const taxNumber = getStringFormValue(formData, "tax_number");
+    const vatId = getStringFormValue(formData, "vat_id");
     const defaultRedirectPath = `/dashboard/customers/${customerId}?customerSaved=1&highlight=1`;
     const redirectTo = getSafeDashboardRedirectPath(
-        getStringValue(formData, "redirect_to"),
+        getStringFormValue(formData, "redirect_to"),
         defaultRedirectPath,
     );
 
@@ -152,13 +143,15 @@ export async function updateCustomerMasterDataAction(formData: FormData) {
         entityId: customerId,
     });
 
-    revalidatePath(`/dashboard/customers/${customerId}`);
-    revalidatePath("/dashboard/ankauf");
-    revalidatePath("/dashboard/customers");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/checks");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/customers/${customerId}`,
+        "/dashboard/ankauf",
+        "/dashboard/customers",
+        "/dashboard/sales",
+        "/dashboard/documents",
+        "/dashboard/checks",
+        "/dashboard/activities",
+    ]);
 
     redirect(redirectTo);
 }

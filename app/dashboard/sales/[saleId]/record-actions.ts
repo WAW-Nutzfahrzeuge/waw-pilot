@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getDecimalFormValue, getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { logActivity } from "@/lib/activity/activity-log";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
@@ -16,29 +17,8 @@ import {
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
 
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getNumberValue(formData: FormData, key: string): number | null {
-    const value = getStringValue(formData, key);
-
-    if (!value) return null;
-
-    const normalizedValue = value.replace(",", ".");
-    const numberValue = Number(normalizedValue);
-
-    return Number.isFinite(numberValue) ? numberValue : null;
-}
-
 function getEmailLanguage(formData: FormData): EmailLanguage {
-    return normalizeEmailLanguage(getStringValue(formData, "preferred_language"));
+    return normalizeEmailLanguage(getStringFormValue(formData, "preferred_language"));
 }
 
 function redirectWithSaleMessage(saleId: string, params: Record<string, string>) {
@@ -59,9 +39,9 @@ export async function updateSaleCustomerAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const customerId = getStringValue(formData, "customer_id");
-    const type = getStringValue(formData, "type");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const customerId = getStringFormValue(formData, "customer_id");
+    const type = getStringFormValue(formData, "type");
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (!customerId) throw new Error("Kunde fehlt.");
@@ -69,20 +49,20 @@ export async function updateSaleCustomerAction(formData: FormData) {
         redirectWithSaleMessage(saleId, { recordError: "invalidCustomerType" });
     }
 
-    const companyName = getStringValue(formData, "company_name");
-    const ownerName = getStringValue(formData, "owner_name");
-    const firstName = getStringValue(formData, "first_name");
-    const lastName = getStringValue(formData, "last_name");
-    const street = getStringValue(formData, "street");
-    const postalCode = getStringValue(formData, "postal_code");
-    const city = getStringValue(formData, "city");
-    const country = getStringValue(formData, "country") ?? "Deutschland";
-    const email = getStringValue(formData, "email");
+    const companyName = getStringFormValue(formData, "company_name");
+    const ownerName = getStringFormValue(formData, "owner_name");
+    const firstName = getStringFormValue(formData, "first_name");
+    const lastName = getStringFormValue(formData, "last_name");
+    const street = getStringFormValue(formData, "street");
+    const postalCode = getStringFormValue(formData, "postal_code");
+    const city = getStringFormValue(formData, "city");
+    const country = getStringFormValue(formData, "country") ?? "Deutschland";
+    const email = getStringFormValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
-    const phone = getStringValue(formData, "phone");
-    const taxNumber = getStringValue(formData, "tax_number");
-    const vatId = getStringValue(formData, "vat_id");
-    const commercialRegisterNumber = getStringValue(
+    const phone = getStringFormValue(formData, "phone");
+    const taxNumber = getStringFormValue(formData, "tax_number");
+    const vatId = getStringFormValue(formData, "vat_id");
+    const commercialRegisterNumber = getStringFormValue(
         formData,
         "commercial_register_number",
     );
@@ -215,10 +195,12 @@ export async function updateSaleCustomerAction(formData: FormData) {
         entityId: customerId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/customers");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/customers",
+        "/dashboard/activities",
+    ]);
 
     redirectWithSaleMessage(saleId, { recordSaved: "customer" });
 }
@@ -227,17 +209,17 @@ export async function updateSaleVehicleAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const vehicleId = getStringValue(formData, "vehicle_id");
-    const manufacturer = getStringValue(formData, "manufacturer");
-    const model = getStringValue(formData, "model");
-    const vehicleType = getStringValue(formData, "vehicle_type");
-    const constructionYear = getNumberValue(formData, "construction_year");
-    const vin = getStringValue(formData, "vin");
-    const licensePlate = getStringValue(formData, "license_plate");
-    const purchasePriceNet = getNumberValue(formData, "purchase_price_net");
-    const additionalCostsNet = getNumberValue(formData, "additional_costs_net") ?? 0;
-    const damageNotes = getStringValue(formData, "damage_notes");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const vehicleId = getStringFormValue(formData, "vehicle_id");
+    const manufacturer = getStringFormValue(formData, "manufacturer");
+    const model = getStringFormValue(formData, "model");
+    const vehicleType = getStringFormValue(formData, "vehicle_type");
+    const constructionYear = getDecimalFormValue(formData, "construction_year");
+    const vin = getStringFormValue(formData, "vin");
+    const licensePlate = getStringFormValue(formData, "license_plate");
+    const purchasePriceNet = getDecimalFormValue(formData, "purchase_price_net");
+    const additionalCostsNet = getDecimalFormValue(formData, "additional_costs_net") ?? 0;
+    const damageNotes = getStringFormValue(formData, "damage_notes");
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (!vehicleId) throw new Error("Fahrzeug fehlt.");
@@ -310,10 +292,12 @@ export async function updateSaleVehicleAction(formData: FormData) {
         entityId: vehicleId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/vehicles");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/vehicles",
+        "/dashboard/activities",
+    ]);
 
     redirectWithSaleMessage(saleId, { recordSaved: "vehicle" });
 }

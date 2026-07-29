@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getMoneyFormValue, getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { logActivity } from "@/lib/activity/activity-log";
 import { syncSalePaymentFinancialEntry } from "@/lib/accounting/financial-sync";
 import { getCurrentCompanyId } from "@/lib/company";
@@ -25,29 +26,6 @@ type ExistingPaymentRow = {
     is_voided: boolean | null;
 };
 
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getAmountValue(formData: FormData, key: string): number | null {
-    const value = getStringValue(formData, key);
-
-    if (!value) return null;
-
-    const normalizedValue = value.replace(/\./g, "").replace(",", ".");
-    const amount = Number(normalizedValue);
-
-    if (!Number.isFinite(amount)) return null;
-
-    return Math.round(amount * 100) / 100;
-}
-
 function getToday(): string {
     return new Date().toISOString().slice(0, 10);
 }
@@ -65,6 +43,17 @@ function getPaymentRedirect(saleId: string, params: Record<string, string>) {
     const searchParams = new URLSearchParams(params);
 
     return `/dashboard/sales/${saleId}?${searchParams.toString()}#payments`;
+}
+
+function revalidateSalePaymentPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/cashbook",
+        "/dashboard",
+        "/dashboard/activities",
+    ]);
 }
 
 async function getSaleAndPayments(saleId: string) {
@@ -181,14 +170,14 @@ export async function createSalePaymentAction(formData: FormData) {
     const companyId = getCurrentCompanyId();
     const authUserId = await getCurrentAuthUserId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const amount = getAmountValue(formData, "amount");
-    const paymentDate = getStringValue(formData, "payment_date") ?? getToday();
-    const paymentMethod = getStringValue(formData, "payment_method");
-    const note = getStringValue(formData, "note");
-    const externalReference = getStringValue(formData, "external_reference");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const amount = getMoneyFormValue(formData, "amount");
+    const paymentDate = getStringFormValue(formData, "payment_date") ?? getToday();
+    const paymentMethod = getStringFormValue(formData, "payment_method");
+    const note = getStringFormValue(formData, "note");
+    const externalReference = getStringFormValue(formData, "external_reference");
     const overpaymentConfirmed =
-        getStringValue(formData, "overpayment_confirmed") === "yes";
+        getStringFormValue(formData, "overpayment_confirmed") === "yes";
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (amount === null || amount <= 0) {
@@ -278,12 +267,7 @@ export async function createSalePaymentAction(formData: FormData) {
         entityId: saleId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/cashbook");
-    revalidatePath("/dashboard/dashboard");
-    revalidatePath("/dashboard/activities");
+    revalidateSalePaymentPaths(saleId);
 
     redirect(getPaymentRedirect(saleId, { paymentSaved: "created" }));
 }
@@ -293,13 +277,13 @@ export async function updateSalePaymentAction(formData: FormData) {
     const companyId = getCurrentCompanyId();
     const authUserId = await getCurrentAuthUserId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const paymentId = getStringValue(formData, "payment_id");
-    const amount = getAmountValue(formData, "amount");
-    const paymentDate = getStringValue(formData, "payment_date") ?? getToday();
-    const paymentMethod = getStringValue(formData, "payment_method");
-    const note = getStringValue(formData, "note");
-    const externalReference = getStringValue(formData, "external_reference");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const paymentId = getStringFormValue(formData, "payment_id");
+    const amount = getMoneyFormValue(formData, "amount");
+    const paymentDate = getStringFormValue(formData, "payment_date") ?? getToday();
+    const paymentMethod = getStringFormValue(formData, "payment_method");
+    const note = getStringFormValue(formData, "note");
+    const externalReference = getStringFormValue(formData, "external_reference");
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (!paymentId) throw new Error("Zahlung fehlt.");
@@ -371,11 +355,7 @@ export async function updateSalePaymentAction(formData: FormData) {
         entityId: saleId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/cashbook");
-    revalidatePath("/dashboard/activities");
+    revalidateSalePaymentPaths(saleId);
 
     redirect(getPaymentRedirect(saleId, { paymentSaved: "updated" }));
 }
@@ -385,9 +365,9 @@ export async function voidSalePaymentAction(formData: FormData) {
     const companyId = getCurrentCompanyId();
     const authUserId = await getCurrentAuthUserId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const paymentId = getStringValue(formData, "payment_id");
-    const voidReason = getStringValue(formData, "void_reason");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const paymentId = getStringFormValue(formData, "payment_id");
+    const voidReason = getStringFormValue(formData, "void_reason");
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (!paymentId) throw new Error("Zahlung fehlt.");
@@ -456,11 +436,7 @@ export async function voidSalePaymentAction(formData: FormData) {
         entityId: saleId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/cashbook");
-    revalidatePath("/dashboard/activities");
+    revalidateSalePaymentPaths(saleId);
 
     redirect(getPaymentRedirect(saleId, { paymentSaved: "voided" }));
 }

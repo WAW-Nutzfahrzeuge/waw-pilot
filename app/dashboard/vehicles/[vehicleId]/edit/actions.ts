@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getDecimalFormValue, getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { logActivity } from "@/lib/activity/activity-log";
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -18,29 +19,8 @@ export type UpdateVehicleState = {
 
 type VehicleStatus = "in_stock" | "reserved" | "sold";
 
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function getNumberValue(formData: FormData, key: string): number | null {
-    const value = getStringValue(formData, key);
-
-    if (!value) return null;
-
-    const normalizedValue = value.replace(",", ".");
-    const numberValue = Number(normalizedValue);
-
-    return Number.isFinite(numberValue) ? numberValue : null;
-}
-
 function getStatusValue(formData: FormData): VehicleStatus {
-    const value = getStringValue(formData, "status");
+    const value = getStringFormValue(formData, "status");
 
     if (value === "in_stock" || value === "reserved" || value === "sold") {
         return value;
@@ -79,19 +59,19 @@ export async function updateVehicleAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const manufacturer = getStringValue(formData, "manufacturer");
-    const model = getStringValue(formData, "model");
-    const vehicleType = getStringValue(formData, "vehicle_type");
-    const constructionYear = getNumberValue(formData, "construction_year");
-    const vin = getStringValue(formData, "vin");
-    const licensePlate = getStringValue(formData, "license_plate");
-    const purchasePriceNet = getNumberValue(formData, "purchase_price_net");
-    const additionalCostsNet = getNumberValue(formData, "additional_costs_net") ?? 0;
+    const manufacturer = getStringFormValue(formData, "manufacturer");
+    const model = getStringFormValue(formData, "model");
+    const vehicleType = getStringFormValue(formData, "vehicle_type");
+    const constructionYear = getDecimalFormValue(formData, "construction_year");
+    const vin = getStringFormValue(formData, "vin");
+    const licensePlate = getStringFormValue(formData, "license_plate");
+    const purchasePriceNet = getDecimalFormValue(formData, "purchase_price_net");
+    const additionalCostsNet = getDecimalFormValue(formData, "additional_costs_net") ?? 0;
     const status = getStatusValue(formData);
-    const notes = getStringValue(formData, "notes");
-    const damageNotes = getStringValue(formData, "damage_notes");
+    const notes = getStringFormValue(formData, "notes");
+    const damageNotes = getStringFormValue(formData, "damage_notes");
     const redirectTo = getSafeDashboardRedirectPath(
-        getStringValue(formData, "redirect_to"),
+        getStringFormValue(formData, "redirect_to"),
         `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
     );
 
@@ -213,13 +193,15 @@ export async function updateVehicleAction(
         entityId: vehicleId,
     });
 
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/vehicles");
-    revalidatePath("/dashboard/vehicles/bestandsliste");
-    revalidatePath("/dashboard/ankauf");
-    revalidatePath(`/dashboard/vehicles/${vehicleId}`);
-    revalidatePath(`/dashboard/vehicles/${vehicleId}/edit`);
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        "/dashboard",
+        "/dashboard/vehicles",
+        "/dashboard/vehicles/bestandsliste",
+        "/dashboard/ankauf",
+        `/dashboard/vehicles/${vehicleId}`,
+        `/dashboard/vehicles/${vehicleId}/edit`,
+        "/dashboard/activities",
+    ]);
 
     redirect(redirectTo);
 }
