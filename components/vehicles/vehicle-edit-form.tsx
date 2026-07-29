@@ -50,7 +50,6 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
     const updateVehicle = updateVehicleAction.bind(null, vehicle.id);
     const [state, formAction] = useActionState(updateVehicle, initialState);
     const [damageNotes, setDamageNotes] = useState(vehicle.damage_notes ?? "");
-    const hasDamageNotes = damageNotes.trim().length > 0;
     const primaryDocumentTypes = [
         {
             type: "vehicle_registration" as const,
@@ -75,7 +74,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
         <div className="space-y-6">
             <PageHeader
                 eyebrow="Fahrzeugakte"
-                title={`Fahrzeug bearbeiten · ${vehicle.internal_number}`}
+                title={`Fahrzeug bearbeiten · ${vehicle.manufacturer} ${vehicle.model}`}
                 description="Stammdaten, Preise, Status und Notizen des Fahrzeugs ändern."
                 action={
                     <Button
@@ -109,16 +108,6 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                 />
 
                                 <div className="mt-6 grid gap-4 md:grid-cols-2">
-                                    <FormField label="Interne Nummer" htmlFor="internal_number" required>
-                                        <Input
-                                            id="internal_number"
-                                            name="internal_number"
-                                            defaultValue={vehicle.internal_number}
-                                            required
-                                            className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
-                                        />
-                                    </FormField>
-
                                     <FormField label="Status" htmlFor="status" required>
                                         <select
                                             id="status"
@@ -352,38 +341,6 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                             Bekannte Schäden oder Mängel am Fahrzeug eintragen.
                                         </p>
                                     </div>
-
-                                    <label
-                                        className={
-                                            hasDamageNotes
-                                                ? "mb-5 flex cursor-pointer items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4"
-                                                : "mb-5 flex cursor-not-allowed items-start gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 opacity-75"
-                                        }
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            name="show_damage_on_invoice"
-                                            value="yes"
-                                            defaultChecked={
-                                                vehicle.show_damage_on_invoice && hasDamageNotes
-                                            }
-                                            disabled={!hasDamageNotes}
-                                            className="mt-1 size-4 rounded border-amber-300 text-amber-700 disabled:cursor-not-allowed"
-                                        />
-                                        <span>
-                                            <span className="block font-extrabold text-slate-950">
-                                                Schadensangaben auf Rechnungen anzeigen
-                                            </span>
-                                            <span className="mt-1 block text-sm font-medium leading-6 text-slate-600">
-                                                Schäden bleiben intern, solange diese Option nicht aktiviert ist.
-                                            </span>
-                                            {!hasDamageNotes ? (
-                                                <span className="mt-1 block text-xs font-bold text-amber-700">
-                                                    Bitte erfasse zuerst eine Schadensbeschreibung.
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                    </label>
 
                                     <label
                                         htmlFor="notes"

@@ -73,7 +73,6 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
                 item.license_plate_number,
                 item.registration_office,
                 item.customer_name,
-                item.vehicle_internal_number,
                 item.vehicle_name,
                 item.vin,
                 item.notes,
@@ -240,8 +239,7 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 
                                         <td className="px-5 py-5">
                                             <p className="font-extrabold text-slate-950">
-                                                {item.vehicle_internal_number ?? "—"}
-                                                {item.vehicle_name ? ` · ${item.vehicle_name}` : ""}
+                                                {item.vehicle_name ?? "—"}
                                             </p>
                                             <p className="mt-1 font-mono text-xs font-bold text-slate-500">
                                                 {item.vin ?? "—"}
@@ -339,8 +337,7 @@ function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
                     Fahrzeug
                 </p>
                 <p className="mt-1 text-sm font-extrabold text-slate-950">
-                    {item.vehicle_internal_number ?? "—"}
-                    {item.vehicle_name ? ` · ${item.vehicle_name}` : ""}
+                    {item.vehicle_name ?? "—"}
                 </p>
                 <p className="mt-1 break-all font-mono text-xs font-bold text-slate-500">
                     {item.vin ?? "—"}

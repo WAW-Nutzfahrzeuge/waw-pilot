@@ -33,9 +33,7 @@ export function VehicleCombobox({
         () =>
             vehicles.map((vehicle) => ({
                 value: vehicle.id,
-                label: [vehicle.internal_number, getVehicleDisplayName(vehicle)]
-                    .filter(Boolean)
-                    .join(" · "),
+                label: getVehicleDisplayName(vehicle),
                 description: [
                     `VIN: ${vehicle.vin}`,
                     vehicle.construction_year ? `Baujahr: ${vehicle.construction_year}` : null,
@@ -45,7 +43,6 @@ export function VehicleCombobox({
                     .filter(Boolean)
                     .join(" · "),
                 keywords: [
-                    vehicle.internal_number,
                     vehicle.manufacturer,
                     vehicle.model,
                     vehicle.vehicle_type,

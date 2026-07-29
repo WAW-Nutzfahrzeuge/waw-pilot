@@ -31,13 +31,12 @@ export default async function NewTravelExpensePage({
                 .filter(Boolean)
                 .join(", "),
             vehicleOrPlate: [
-                sale.vehicle.internal_number,
                 sale.vehicle.license_plate,
                 sale.vehicle.name,
             ]
                 .filter(Boolean)
                 .join(" · "),
-            purpose: `Reisekosten zum Verkauf ${sale.invoice?.invoice_number ?? sale.vehicle.internal_number}`,
+            purpose: `Reisekosten zum Verkauf ${sale.invoice?.invoice_number ?? sale.id}`,
         }
         : {
             saleId,

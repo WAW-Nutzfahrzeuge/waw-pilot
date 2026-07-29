@@ -127,10 +127,6 @@ function getVehicleLabel(vehicle: VehicleQueryRow): string {
 }
 
 function getStockNumber(vehicle: VehicleQueryRow, index: number): string {
-    if (vehicle.internal_number && vehicle.internal_number.trim().length > 0) {
-        return vehicle.internal_number;
-    }
-
     return `E-${index + 1}`;
 }
 

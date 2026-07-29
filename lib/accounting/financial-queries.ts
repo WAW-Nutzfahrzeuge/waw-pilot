@@ -122,9 +122,9 @@ function getVehicleLabel(
         ? T
         : never,
 ): string {
-    return [vehicle.internal_number, vehicle.manufacturer, vehicle.model]
+    return [vehicle.manufacturer, vehicle.model]
         .filter(Boolean)
-        .join(" · ");
+        .join(" ");
 }
 
 function mapFinancialEntry(row: FinancialEntryQueryRow): FinancialEntryRow {

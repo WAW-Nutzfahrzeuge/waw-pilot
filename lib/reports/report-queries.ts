@@ -336,7 +336,7 @@ export async function getReportsData(
         id: sale.id,
         invoiceNumber: sale.invoice_number,
         customerName: sale.customer_name,
-        vehicleName: `${sale.vehicle_internal_number} · ${sale.vehicle_name}`,
+        vehicleName: sale.vehicle_name,
         saleDate: sale.sale_date,
         revenueNet: sale.net_amount,
         profitNet: getSaleProfitNet(sale),
@@ -382,9 +382,7 @@ export async function getReportsData(
                 id: purchase.id,
                 purchaseNumber: purchase.purchase_number,
                 sellerName: purchase.seller_name,
-                vehicleName: purchase.vehicle_internal_number
-                    ? `${purchase.vehicle_internal_number} · ${purchase.vehicle_name ?? ""}`
-                    : purchase.vehicle_name,
+                vehicleName: purchase.vehicle_name,
                 purchaseDate: purchase.purchase_date,
                 grossAmount: purchase.gross_amount,
                 paymentStatus: purchase.payment_status,
@@ -397,7 +395,7 @@ export async function getReportsData(
             saleId: invoice.sale_id,
             invoiceNumber: invoice.invoice_number,
             customerName: invoice.customer_name,
-            vehicleName: `${invoice.vehicle_internal_number} · ${invoice.vehicle_name}`,
+            vehicleName: invoice.vehicle_name,
             grossAmount: invoice.gross_amount,
             invoiceDate: invoice.invoice_date,
         })),
@@ -406,9 +404,7 @@ export async function getReportsData(
             id: purchase.id,
             purchaseNumber: purchase.purchase_number,
             sellerName: purchase.seller_name,
-            vehicleName: purchase.vehicle_internal_number
-                ? `${purchase.vehicle_internal_number} · ${purchase.vehicle_name ?? ""}`
-                : purchase.vehicle_name,
+            vehicleName: purchase.vehicle_name,
             grossAmount: purchase.gross_amount,
             purchaseDate: purchase.purchase_date,
         })),

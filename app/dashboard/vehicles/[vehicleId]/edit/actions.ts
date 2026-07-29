@@ -7,7 +7,6 @@ import { logActivity } from "@/lib/activity/activity-log";
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
-    getDuplicateInternalNumberMessage,
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
@@ -64,9 +63,9 @@ function getVehicleActivityName(vehicle: {
     manufacturer: string | null;
     model: string | null;
 }): string {
-    const name = [vehicle.internal_number, vehicle.manufacturer, vehicle.model]
+    const name = [vehicle.manufacturer, vehicle.model]
         .filter(Boolean)
-        .join(" · ")
+        .join(" ")
         .trim();
 
     return name || "unbekanntes Fahrzeug";
@@ -80,7 +79,6 @@ export async function updateVehicleAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const internalNumber = getStringValue(formData, "internal_number");
     const manufacturer = getStringValue(formData, "manufacturer");
     const model = getStringValue(formData, "model");
     const vehicleType = getStringValue(formData, "vehicle_type");
@@ -96,21 +94,11 @@ export async function updateVehicleAction(
         getStringValue(formData, "redirect_to"),
         `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
     );
-    const showDamageOnInvoice =
-        Boolean(damageNotes?.trim()) &&
-        getStringValue(formData, "show_damage_on_invoice") === "yes";
 
     if (!vehicleId) {
         return {
             success: false,
             message: "Fahrzeug-ID fehlt.",
-        };
-    }
-
-    if (!internalNumber) {
-        return {
-            success: false,
-            message: "Bitte gib eine interne Nummer ein.",
         };
     }
 
@@ -146,16 +134,6 @@ export async function updateVehicleAction(
         return {
             success: false,
             message: "Bitte gib einen gültigen Einkaufspreis netto ein.",
-        };
-    }
-
-    if (
-        getStringValue(formData, "show_damage_on_invoice") === "yes" &&
-        !damageNotes?.trim()
-    ) {
-        return {
-            success: false,
-            message: "Bitte erfassen Sie zuerst eine Schadensbeschreibung.",
         };
     }
 
@@ -201,38 +179,9 @@ export async function updateVehicleAction(
         };
     }
 
-    const {
-        data: duplicateInternalNumberVehicle,
-        error: duplicateInternalNumberError,
-    } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("internal_number", internalNumber)
-        .neq("id", vehicleId)
-        .limit(1);
-
-    if (duplicateInternalNumberError) {
-        console.error(
-            "Internal number duplicate check failed",
-            duplicateInternalNumberError,
-        );
-    }
-
-    if (
-        duplicateInternalNumberVehicle &&
-        duplicateInternalNumberVehicle.length > 0
-    ) {
-        return {
-            success: false,
-            message: getDuplicateInternalNumberMessage(),
-        };
-    }
-
     const { error: updateError } = await supabase
         .from("vehicles")
         .update({
-            internal_number: internalNumber,
             manufacturer,
             model,
             vehicle_type: vehicleType,
@@ -244,7 +193,7 @@ export async function updateVehicleAction(
             status,
             notes,
             damage_notes: damageNotes,
-            show_damage_on_invoice: showDamageOnInvoice,
+            show_damage_on_invoice: false,
         })
         .eq("id", vehicleId)
         .eq("company_id", companyId);

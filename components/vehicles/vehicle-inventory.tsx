@@ -77,7 +77,6 @@ export function VehicleInventory({
 
         return sortedVehicles.filter((vehicle) => {
             const searchableText = [
-                vehicle.internal_number,
                 vehicle.manufacturer,
                 vehicle.model,
                 vehicle.vehicle_type,
@@ -320,11 +319,8 @@ function VehicleTable({
                                         href={`/dashboard/vehicles/${vehicle.id}`}
                                         className="text-lg font-extrabold text-slate-950 hover:text-cyan-700 hover:underline"
                                     >
-                                        {vehicle.internal_number}
-                                    </Link>
-                                    <p className="mt-1 text-sm font-bold text-slate-700">
                                         {getVehicleDisplayName(vehicle)}
-                                    </p>
+                                    </Link>
                                     <p className="mt-1 text-xs font-semibold text-slate-500">
                                         {vehicle.vehicle_type} · BJ{" "}
                                         {vehicle.construction_year ?? "—"}
@@ -472,11 +468,8 @@ function VehicleTable({
                                             href={`/dashboard/vehicles/${vehicle.id}`}
                                             className="font-extrabold text-slate-950 hover:text-cyan-700 hover:underline"
                                         >
-                                            {vehicle.internal_number}
-                                        </Link>
-                                        <p className="mt-1 text-sm font-semibold text-slate-600">
                                             {getVehicleDisplayName(vehicle)}
-                                        </p>
+                                        </Link>
                                         <p className="mt-1 text-xs font-medium text-slate-500">
                                             {vehicle.vehicle_type} · BJ{" "}
                                             {vehicle.construction_year ?? "—"}

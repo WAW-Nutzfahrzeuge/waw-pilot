@@ -181,11 +181,7 @@ function removePlannedNetSalePriceNote(existingNotes: string | null): string | n
 }
 
 function canIncludeVehicleDamageNotes(vehicle: SaleInvoiceVehicleRelation | null): boolean {
-    return Boolean(
-        vehicle &&
-            vehicle.damage_notes?.trim() &&
-            vehicle.show_damage_on_invoice,
-    );
+    return Boolean(vehicle?.damage_notes?.trim());
 }
 
 function getInvoiceActivityLabel(invoiceType: InvoiceType): string {

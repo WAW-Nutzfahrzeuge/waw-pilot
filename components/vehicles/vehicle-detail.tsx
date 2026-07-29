@@ -87,7 +87,7 @@ export function VehicleDetail({
         <div className="space-y-6">
             <PageHeader
                 eyebrow="Fahrzeugakte"
-                title={`${vehicle.internal_number} · ${vehicle.name}`}
+                title={vehicle.name}
                 description="Detailansicht mit Fahrzeugdaten, Kundenbezug, Verkäufen und Dokumenten."
                 action={
                     <div className="flex flex-col gap-2 sm:flex-row">
@@ -171,11 +171,10 @@ export function VehicleDetail({
                             <SectionTitle
                                 icon={Truck}
                                 title="Fahrzeugdaten"
-                                description="Technische Stammdaten und interne Zuordnung."
+                                description="Technische Stammdaten."
                             />
 
                             <div className="mt-5 space-y-3">
-                                <InfoRow label="Interne Nummer" value={vehicle.internal_number} />
                                 <InfoRow label="Hersteller" value={vehicle.manufacturer} />
                                 <InfoRow label="Modell" value={vehicle.model} />
                                 <InfoRow label="Fahrzeugtyp" value={vehicle.vehicle_type} />
@@ -207,16 +206,6 @@ export function VehicleDetail({
                             <p className="mt-5 rounded-3xl bg-slate-50 p-4 text-sm font-semibold leading-7 text-slate-700">
                                 {vehicle.damage_notes?.trim() || "Keine Schäden hinterlegt."}
                             </p>
-                            <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="text-sm font-extrabold text-slate-950">
-                                    Schadensangaben auf Rechnungen anzeigen
-                                </p>
-                                <p className="mt-1 text-sm font-semibold text-slate-600">
-                                    {vehicle.show_damage_on_invoice && vehicle.damage_notes?.trim()
-                                        ? "Aktiviert. Bei der Rechnungserstellung kann eine Variante mit Schadensangaben ausgewählt werden."
-                                        : "Deaktiviert. Schadensangaben bleiben intern."}
-                                </p>
-                            </div>
                         </CardContent>
                     </Card>
 

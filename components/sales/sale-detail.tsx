@@ -163,7 +163,7 @@ export async function SaleDetail({
         <div className="space-y-6">
             <PageHeader
                 eyebrow="Verkaufsakte"
-                title={`Verkauf ${sale.invoice?.invoice_number ?? sale.vehicle.internal_number}`}
+                title={`Verkauf ${sale.sale_number ?? sale.invoice?.invoice_number ?? sale.vehicle.name}`}
                 description="Detailansicht mit Kunde, Fahrzeug, Rechnungen, Zahlung und Pflichtdokumenten."
                 action={
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -484,7 +484,6 @@ export async function SaleDetail({
                             </div>
 
                             <div className="mt-5 space-y-3">
-                                <InfoRow label="Interne Nummer" value={sale.vehicle.internal_number} />
                                 <InfoRow label="Fahrzeug" value={sale.vehicle.name} />
                                 <InfoRow label="Fahrzeugtyp" value={sale.vehicle.vehicle_type} />
                                 <InfoRow label="VIN" value={sale.vehicle.vin} />
@@ -574,9 +573,7 @@ export async function SaleDetail({
                                     saleId={sale.id}
                                     existingInvoiceTypes={existingInvoiceTypes}
                                     damageNotes={sale.vehicle.damage_notes}
-                                    allowDamageNotesOnInvoice={
-                                        sale.vehicle.show_damage_on_invoice
-                                    }
+                                    allowDamageNotesOnInvoice={Boolean(sale.vehicle.damage_notes?.trim())}
                                     includeDamageNotesOnInvoice={
                                         sale.include_damage_notes_on_invoice
                                     }
@@ -680,7 +677,7 @@ export async function SaleDetail({
                                                 sale.customer.preferred_language,
                                             country: sale.customer.country,
                                         }}
-                                        vehicleLabel={`${sale.vehicle.internal_number} · ${sale.vehicle.name}`}
+                                        vehicleLabel={sale.vehicle.name}
                                         documents={sale.documents}
                                     />
                                 </div>
@@ -1235,7 +1232,7 @@ function getRecordErrorMessage(value: string): string {
         customerUpdateFailed:
             "Kundendaten konnten nicht gespeichert werden. Bitte versuche es erneut.",
         vehicleRequiredMissing:
-            "Interne Nummer, Hersteller, Modell, Typ und VIN sind Pflichtfelder.",
+            "Hersteller, Modell, Typ und VIN sind Pflichtfelder.",
         vehiclePriceInvalid: "Bitte prüfe die Preisangaben.",
         damageNotesMissing: "Bitte erfasse zuerst eine Schadensbeschreibung.",
         saleVehicleMismatch: "Das Fahrzeug gehört nicht zu dieser Verkaufsakte.",

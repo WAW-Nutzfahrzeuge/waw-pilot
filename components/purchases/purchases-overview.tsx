@@ -79,7 +79,6 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
             const searchableText = [
                 purchase.purchase_number,
                 purchase.seller_name,
-                purchase.vehicle_internal_number,
                 purchase.vehicle_name,
                 purchase.vin,
                 purchase.notes,
@@ -254,8 +253,7 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
 
                                         <td className="px-5 py-5">
                                             <p className="font-bold text-slate-950">
-                                                {purchase.vehicle_internal_number ?? "—"}
-                                                {purchase.vehicle_name ? ` · ${purchase.vehicle_name}` : ""}
+                                                {purchase.vehicle_name ?? "—"}
                                             </p>
                                             <p className="mt-1 font-mono text-xs font-semibold text-slate-500">
                                                 {purchase.vin ?? "—"}
@@ -368,8 +366,7 @@ function PurchaseMobileCard({ purchase }: { purchase: PurchaseCaseRow }) {
                     Fahrzeug
                 </p>
                 <p className="mt-1 text-sm font-extrabold text-slate-950">
-                    {purchase.vehicle_internal_number ?? "—"}
-                    {purchase.vehicle_name ? ` · ${purchase.vehicle_name}` : ""}
+                    {purchase.vehicle_name ?? "—"}
                 </p>
                 <p className="mt-1 break-all font-mono text-xs font-bold text-slate-500">
                     {purchase.vin ?? "—"}

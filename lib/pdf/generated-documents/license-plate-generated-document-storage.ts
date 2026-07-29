@@ -38,7 +38,7 @@ export async function generateAndStoreLicensePlateConsentDocument(params: {
     const pdfBytes = await generateLicensePlateConsentPdf(plateCase);
 
     const numberPart = getSafeFilePart(
-        plateCase.license_plate_number ?? plateCase.vehicle.internal_number,
+        plateCase.license_plate_number ?? plateCase.vehicle.vin ?? params.plateCaseId,
     );
 
     const fileName = `einverstaendniserklaerung-kennzeichen-${numberPart}.pdf`;

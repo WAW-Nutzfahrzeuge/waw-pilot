@@ -33,9 +33,7 @@ import {
     type SaleBuyerType,
 } from "@/utils/sale-tax-rules";
 import { calculatePaymentStatus } from "@/utils/payment-utils";
-import { getNextVehicleInternalNumber } from "@/lib/vehicles/vehicle-numbering";
 import {
-    getDuplicateInternalNumberMessage,
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
@@ -305,9 +303,9 @@ function getVehicleActivityName(vehicle: {
     manufacturer: string | null;
     model: string | null;
 }): string {
-    const name = [vehicle.internal_number, vehicle.manufacturer, vehicle.model]
+    const name = [vehicle.manufacturer, vehicle.model]
         .filter(Boolean)
-        .join(" · ")
+        .join(" ")
         .trim();
 
     return name || "unbekanntes Fahrzeug";
@@ -341,7 +339,7 @@ async function getNextSaleNumber(
     const highestNumber = (data ?? []).reduce((highest, sale) => {
         if (typeof sale.sale_number !== "string") return highest;
 
-        const match = sale.sale_number.match(/^VK-?(\d+)$/i);
+        const match = sale.sale_number.match(/^VK\s+(\d+)$/i);
 
         if (!match) return highest;
 
@@ -352,7 +350,7 @@ async function getNextSaleNumber(
         return Math.max(highest, numberValue);
     }, 0);
 
-    return `VK-${highestNumber + 1}`;
+    return `VK ${highestNumber + 1}`;
 }
 
 async function createBuyerCustomerFromSaleForm(
@@ -763,7 +761,6 @@ async function createVehicleFromSaleForm(
     companyId: string,
     formData: FormData,
 ): Promise<{ success: true; vehicleId: string; vehicleName: string } | { success: false; message: string }> {
-    const submittedInternalNumber = getStringValue(formData, "new_vehicle_internal_number");
     const manufacturer = getStringValue(formData, "new_vehicle_manufacturer");
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_vehicle_type");
@@ -779,9 +776,6 @@ async function createVehicleFromSaleForm(
         getNumberValue(formData, "new_vehicle_additional_costs_net") ?? 0;
     const notes = getStringValue(formData, "new_vehicle_notes");
     const damageNotes = getStringValue(formData, "new_vehicle_damage_notes");
-    const showDamageOnInvoice =
-        Boolean(damageNotes?.trim()) &&
-        getStringValue(formData, "new_vehicle_show_damage_on_invoice") === "yes";
 
     if (!manufacturer || !model || !vehicleType || !normalizedVin) {
         return {
@@ -796,9 +790,6 @@ async function createVehicleFromSaleForm(
             message: "Bitte gib für das neue Fahrzeug einen gültigen Einkaufspreis netto ein.",
         };
     }
-
-    const internalNumber =
-        submittedInternalNumber ?? (await getNextVehicleInternalNumber());
 
     const { data: duplicateVinVehicle, error: duplicateVinError } = await supabase
         .from("vehicles")
@@ -815,20 +806,9 @@ async function createVehicleFromSaleForm(
         return { success: false, message: getDuplicateVinMessage() };
     }
 
-    const { data: duplicateInternalNumberVehicle } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("internal_number", internalNumber)
-        .limit(1);
-
-    if ((duplicateInternalNumberVehicle ?? []).length > 0) {
-        return { success: false, message: getDuplicateInternalNumberMessage() };
-    }
-
     const baseVehicleInsertData = {
         company_id: companyId,
-        internal_number: internalNumber,
+        internal_number: null,
         manufacturer,
         model,
         vehicle_type: vehicleType,
@@ -844,7 +824,7 @@ async function createVehicleFromSaleForm(
         buyer_customer_id: null,
         notes,
         damage_notes: damageNotes,
-        show_damage_on_invoice: showDamageOnInvoice,
+        show_damage_on_invoice: false,
     };
 
     let { data: vehicle, error } = await supabase
@@ -902,7 +882,6 @@ async function validateVehicleFromSaleForm(
     companyId: string,
     formData: FormData,
 ): Promise<{ success: true } | { success: false; message: string }> {
-    const submittedInternalNumber = getStringValue(formData, "new_vehicle_internal_number");
     const manufacturer = getStringValue(formData, "new_vehicle_manufacturer");
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_vehicle_type");
@@ -924,9 +903,6 @@ async function validateVehicleFromSaleForm(
         };
     }
 
-    const internalNumber =
-        submittedInternalNumber ?? (await getNextVehicleInternalNumber());
-
     const { data: duplicateVinVehicle, error: duplicateVinError } = await supabase
         .from("vehicles")
         .select("id")
@@ -940,17 +916,6 @@ async function validateVehicleFromSaleForm(
 
     if ((duplicateVinVehicle ?? []).length > 0) {
         return { success: false, message: getDuplicateVinMessage() };
-    }
-
-    const { data: duplicateInternalNumberVehicle } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("internal_number", internalNumber)
-        .limit(1);
-
-    if ((duplicateInternalNumberVehicle ?? []).length > 0) {
-        return { success: false, message: getDuplicateInternalNumberMessage() };
     }
 
     return { success: true };
@@ -1449,7 +1414,6 @@ export async function createSaleAction(
     const grossAmount = roundMoney(netAmount + vatAmount);
     const includeDamageNotesOnInvoice =
         requestedIncludeDamageNotesOnInvoice &&
-        Boolean(vehicleData.show_damage_on_invoice) &&
         Boolean(vehicleData.damage_notes?.trim());
 
     let saleNumber: string;

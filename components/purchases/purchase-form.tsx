@@ -94,7 +94,6 @@ export function PurchaseForm({
                 description: vehicle.description,
                 disabled: vehicle.disabled,
                 keywords: [
-                    vehicle.internal_number,
                     vehicle.manufacturer,
                     vehicle.model,
                     vehicle.vehicle_type,
@@ -223,7 +222,7 @@ export function PurchaseForm({
                                 options={vehicleOptions}
                                 defaultValue={initialValues?.vehicle_id ?? ""}
                                 required
-                                placeholder="Interne Nummer, VIN, Hersteller oder Modell suchen..."
+                                placeholder="VIN, Hersteller oder Modell suchen..."
                                 emptyText="Kein geeignetes Fahrzeug gefunden."
                                 maxVisibleItems={60}
                             />
@@ -419,7 +418,6 @@ function VehicleCreateFields() {
 
     return (
         <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Interne Nummer" name="new_vehicle_internal_number" />
             <FormField label="Hersteller *" name="new_vehicle_manufacturer" required />
             <FormField label="Modell *" name="new_vehicle_model" required />
             <FormField label="Typ *" name="new_vehicle_type" required />

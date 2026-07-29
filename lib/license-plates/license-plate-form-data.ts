@@ -137,7 +137,7 @@ export async function getLicensePlateFormData(): Promise<LicensePlateFormData> {
 
     const vehicles = ((vehiclesData ?? []) as VehicleRow[]).map((vehicle) => ({
         id: vehicle.id,
-        label: `${vehicle.internal_number} · ${vehicle.manufacturer} ${vehicle.model} · ${vehicle.vin}`,
+        label: `${vehicle.manufacturer} ${vehicle.model} · ${vehicle.vin}`,
     }));
 
     const customers = ((customersData ?? []) as CustomerRow[]).map((customer) => ({
@@ -155,7 +155,7 @@ export async function getLicensePlateFormData(): Promise<LicensePlateFormData> {
 
     const sales = ((salesData ?? []) as unknown as SaleRow[]).map((sale) => {
         const vehicleLabel = sale.vehicles
-            ? `${sale.vehicles.internal_number} · ${sale.vehicles.manufacturer} ${sale.vehicles.model}`
+            ? `${sale.vehicles.manufacturer} ${sale.vehicles.model}`
             : "Unbekanntes Fahrzeug";
 
         const customerLabel = getCustomerName(sale.customers);

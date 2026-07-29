@@ -69,7 +69,7 @@ export function SaleInvoiceTypeActions({
                         Schadensangaben bleiben intern
                     </p>
                     <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
-                        Aktiviere in der Fahrzeugakte „Schadensangaben auf Rechnungen anzeigen“, um eine Rechnungsvariante mit Schäden zu erzeugen.
+                        Erfasse zuerst Schadensangaben am Fahrzeug, um sie auf Rechnungen auszugeben.
                     </p>
                 </div>
             ) : null}

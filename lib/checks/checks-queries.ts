@@ -80,9 +80,7 @@ export async function getChecksData(): Promise<ChecksData> {
             plate_type: item.plate_type,
             status: item.status,
             customer_name: item.customer_name,
-            vehicle_name: item.vehicle_name
-                ? `${item.vehicle_internal_number ?? "—"} · ${item.vehicle_name}`
-                : item.vehicle_internal_number,
+            vehicle_name: item.vehicle_name,
             license_plate_number: item.license_plate_number,
             valid_until: item.valid_until,
         }));
@@ -93,7 +91,7 @@ export async function getChecksData(): Promise<ChecksData> {
         .map((sale) => ({
             id: sale.id,
             customer_name: sale.customer_name,
-            vehicle_name: `${sale.vehicle_internal_number} · ${sale.vehicle_name}`,
+            vehicle_name: sale.vehicle_name,
             invoice_number: sale.invoice_number,
             sale_date: sale.sale_date,
             document_check_status: sale.document_check_status,
@@ -106,9 +104,7 @@ export async function getChecksData(): Promise<ChecksData> {
             id: purchase.id,
             purchase_number: purchase.purchase_number,
             seller_name: purchase.seller_name,
-            vehicle_name: purchase.vehicle_name
-                ? `${purchase.vehicle_internal_number ?? "—"} · ${purchase.vehicle_name}`
-                : purchase.vehicle_internal_number,
+            vehicle_name: purchase.vehicle_name,
             purchase_date: purchase.purchase_date,
             document_check_status: purchase.document_check_status,
         }));

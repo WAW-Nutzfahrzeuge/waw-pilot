@@ -254,7 +254,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
             id: sale.id,
             invoiceNumber: sale.invoice_number,
             customerName: sale.customer_name,
-            vehicleName: `${sale.vehicle_internal_number} · ${sale.vehicle_name}`,
+            vehicleName: sale.vehicle_name,
             amount: sale.net_amount,
             saleDate: sale.sale_date,
         })),
@@ -263,9 +263,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
             id: item.id,
             typeLabel: getLicensePlateTypeLabel(item.plate_type),
             statusLabel: getLicensePlateStatusLabel(item.status),
-            vehicleName: item.vehicle_internal_number
-                ? `${item.vehicle_internal_number} · ${item.vehicle_name ?? ""}`
-                : "Kein Fahrzeug",
+            vehicleName: item.vehicle_name ?? "Kein Fahrzeug",
             customerName: item.customer_name ?? "Kein Kunde",
             licensePlateNumber: item.license_plate_number,
             validUntil: item.valid_until,

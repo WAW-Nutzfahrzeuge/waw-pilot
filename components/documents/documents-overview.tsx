@@ -226,9 +226,7 @@ function getDocumentReferenceLabel(document: DocumentRow): string | null {
     }
 
     if (document.vehicle_internal_number) {
-        return document.vehicle_name
-            ? `${document.vehicle_internal_number} · ${document.vehicle_name}`
-            : document.vehicle_internal_number;
+        return document.vehicle_name ?? "Fahrzeug";
     }
 
     if (document.customer_name) return document.customer_name;

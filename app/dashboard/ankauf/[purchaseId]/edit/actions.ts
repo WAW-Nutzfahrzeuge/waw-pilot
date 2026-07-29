@@ -45,9 +45,9 @@ function getVehicleActivityName(vehicle: {
 } | null): string {
     if (!vehicle) return "unbekanntes Fahrzeug";
 
-    const name = [vehicle.internal_number, vehicle.manufacturer, vehicle.model]
+    const name = [vehicle.manufacturer, vehicle.model]
         .filter(Boolean)
-        .join(" · ")
+        .join(" ")
         .trim();
 
     return name || "unbekanntes Fahrzeug";

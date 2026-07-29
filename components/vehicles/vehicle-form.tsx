@@ -27,12 +27,10 @@ const initialState = {
 
 type VehicleFormProps = {
     customers: CustomerRow[];
-    suggestedInternalNumber: string;
 };
 
 export function VehicleForm({
                                 customers,
-                                suggestedInternalNumber,
                             }: VehicleFormProps) {
     const [state, formAction, isPending] = useActionState(
         createVehicleAction,
@@ -98,16 +96,10 @@ export function VehicleForm({
                         <SectionTitle
                             icon={Truck}
                             title="Stammdaten"
-                            description="Interne Identifikation und technische Basisdaten."
+                            description="Technische Basisdaten des Fahrzeugs."
                         />
 
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            <FormField
-                                label="Interne Nummer *"
-                                name="internal_number"
-                                defaultValue={suggestedInternalNumber}
-                                required
-                            />
                             <FormField label="Hersteller *" name="manufacturer" required />
                             <FormField label="Modell *" name="model" required />
                             <FormField label="Fahrzeugtyp *" name="vehicle_type" required />

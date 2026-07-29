@@ -409,7 +409,15 @@ export function SaleForm({
                                 />
 
                                 {selectedVehicle ? (
-                                    <SelectedVehicleSummary vehicle={selectedVehicle} />
+                                    <>
+                                        <SelectedVehicleSummary vehicle={selectedVehicle} />
+                                        <DamageInvoiceOption
+                                            visible={Boolean(
+                                                selectedVehicle.damage_notes?.trim(),
+                                            )}
+                                            description="Die beim ausgewählten Fahrzeug hinterlegten Schäden werden auf der Rechnung ausgegeben."
+                                        />
+                                    </>
                                 ) : null}
 
                                 {vehicles.length === 0 ? (
@@ -987,31 +995,10 @@ export function SaleForm({
                                 </p>
                                 <p className="mt-1 text-sm font-medium text-cyan-800">
                                     Erstellt direkt einen Rechnungsdatensatz mit der nächsten
-                                    Rechnungsnummer und speichert die PDF in Supabase.
+                                    Rechnungsnummer und speichert die PDF.
                                 </p>
                             </div>
                         </label>
-
-                        {selectedVehicle?.damage_notes?.trim() &&
-                        selectedVehicle.show_damage_on_invoice ? (
-                            <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4">
-                                <input
-                                    type="checkbox"
-                                    name="include_damage_notes_on_invoice"
-                                    value="yes"
-                                    className="mt-1 size-4 rounded border-amber-300 text-amber-700"
-                                />
-                                <div>
-                                    <p className="font-extrabold text-amber-950">
-                                        Schäden auf Rechnung aufführen
-                                    </p>
-                                    <p className="mt-1 text-sm font-medium leading-6 text-amber-900">
-                                        Die beim Fahrzeug hinterlegten Schäden werden als Hinweis
-                                        auf der Rechnung ausgegeben.
-                                    </p>
-                                </div>
-                            </label>
-                        ) : null}
 
                         <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4">
                             <input
@@ -1369,7 +1356,7 @@ function SelectedVehicleSummary({ vehicle }: { vehicle: VehicleRow }) {
     return (
         <div className="rounded-3xl border border-cyan-100 bg-cyan-50 p-4 text-sm font-semibold leading-6 text-cyan-950">
             <p className="text-base font-extrabold">
-                {[vehicle.internal_number, getVehicleDisplayName(vehicle)].filter(Boolean).join(" · ")}
+                {getVehicleDisplayName(vehicle)}
             </p>
             <p>
                 {[`VIN: ${vehicle.vin}`, vehicle.construction_year ? `Baujahr: ${vehicle.construction_year}` : null]
@@ -1383,6 +1370,35 @@ function SelectedVehicleSummary({ vehicle }: { vehicle: VehicleRow }) {
             </p>
             {vehicle.damage_notes ? <p>Schäden: {vehicle.damage_notes}</p> : null}
         </div>
+    );
+}
+
+function DamageInvoiceOption({
+    visible,
+    description,
+}: {
+    visible: boolean;
+    description: string;
+}) {
+    if (!visible) return null;
+
+    return (
+        <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+            <input
+                type="checkbox"
+                name="include_damage_notes_on_invoice"
+                value="yes"
+                className="mt-1 size-4 rounded border-amber-300 text-amber-700"
+            />
+            <span>
+                <span className="block font-extrabold text-amber-950">
+                    Schäden auf Rechnung aufführen
+                </span>
+                <span className="mt-1 block text-sm font-medium leading-6 text-amber-900">
+                    {description}
+                </span>
+            </span>
+        </label>
     );
 }
 
@@ -1408,7 +1424,6 @@ function NewVehicleFields({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <FormField label="Interne Nummer" name="new_vehicle_internal_number" />
                 <FormField label="Hersteller *" name="new_vehicle_manufacturer" required />
                 <FormField label="Modell *" name="new_vehicle_model" required />
                 <FormField label="Fahrzeugtyp *" name="new_vehicle_vehicle_type" required />
@@ -1457,29 +1472,10 @@ function NewVehicleFields({
                 />
             </div>
 
-            <label
-                className={
-                    hasDamageNotes
-                        ? "flex cursor-pointer items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4"
-                        : "flex cursor-not-allowed items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4 opacity-75"
-                }
-            >
-                <input
-                    type="checkbox"
-                    name="new_vehicle_show_damage_on_invoice"
-                    value="yes"
-                    disabled={!hasDamageNotes}
-                    className="mt-1 size-4 rounded border-amber-300 text-amber-700 disabled:cursor-not-allowed"
-                />
-                <span>
-                    <span className="block font-extrabold text-slate-950">
-                        Schadensangaben auf Rechnungen anzeigen
-                    </span>
-                    <span className="mt-1 block text-sm font-medium leading-6 text-slate-600">
-                        Schäden bleiben intern, solange diese Option nicht aktiviert ist.
-                    </span>
-                </span>
-            </label>
+            <DamageInvoiceOption
+                visible={hasDamageNotes}
+                description="Die hier eingetragenen Schäden werden auf der Rechnung ausgegeben."
+            />
 
             <div className="space-y-2">
                 <Label htmlFor="new_vehicle_notes" className="font-bold text-slate-700">

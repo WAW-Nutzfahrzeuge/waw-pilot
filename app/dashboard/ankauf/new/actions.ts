@@ -21,9 +21,7 @@ import {
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
-import { getNextVehicleInternalNumber } from "@/lib/vehicles/vehicle-numbering";
 import {
-    getDuplicateInternalNumberMessage,
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
@@ -100,8 +98,26 @@ async function getNextPurchaseNumber(companyId: string): Promise<string> {
     });
 
     if (error || typeof data !== "string") {
-        const now = new Date();
-        return `AK-${now.getFullYear()}-${now.getTime().toString().slice(-6)}`;
+        const { data: purchases, error: purchaseError } = await supabase
+            .from("purchase_cases")
+            .select("purchase_number")
+            .eq("company_id", companyId)
+            .not("purchase_number", "is", null);
+
+        if (purchaseError) {
+            throw new Error(`Einkaufsnummer konnte nicht geprüft werden: ${purchaseError.message}`);
+        }
+
+        const highestNumber = (purchases ?? []).reduce((highest, purchase) => {
+            if (typeof purchase.purchase_number !== "string") return highest;
+
+            const numberText = purchase.purchase_number.match(/^EK\s+(\d+)$/i)?.[1];
+            const numberValue = numberText ? Number(numberText) : NaN;
+
+            return Number.isFinite(numberValue) ? Math.max(highest, numberValue) : highest;
+        }, 0);
+
+        return `EK ${highestNumber + 1}`;
     }
 
     return data;
@@ -114,9 +130,9 @@ function getVehicleActivityName(vehicle: {
 } | null): string {
     if (!vehicle) return "unbekanntes Fahrzeug";
 
-    const name = [vehicle.internal_number, vehicle.manufacturer, vehicle.model]
+    const name = [vehicle.manufacturer, vehicle.model]
         .filter(Boolean)
-        .join(" · ")
+        .join(" ")
         .trim();
 
     return name || "unbekanntes Fahrzeug";
@@ -463,12 +479,6 @@ async function resolveVehicleId({
         };
     }
 
-    const submittedInternalNumber = getStringValue(
-        formData,
-        "new_vehicle_internal_number",
-    );
-    const internalNumber =
-        submittedInternalNumber ?? (await getNextVehicleInternalNumber());
     const manufacturer = getStringValue(formData, "new_vehicle_manufacturer");
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_type");
@@ -489,35 +499,22 @@ async function resolveVehicleId({
         };
     }
 
-    const [{ data: duplicateVin }, { data: duplicateInternalNumber }] =
-        await Promise.all([
-            supabase
-                .from("vehicles")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("vin", vin)
-                .limit(1),
-            supabase
-                .from("vehicles")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("internal_number", internalNumber)
-                .limit(1),
-        ]);
+    const { data: duplicateVin } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("vin", vin)
+        .limit(1);
 
     if (duplicateVin && duplicateVin.length > 0) {
         return { success: false as const, message: getDuplicateVinMessage() };
-    }
-
-    if (duplicateInternalNumber && duplicateInternalNumber.length > 0) {
-        return { success: false as const, message: getDuplicateInternalNumberMessage() };
     }
 
     const { data: vehicle, error } = await supabase
         .from("vehicles")
         .insert({
             company_id: companyId,
-            internal_number: internalNumber,
+            internal_number: null,
             manufacturer,
             model,
             vehicle_type: vehicleType,

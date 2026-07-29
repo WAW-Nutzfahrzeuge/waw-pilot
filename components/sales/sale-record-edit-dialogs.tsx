@@ -207,12 +207,6 @@ export function SaleVehicleEditDialog({
                     <input type="hidden" name="vehicle_id" value={vehicle.id} />
                     <div className="grid gap-4 md:grid-cols-2">
                         <FormField
-                            label="Interne Fahrzeugnummer"
-                            name="internal_number"
-                            required
-                            defaultValue={vehicle.internal_number}
-                        />
-                        <FormField
                             label="Hersteller"
                             name="manufacturer"
                             required
@@ -269,19 +263,6 @@ export function SaleVehicleEditDialog({
                             className="min-h-28 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                         />
                     </FormField>
-                    <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
-                        <input
-                            type="checkbox"
-                            name="show_damage_on_invoice"
-                            value="yes"
-                            defaultChecked={
-                                vehicle.show_damage_on_invoice &&
-                                Boolean(vehicle.damage_notes?.trim())
-                            }
-                            className="mt-1 size-4 rounded border-amber-300"
-                        />
-                        Schäden auf Rechnung ausweisen
-                    </label>
                     <DialogFooter>
                         <DialogClose asChild>
                             <Button type="button" variant="outline">

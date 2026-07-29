@@ -92,7 +92,7 @@ function createCashbookCsv(entries: CashbookEntryRow[]): string {
         getCashbookPaymentMethodLabel(entry.payment_method),
         `${entry.entry_type === "income" ? "" : "-"}${formatCsvAmount(entry.amount)}`,
         entry.customer_name ?? "",
-        [entry.vehicle_internal_number, entry.vehicle_name].filter(Boolean).join(" · "),
+        entry.vehicle_name ?? "",
         entry.sale_id ?? "",
         entry.invoice_number ?? "",
     ]);
@@ -142,7 +142,6 @@ export function CashbookOverview({
 
             const searchableText = [
                 entry.description,
-                entry.vehicle_internal_number,
                 entry.vehicle_name,
                 entry.invoice_number,
                 entry.purchase_number,
@@ -742,9 +741,9 @@ function EntryReference({ entry }: { entry: CashbookEntryRow }) {
                 </p>
             ) : null}
 
-            {entry.vehicle_internal_number ? (
+            {entry.vehicle_name ? (
                 <p className="font-bold text-cyan-700">
-                    {entry.vehicle_internal_number} · {entry.vehicle_name}
+                    {entry.vehicle_name}
                 </p>
             ) : null}
 
@@ -756,7 +755,7 @@ function EntryReference({ entry }: { entry: CashbookEntryRow }) {
 
             {!entry.purchase_case_id &&
             !entry.sale_id &&
-            !entry.vehicle_internal_number &&
+            !entry.vehicle_name &&
             !entry.invoice_number ? (
                 <span className="font-semibold text-slate-400">—</span>
             ) : null}

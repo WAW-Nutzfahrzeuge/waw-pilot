@@ -13,11 +13,9 @@ import {
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
-    getDuplicateInternalNumberMessage,
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
-import { getNextVehicleInternalNumber } from "@/lib/vehicles/vehicle-numbering";
 
 type CreateVehicleState = {
     success: boolean;
@@ -80,8 +78,8 @@ function getVehicleActivityName({
                                     internalNumber,
                                     manufacturer,
                                     model,
-                                }: {
-    internalNumber: string;
+}: {
+    internalNumber: string | null;
     manufacturer: string;
     model: string;
 }): string {
@@ -184,7 +182,6 @@ export async function createVehicleAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const submittedInternalNumber = getStringValue(formData, "internal_number");
     const manufacturer = getStringValue(formData, "manufacturer");
     const model = getStringValue(formData, "model");
     const vehicleType = getStringValue(formData, "vehicle_type");
@@ -206,13 +203,11 @@ export async function createVehicleAction(
     );
     const purchaseInvoiceFile = getFileValue(formData, "purchase_invoice_file");
 
-    const internalNumber = submittedInternalNumber ?? (await getNextVehicleInternalNumber());
-
-    if (!internalNumber || !manufacturer || !model || !vehicleType || !vin) {
+    if (!manufacturer || !model || !vehicleType || !vin) {
         return {
             success: false,
             message:
-                "Bitte fülle interne Nummer, Hersteller, Modell, Fahrzeugtyp und VIN aus.",
+                "Bitte fülle Hersteller, Modell, Fahrzeugtyp und VIN aus.",
         };
     }
 
@@ -224,7 +219,7 @@ export async function createVehicleAction(
     }
 
     const vehicleActivityName = getVehicleActivityName({
-        internalNumber,
+        internalNumber: null,
         manufacturer,
         model,
     });
@@ -247,38 +242,11 @@ export async function createVehicleAction(
         };
     }
 
-    const {
-        data: duplicateInternalNumberVehicle,
-        error: duplicateInternalNumberError,
-    } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("internal_number", internalNumber)
-        .limit(1);
-
-    if (duplicateInternalNumberError) {
-        console.error(
-            "Internal number duplicate check failed",
-            duplicateInternalNumberError,
-        );
-    }
-
-    if (
-        duplicateInternalNumberVehicle &&
-        duplicateInternalNumberVehicle.length > 0
-    ) {
-        return {
-            success: false,
-            message: getDuplicateInternalNumberMessage(),
-        };
-    }
-
     const { data: vehicle, error: vehicleError } = await supabase
         .from("vehicles")
         .insert({
             company_id: companyId,
-            internal_number: internalNumber,
+            internal_number: null,
             manufacturer,
             model,
             vehicle_type: vehicleType,

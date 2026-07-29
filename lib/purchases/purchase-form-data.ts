@@ -133,7 +133,7 @@ export async function getPurchaseFormData(): Promise<PurchaseFormData> {
 
             return {
                 id: vehicle.id,
-                label: `${vehicle.internal_number} · ${vehicle.manufacturer} ${vehicle.model}`,
+                label: `${vehicle.manufacturer} ${vehicle.model}`,
                 description: [
                     `VIN: ${vehicle.vin}`,
                     vehicle.construction_year ? `Baujahr: ${vehicle.construction_year}` : null,

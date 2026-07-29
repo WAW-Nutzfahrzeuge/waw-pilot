@@ -176,7 +176,6 @@ function getInvoiceSearchText(invoice: InvoiceRow): string {
             invoice.datev_status,
             invoice.customer_name,
             invoice.customer_country,
-            invoice.vehicle_internal_number,
             invoice.vehicle_name,
             invoice.vehicle_type,
             invoice.vin,
@@ -406,7 +405,7 @@ export function InvoicesOverview({
                                             Fahrzeug
                                         </p>
                                         <p className="mt-1 text-left text-sm font-extrabold text-slate-950">
-                                            {invoice.vehicle_internal_number} · {invoice.vehicle_name}
+                                            {invoice.vehicle_name}
                                         </p>
                                         <p className="mt-1 break-all font-mono text-xs font-bold text-slate-500">
                                             {invoice.vin}
@@ -560,7 +559,7 @@ export function InvoicesOverview({
 
                                         <td className="px-5 py-5">
                                             <p className="font-bold text-slate-950">
-                                                {invoice.vehicle_internal_number} · {invoice.vehicle_name}
+                                                {invoice.vehicle_name}
                                             </p>
                                             <p className="mt-1 font-mono text-xs font-semibold text-slate-500">
                                                 {invoice.vin}

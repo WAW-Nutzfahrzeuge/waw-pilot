@@ -319,7 +319,7 @@ export function CustomerDetail({
                                         >
                                             <div>
                                                 <p className="font-extrabold text-slate-950">
-                                                    {vehicle.internal_number} · {vehicle.name}
+                                                    {vehicle.name}
                                                 </p>
                                                 <p className="mt-1 font-mono text-sm font-semibold text-slate-500">
                                                     {vehicle.vin}
@@ -381,7 +381,7 @@ export function CustomerDetail({
                                         >
                                             <div>
                                                 <p className="font-extrabold text-slate-950">
-                                                    {sale.vehicle_internal_number} · {sale.vehicle_name}
+                                                    {sale.vehicle_name}
                                                 </p>
                                                 <p className="mt-1 text-sm font-semibold text-slate-500">
                                                     {formatDate(sale.sale_date)}

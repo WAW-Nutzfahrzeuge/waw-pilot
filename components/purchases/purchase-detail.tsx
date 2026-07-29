@@ -207,10 +207,6 @@ export function PurchaseDetail({
 
                             {purchase.vehicle ? (
                                 <div className="mt-5 space-y-3">
-                                    <InfoRow
-                                        label="Interne Nummer"
-                                        value={purchase.vehicle.internal_number}
-                                    />
                                     <InfoRow label="Fahrzeug" value={purchase.vehicle.name} />
                                     <InfoRow
                                         label="Fahrzeugtyp"

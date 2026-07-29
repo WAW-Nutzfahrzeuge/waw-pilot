@@ -91,7 +91,6 @@ export function SalesOverview({
 
             const searchableText = [
                 sale.invoice_number,
-                sale.vehicle_internal_number,
                 sale.vehicle_name,
                 sale.vin,
                 sale.customer_name,
@@ -267,7 +266,7 @@ export function SalesOverview({
                                                 Fahrzeug
                                             </p>
                                             <button className="mt-1 text-left text-sm font-extrabold text-slate-950 hover:text-cyan-700 hover:underline">
-                                                {sale.vehicle_internal_number} · {sale.vehicle_name}
+                                                {sale.vehicle_name}
                                             </button>
                                             <p className="mt-1 break-all font-mono text-xs font-bold text-slate-500">
                                                 {sale.vin}
@@ -400,7 +399,7 @@ export function SalesOverview({
 
                                             <td className="px-5 py-5">
                                                 <button className="font-bold text-slate-950 hover:text-cyan-700 hover:underline">
-                                                    {sale.vehicle_internal_number} · {sale.vehicle_name}
+                                                    {sale.vehicle_name}
                                                 </button>
                                                 <p className="mt-1 font-mono text-xs font-semibold text-slate-500">
                                                     {sale.vin}

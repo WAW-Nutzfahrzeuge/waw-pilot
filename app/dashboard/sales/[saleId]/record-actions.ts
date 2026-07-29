@@ -12,7 +12,6 @@ import {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
-    getDuplicateInternalNumberMessage,
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
@@ -230,7 +229,6 @@ export async function updateSaleVehicleAction(formData: FormData) {
 
     const saleId = getStringValue(formData, "sale_id");
     const vehicleId = getStringValue(formData, "vehicle_id");
-    const internalNumber = getStringValue(formData, "internal_number");
     const manufacturer = getStringValue(formData, "manufacturer");
     const model = getStringValue(formData, "model");
     const vehicleType = getStringValue(formData, "vehicle_type");
@@ -240,26 +238,16 @@ export async function updateSaleVehicleAction(formData: FormData) {
     const purchasePriceNet = getNumberValue(formData, "purchase_price_net");
     const additionalCostsNet = getNumberValue(formData, "additional_costs_net") ?? 0;
     const damageNotes = getStringValue(formData, "damage_notes");
-    const showDamageOnInvoice =
-        Boolean(damageNotes?.trim()) &&
-        getStringValue(formData, "show_damage_on_invoice") === "yes";
 
     if (!saleId) throw new Error("Verkauf fehlt.");
     if (!vehicleId) throw new Error("Fahrzeug fehlt.");
 
-    if (!internalNumber || !manufacturer || !model || !vehicleType || !vin) {
+    if (!manufacturer || !model || !vehicleType || !vin) {
         redirectWithSaleMessage(saleId, { recordError: "vehicleRequiredMissing" });
     }
 
     if (purchasePriceNet === null || purchasePriceNet < 0 || additionalCostsNet < 0) {
         redirectWithSaleMessage(saleId, { recordError: "vehiclePriceInvalid" });
-    }
-
-    if (
-        getStringValue(formData, "show_damage_on_invoice") === "yes" &&
-        !damageNotes?.trim()
-    ) {
-        redirectWithSaleMessage(saleId, { recordError: "damageNotesMissing" });
     }
 
     const { data: sale } = await supabase
@@ -292,27 +280,9 @@ export async function updateSaleVehicleAction(formData: FormData) {
         });
     }
 
-    const { data: duplicateInternalNumberVehicle } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("internal_number", internalNumber)
-        .neq("id", vehicleId)
-        .limit(1);
-
-    if (
-        duplicateInternalNumberVehicle &&
-        duplicateInternalNumberVehicle.length > 0
-    ) {
-        redirectWithSaleMessage(saleId, {
-            recordError: encodeURIComponent(getDuplicateInternalNumberMessage()),
-        });
-    }
-
     const { error } = await supabase
         .from("vehicles")
         .update({
-            internal_number: internalNumber,
             manufacturer,
             model,
             vehicle_type: vehicleType,
@@ -322,7 +292,7 @@ export async function updateSaleVehicleAction(formData: FormData) {
             purchase_price_net: purchasePriceNet,
             additional_costs_net: additionalCostsNet,
             damage_notes: damageNotes,
-            show_damage_on_invoice: showDamageOnInvoice,
+            show_damage_on_invoice: false,
         })
         .eq("id", vehicleId)
         .eq("company_id", companyId);

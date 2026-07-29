@@ -272,7 +272,7 @@ export async function sendStampDocumentsEmailAction(
                 .join(",")}:${recipientEmail}:${subject}`,
             metadata: {
                 language,
-                vehicle: `${vehicle.internal_number} ${vehicle.manufacturer} ${vehicle.model}`,
+                vehicle: `${vehicle.manufacturer} ${vehicle.model}`,
                 documentLabels: availableStampDocuments.map((document) => document.label),
             },
         });

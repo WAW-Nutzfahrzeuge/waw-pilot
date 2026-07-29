@@ -123,10 +123,6 @@ export function LicensePlateDetail({
 
                             {plateCase.vehicle ? (
                                 <div className="mt-5 space-y-3">
-                                    <InfoRow
-                                        label="Interne Nummer"
-                                        value={plateCase.vehicle.internal_number}
-                                    />
                                     <InfoRow label="Fahrzeug" value={plateCase.vehicle.name} />
                                     <InfoRow
                                         label="Fahrzeugtyp"
