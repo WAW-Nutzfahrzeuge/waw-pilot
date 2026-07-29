@@ -1,49 +1,26 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getDocumentUploadFailedMessage,
     getUnsupportedDocumentTypeMessage,
     isAllowedDocumentFile,
 } from "@/lib/documents/upload-validation";
+import {
+    cleanupPrivateDocumentFile,
+    getRequiredFileFromFormData,
+    uploadPrivateDocumentFile,
+} from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type UploadLicensePlateDocumentState = {
     success: boolean;
     message: string;
 };
-
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function sanitizeFileName(fileName: string): string {
-    return fileName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/ä/g, "ae")
-        .replace(/ö/g, "oe")
-        .replace(/ü/g, "ue")
-        .replace(/ß/g, "ss")
-        .replace(/[^a-z0-9.\-_]/g, "");
-}
-
-function getFileExtension(fileName: string): string {
-    const parts = fileName.split(".");
-    const extension = parts.length > 1 ? parts.pop() : null;
-
-    return extension ? `.${extension}` : "";
-}
 
 function isAllowedDocumentType(documentType: string): boolean {
     return [
@@ -61,10 +38,10 @@ export async function uploadLicensePlateDocumentAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const plateCaseId = getStringValue(formData, "plate_case_id");
-    const documentType = getStringValue(formData, "document_type");
-    const existingDocumentId = getStringValue(formData, "existing_document_id");
-    const fileValue = formData.get("file");
+    const plateCaseId = getStringFormValue(formData, "plate_case_id");
+    const documentType = getStringFormValue(formData, "document_type");
+    const existingDocumentId = getStringFormValue(formData, "existing_document_id");
+    const fileValue = getRequiredFileFromFormData(formData);
 
     if (!plateCaseId) {
         return {
@@ -80,7 +57,7 @@ export async function uploadLicensePlateDocumentAction(
         };
     }
 
-    if (!(fileValue instanceof File) || fileValue.size <= 0) {
+    if (!fileValue) {
         return {
             success: false,
             message: "Bitte wähle eine Datei aus.",
@@ -110,14 +87,6 @@ export async function uploadLicensePlateDocumentAction(
         };
     }
 
-    const originalFileName = sanitizeFileName(fileValue.name);
-    const fileExtension = getFileExtension(originalFileName);
-    const timestamp = Date.now();
-
-    const fileName = `${documentType}-${timestamp}${fileExtension}`;
-    const filePath = `license-plates/${plateCaseId}/${fileName}`;
-    const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
-
     let oldFilePath: string | null = null;
 
     if (existingDocumentId) {
@@ -131,20 +100,26 @@ export async function uploadLicensePlateDocumentAction(
         oldFilePath = existingDocument?.file_path ?? null;
     }
 
-    const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, fileBuffer, {
-            contentType: fileValue.type || "application/octet-stream",
-            upsert: false,
-        });
+    const uploadResult = await uploadPrivateDocumentFile({
+        supabase,
+        file: fileValue,
+        directory: `license-plates/${plateCaseId}`,
+        documentType,
+    });
 
-    if (uploadError) {
-        console.error("[upload] license plate document storage upload failed", uploadError);
+    if (!uploadResult.success) {
+        console.error(
+            "[upload] license plate document storage upload failed",
+            uploadResult.error,
+        );
         return {
             success: false,
-            message: getDocumentUploadFailedMessage(uploadError),
+            message: getDocumentUploadFailedMessage(uploadResult.error),
         };
     }
+
+    const { originalFileName, filePath, mimeType, fileSize } =
+        uploadResult.uploadedFile;
 
     if (existingDocumentId) {
         const { error: updateError } = await supabase
@@ -155,8 +130,8 @@ export async function uploadLicensePlateDocumentAction(
                 status: "available",
                 file_name: originalFileName,
                 file_path: filePath,
-                mime_type: fileValue.type || null,
-                file_size: fileValue.size,
+                mime_type: mimeType,
+                file_size: fileSize,
                 customer_id: plateCase.customer_id,
                 vehicle_id: plateCase.vehicle_id,
                 sale_id: plateCase.sale_id,
@@ -168,7 +143,7 @@ export async function uploadLicensePlateDocumentAction(
             .eq("company_id", companyId);
 
         if (updateError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] license plate document update failed", updateError);
 
             return {
@@ -179,7 +154,7 @@ export async function uploadLicensePlateDocumentAction(
         }
 
         if (oldFilePath && oldFilePath !== filePath) {
-            await supabase.storage.from("documents").remove([oldFilePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath: oldFilePath });
         }
     } else {
         const { error: insertError } = await supabase.from("documents").insert({
@@ -189,8 +164,8 @@ export async function uploadLicensePlateDocumentAction(
             status: "available",
             file_name: originalFileName,
             file_path: filePath,
-            mime_type: fileValue.type || null,
-            file_size: fileValue.size,
+            mime_type: mimeType,
+            file_size: fileSize,
             customer_id: plateCase.customer_id,
             vehicle_id: plateCase.vehicle_id,
             sale_id: plateCase.sale_id,
@@ -200,7 +175,7 @@ export async function uploadLicensePlateDocumentAction(
         });
 
         if (insertError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] license plate document insert failed", insertError);
 
             return {
@@ -211,9 +186,11 @@ export async function uploadLicensePlateDocumentAction(
         }
     }
 
-    revalidatePath(`/dashboard/plates/${plateCaseId}`);
-    revalidatePath("/dashboard/plates");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([
+        `/dashboard/plates/${plateCaseId}`,
+        "/dashboard/plates",
+        "/dashboard/documents",
+    ]);
 
     redirect(`/dashboard/plates/${plateCaseId}`);
 }

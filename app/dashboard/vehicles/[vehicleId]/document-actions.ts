@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
@@ -12,6 +13,11 @@ import {
     isAllowedVehicleDocumentFile,
     maxDocumentFileSizeBytes,
 } from "@/lib/documents/upload-validation";
+import {
+    cleanupPrivateDocumentFile,
+    getRequiredFileFromFormData,
+    uploadPrivateDocumentFile,
+} from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type VehicleDocumentType = "vehicle_registration" | "purchase_invoice";
@@ -20,16 +26,6 @@ type ExistingVehicleDocument = {
     id: string;
     file_path: string | null;
 };
-
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
 
 function getVehicleDocumentType(value: string | null): VehicleDocumentType | null {
     if (value === "vehicle_registration" || value === "purchase_invoice") {
@@ -43,25 +39,6 @@ function getVehicleDocumentLabel(documentType: VehicleDocumentType): string {
     return documentType === "vehicle_registration"
         ? "Fahrzeugschein"
         : "Einkaufsrechnung";
-}
-
-function sanitizeFileName(fileName: string): string {
-    return fileName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/ä/g, "ae")
-        .replace(/ö/g, "oe")
-        .replace(/ü/g, "ue")
-        .replace(/ß/g, "ss")
-        .replace(/[^a-z0-9.\-_]/g, "");
-}
-
-function getFileExtension(fileName: string): string {
-    const parts = fileName.split(".");
-    const extension = parts.length > 1 ? parts.pop() : null;
-
-    return extension ? `.${extension}` : "";
 }
 
 async function getLatestVehicleDocument({
@@ -91,11 +68,11 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const vehicleId = getStringValue(formData, "vehicle_id");
+    const vehicleId = getStringFormValue(formData, "vehicle_id");
     const documentType = getVehicleDocumentType(
-        getStringValue(formData, "document_type"),
+        getStringFormValue(formData, "document_type"),
     );
-    const fileValue = formData.get("file");
+    const fileValue = getRequiredFileFromFormData(formData);
 
     if (!vehicleId) {
         throw new Error("Fahrzeug fehlt.");
@@ -105,7 +82,7 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         throw new Error("Ungültiger Dokumenttyp.");
     }
 
-    if (!(fileValue instanceof File) || fileValue.size <= 0) {
+    if (!fileValue) {
         throw new Error("Bitte wähle eine Datei aus.");
     }
 
@@ -137,23 +114,20 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         documentType,
     });
 
-    const originalFileName = sanitizeFileName(fileValue.name);
-    const fileExtension = getFileExtension(originalFileName);
-    const fileName = `${documentType}-${Date.now()}${fileExtension}`;
-    const filePath = `vehicles/${vehicleId}/${fileName}`;
-    const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
+    const uploadResult = await uploadPrivateDocumentFile({
+        supabase,
+        file: fileValue,
+        directory: `vehicles/${vehicleId}`,
+        documentType,
+    });
 
-    const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, fileBuffer, {
-            contentType: fileValue.type || "application/octet-stream",
-            upsert: false,
-        });
-
-    if (uploadError) {
-        console.error("[upload] vehicle document storage upload failed", uploadError);
-        throw new Error(getDocumentUploadFailedMessage(uploadError));
+    if (!uploadResult.success) {
+        console.error("[upload] vehicle document storage upload failed", uploadResult.error);
+        throw new Error(getDocumentUploadFailedMessage(uploadResult.error));
     }
+
+    const { originalFileName, filePath, mimeType, fileSize } =
+        uploadResult.uploadedFile;
 
     const documentPayload = {
         document_type: documentType,
@@ -161,8 +135,8 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         status: "available",
         file_name: originalFileName || getVehicleDocumentLabel(documentType),
         file_path: filePath,
-        mime_type: fileValue.type || null,
-        file_size: fileValue.size,
+        mime_type: mimeType,
+        file_size: fileSize,
         customer_id:
             documentType === "purchase_invoice"
                 ? (vehicle.seller_customer_id as string | null)
@@ -181,7 +155,7 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
             .eq("company_id", companyId);
 
         if (updateError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] vehicle document update failed", updateError);
             throw new Error(
                 "Dokument konnte nicht gespeichert werden. Bitte versuche es erneut.",
@@ -189,7 +163,10 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         }
 
         if (existingDocument.file_path && existingDocument.file_path !== filePath) {
-            await supabase.storage.from("documents").remove([existingDocument.file_path]);
+            await cleanupPrivateDocumentFile({
+                supabase,
+                filePath: existingDocument.file_path,
+            });
         }
     } else {
         const { error: insertError } = await supabase.from("documents").insert({
@@ -198,7 +175,7 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         });
 
         if (insertError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] vehicle document insert failed", insertError);
             throw new Error(
                 "Dokument konnte nicht gespeichert werden. Bitte versuche es erneut.",
@@ -212,10 +189,12 @@ export async function uploadVehicleDocumentAction(formData: FormData) {
         entityId: vehicleId,
     });
 
-    revalidatePath(`/dashboard/vehicles/${vehicleId}`);
-    revalidatePath(`/dashboard/vehicles/${vehicleId}/edit`);
-    revalidatePath("/dashboard/vehicles");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([
+        `/dashboard/vehicles/${vehicleId}`,
+        `/dashboard/vehicles/${vehicleId}/edit`,
+        "/dashboard/vehicles",
+        "/dashboard/documents",
+    ]);
 
     redirect(`/dashboard/vehicles/${vehicleId}?vehicleDocumentUploaded=1`);
 }
@@ -224,8 +203,8 @@ export async function deleteVehicleDocumentAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const vehicleId = getStringValue(formData, "vehicle_id");
-    const documentId = getStringValue(formData, "document_id");
+    const vehicleId = getStringFormValue(formData, "vehicle_id");
+    const documentId = getStringFormValue(formData, "document_id");
 
     if (!vehicleId) {
         throw new Error("Fahrzeug fehlt.");
@@ -258,7 +237,7 @@ export async function deleteVehicleDocumentAction(formData: FormData) {
     }
 
     if (document.file_path) {
-        await supabase.storage.from("documents").remove([document.file_path]);
+        await cleanupPrivateDocumentFile({ supabase, filePath: document.file_path });
     }
 
     const { error: deleteError } = await supabase
@@ -274,10 +253,12 @@ export async function deleteVehicleDocumentAction(formData: FormData) {
         );
     }
 
-    revalidatePath(`/dashboard/vehicles/${vehicleId}`);
-    revalidatePath(`/dashboard/vehicles/${vehicleId}/edit`);
-    revalidatePath("/dashboard/vehicles");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([
+        `/dashboard/vehicles/${vehicleId}`,
+        `/dashboard/vehicles/${vehicleId}/edit`,
+        "/dashboard/vehicles",
+        "/dashboard/documents",
+    ]);
 
     redirect(`/dashboard/vehicles/${vehicleId}?vehicleDocumentDeleted=1`);
 }

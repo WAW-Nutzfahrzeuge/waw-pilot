@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getBzstVerificationTooLargeMessage,
@@ -13,6 +14,11 @@ import {
     maxBzstVerificationFileSizeBytes,
     maxDocumentFileSizeBytes,
 } from "@/lib/documents/upload-validation";
+import {
+    cleanupPrivateDocumentFile,
+    getRequiredFileFromFormData,
+    uploadPrivateDocumentFile,
+} from "@/lib/documents/private-document-upload";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -51,35 +57,6 @@ type SaleDocumentDeleteQueryResult = {
     generated_by_system: boolean | null;
 };
 
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function sanitizeFileName(fileName: string): string {
-    return fileName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/ä/g, "ae")
-        .replace(/ö/g, "oe")
-        .replace(/ü/g, "ue")
-        .replace(/ß/g, "ss")
-        .replace(/[^a-z0-9.\-_]/g, "");
-}
-
-function getFileExtension(fileName: string): string {
-    const parts = fileName.split(".");
-    const extension = parts.length > 1 ? parts.pop() : null;
-
-    return extension ? `.${extension}` : "";
-}
-
 function isBzstVerificationDocument(documentType: string): boolean {
     return (
         documentType === "bzst_vat_verification_primary" ||
@@ -111,11 +88,11 @@ export async function uploadSaleDocumentAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const documentType = getStringValue(formData, "document_type");
-    const documentLabel = getStringValue(formData, "document_label") ?? documentType;
-    const existingDocumentId = getStringValue(formData, "existing_document_id");
-    const fileValue = formData.get("file");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const documentType = getStringFormValue(formData, "document_type");
+    const documentLabel = getStringFormValue(formData, "document_label") ?? documentType;
+    const existingDocumentId = getStringFormValue(formData, "existing_document_id");
+    const fileValue = getRequiredFileFromFormData(formData);
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
@@ -125,7 +102,7 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         throw new Error("Dokumenttyp fehlt.");
     }
 
-    if (!(fileValue instanceof File) || fileValue.size === 0) {
+    if (!fileValue) {
         throw new Error("Bitte wähle eine Datei aus.");
     }
 
@@ -214,26 +191,20 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         existingDocument = existingDocumentData as ExistingDocumentQueryResult;
     }
 
-    const originalFileName = sanitizeFileName(fileValue.name);
-    const fileExtension = getFileExtension(originalFileName);
-    const timestamp = Date.now();
+    const uploadResult = await uploadPrivateDocumentFile({
+        supabase,
+        file: fileValue,
+        directory: `sales/${saleId}`,
+        documentType,
+    });
 
-    const fileName = `${documentType}-${timestamp}${fileExtension}`;
-    const filePath = `sales/${saleId}/${fileName}`;
-    const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
-
-    const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, fileBuffer, {
-            contentType: fileValue.type || "application/octet-stream",
-            upsert: false,
-        });
-
-    if (uploadError) {
-        console.error("[upload] storage upload failed", uploadError);
-        throw new Error(getDocumentUploadFailedMessage(uploadError));
+    if (!uploadResult.success) {
+        console.error("[upload] storage upload failed", uploadResult.error);
+        throw new Error(getDocumentUploadFailedMessage(uploadResult.error));
     }
 
+    const { originalFileName, filePath, mimeType, fileSize } =
+        uploadResult.uploadedFile;
     const displayFileName = documentLabel
         ? `${documentLabel} - ${originalFileName}`
         : originalFileName;
@@ -246,8 +217,8 @@ export async function uploadSaleDocumentAction(formData: FormData) {
                 status: "available",
                 file_name: displayFileName,
                 file_path: filePath,
-                mime_type: fileValue.type || null,
-                file_size: fileValue.size,
+                mime_type: mimeType,
+                file_size: fileSize,
                 customer_id: sale.buyer_customer_id,
                 vehicle_id: sale.vehicle_id,
                 sale_id: sale.id,
@@ -258,7 +229,7 @@ export async function uploadSaleDocumentAction(formData: FormData) {
             .eq("company_id", companyId);
 
         if (documentUpdateError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
 
             console.error("[upload] document update failed", documentUpdateError);
             throw new Error(
@@ -281,8 +252,8 @@ export async function uploadSaleDocumentAction(formData: FormData) {
             status: "available",
             file_name: displayFileName,
             file_path: filePath,
-            mime_type: fileValue.type || null,
-            file_size: fileValue.size,
+            mime_type: mimeType,
+            file_size: fileSize,
             customer_id: sale.buyer_customer_id,
             vehicle_id: sale.vehicle_id,
             sale_id: sale.id,
@@ -292,7 +263,7 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         });
 
         if (documentError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
 
             console.error("[upload] document insert failed", documentError);
             throw new Error(
@@ -309,9 +280,11 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         }
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/documents",
+    ]);
 
     redirect(`/dashboard/sales/${saleId}?documentUploaded=1&refresh=${Date.now()}`);
 }
@@ -320,8 +293,8 @@ export async function deleteSaleDocumentAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const saleId = getStringValue(formData, "sale_id");
-    const documentId = getStringValue(formData, "document_id");
+    const saleId = getStringFormValue(formData, "sale_id");
+    const documentId = getStringFormValue(formData, "document_id");
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
@@ -375,10 +348,12 @@ export async function deleteSaleDocumentAction(formData: FormData) {
         );
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`, "page");
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([
+        [`/dashboard/sales/${saleId}`, "page"],
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/documents",
+    ]);
 
     redirect(`/dashboard/sales/${saleId}?documentDeleted=1&refresh=${Date.now()}`);
 }

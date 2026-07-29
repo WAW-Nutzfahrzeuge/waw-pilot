@@ -1,8 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { getStringFormValue } from "@/lib/actions/form-data";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
@@ -10,41 +11,17 @@ import {
     getUnsupportedDocumentTypeMessage,
     isAllowedDocumentFile,
 } from "@/lib/documents/upload-validation";
+import {
+    cleanupPrivateDocumentFile,
+    getRequiredFileFromFormData,
+    uploadPrivateDocumentFile,
+} from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type UploadPurchaseDocumentState = {
     success: boolean;
     message: string;
 };
-
-function getStringValue(formData: FormData, key: string): string | null {
-    const value = formData.get(key);
-
-    if (typeof value !== "string") return null;
-
-    const trimmedValue = value.trim();
-
-    return trimmedValue.length > 0 ? trimmedValue : null;
-}
-
-function sanitizeFileName(fileName: string): string {
-    return fileName
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, "-")
-        .replace(/ä/g, "ae")
-        .replace(/ö/g, "oe")
-        .replace(/ü/g, "ue")
-        .replace(/ß/g, "ss")
-        .replace(/[^a-z0-9.\-_]/g, "");
-}
-
-function getFileExtension(fileName: string): string {
-    const parts = fileName.split(".");
-    const extension = parts.length > 1 ? parts.pop() : null;
-
-    return extension ? `.${extension}` : "";
-}
 
 function isAllowedDocumentType(documentType: string): boolean {
     return [
@@ -79,10 +56,10 @@ export async function uploadPurchaseDocumentAction(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const purchaseId = getStringValue(formData, "purchase_id");
-    const documentType = getStringValue(formData, "document_type");
-    const existingDocumentId = getStringValue(formData, "existing_document_id");
-    const fileValue = formData.get("file");
+    const purchaseId = getStringFormValue(formData, "purchase_id");
+    const documentType = getStringFormValue(formData, "document_type");
+    const existingDocumentId = getStringFormValue(formData, "existing_document_id");
+    const fileValue = getRequiredFileFromFormData(formData);
 
     if (!purchaseId) {
         return {
@@ -98,7 +75,7 @@ export async function uploadPurchaseDocumentAction(
         };
     }
 
-    if (!(fileValue instanceof File) || fileValue.size <= 0) {
+    if (!fileValue) {
         return {
             success: false,
             message: "Bitte wähle eine Datei aus.",
@@ -131,14 +108,6 @@ export async function uploadPurchaseDocumentAction(
     const purchaseNumber = purchaseCase.purchase_number ?? purchaseId;
     const documentLabel = getPurchaseDocumentLabel(documentType);
 
-    const originalFileName = sanitizeFileName(fileValue.name);
-    const fileExtension = getFileExtension(originalFileName);
-    const timestamp = Date.now();
-
-    const fileName = `${documentType}-${timestamp}${fileExtension}`;
-    const filePath = `purchases/${purchaseId}/${fileName}`;
-    const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
-
     let oldFilePath: string | null = null;
     let savedDocumentId: string | null = existingDocumentId ?? null;
 
@@ -153,20 +122,26 @@ export async function uploadPurchaseDocumentAction(
         oldFilePath = existingDocument?.file_path ?? null;
     }
 
-    const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(filePath, fileBuffer, {
-            contentType: fileValue.type || "application/octet-stream",
-            upsert: false,
-        });
+    const uploadResult = await uploadPrivateDocumentFile({
+        supabase,
+        file: fileValue,
+        directory: `purchases/${purchaseId}`,
+        documentType,
+    });
 
-    if (uploadError) {
-        console.error("[upload] purchase document storage upload failed", uploadError);
+    if (!uploadResult.success) {
+        console.error(
+            "[upload] purchase document storage upload failed",
+            uploadResult.error,
+        );
         return {
             success: false,
-            message: getDocumentUploadFailedMessage(uploadError),
+            message: getDocumentUploadFailedMessage(uploadResult.error),
         };
     }
+
+    const { originalFileName, filePath, mimeType, fileSize } =
+        uploadResult.uploadedFile;
 
     if (existingDocumentId) {
         const { error: updateError } = await supabase
@@ -177,8 +152,8 @@ export async function uploadPurchaseDocumentAction(
                 status: "available",
                 file_name: originalFileName,
                 file_path: filePath,
-                mime_type: fileValue.type || null,
-                file_size: fileValue.size,
+                mime_type: mimeType,
+                file_size: fileSize,
                 customer_id: purchaseCase.seller_customer_id,
                 vehicle_id: purchaseCase.vehicle_id,
                 sale_id: null,
@@ -190,7 +165,7 @@ export async function uploadPurchaseDocumentAction(
             .eq("company_id", companyId);
 
         if (updateError) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] purchase document update failed", updateError);
 
             return {
@@ -201,7 +176,7 @@ export async function uploadPurchaseDocumentAction(
         }
 
         if (oldFilePath && oldFilePath !== filePath) {
-            await supabase.storage.from("documents").remove([oldFilePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath: oldFilePath });
         }
 
         await logActivity({
@@ -219,8 +194,8 @@ export async function uploadPurchaseDocumentAction(
                 status: "available",
                 file_name: originalFileName,
                 file_path: filePath,
-                mime_type: fileValue.type || null,
-                file_size: fileValue.size,
+                mime_type: mimeType,
+                file_size: fileSize,
                 customer_id: purchaseCase.seller_customer_id,
                 vehicle_id: purchaseCase.vehicle_id,
                 sale_id: null,
@@ -232,7 +207,7 @@ export async function uploadPurchaseDocumentAction(
             .single();
 
         if (insertError || !insertedDocument) {
-            await supabase.storage.from("documents").remove([filePath]);
+            await cleanupPrivateDocumentFile({ supabase, filePath });
             console.error("[upload] purchase document insert failed", insertError);
 
             return {
@@ -289,12 +264,14 @@ export async function uploadPurchaseDocumentAction(
         });
     }
 
-    revalidatePath(`/dashboard/ankauf/${purchaseId}`);
-    revalidatePath("/dashboard/ankauf");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/checks");
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/ankauf/${purchaseId}`,
+        "/dashboard/ankauf",
+        "/dashboard/documents",
+        "/dashboard/checks",
+        "/dashboard",
+        "/dashboard/activities",
+    ]);
 
     redirect(`/dashboard/ankauf/${purchaseId}`);
 }
