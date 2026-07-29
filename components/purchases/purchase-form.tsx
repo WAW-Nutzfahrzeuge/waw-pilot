@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
     useActionState,
-    useEffect,
     useMemo,
     useRef,
     useState,
@@ -30,8 +29,10 @@ import {
     restoreFormSnapshot,
     type FormSnapshot,
 } from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
 import { PersonTypeCards } from "@/components/customers/person-type-cards";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
+import { ActionMessage } from "@/components/shared/action-message";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
 import { PageHeader } from "@/components/shared/page-header";
@@ -131,19 +132,19 @@ export function PurchaseForm({
         [formData.sellers],
     );
 
-    useEffect(() => {
-        if (!state.message || state.success) return;
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
 
-        messageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        messageRef.current?.focus({ preventScroll: true });
+            if (!form || !snapshot) return;
 
-        const form = formRef.current;
-        const snapshot = lastSubmittedSnapshotRef.current;
-
-        if (!form || !snapshot) return;
-
-        window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
-    }, [state.message, state.success]);
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -186,13 +187,11 @@ export function PurchaseForm({
                 <input type="hidden" name="seller_mode" value={sellerMode} />
 
                 {state.message ? (
-                    <div
+                    <ActionMessage
                         ref={messageRef}
-                        tabIndex={-1}
-                        className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
-                    >
-                        {state.message}
-                    </div>
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 {mode === "create" ? (

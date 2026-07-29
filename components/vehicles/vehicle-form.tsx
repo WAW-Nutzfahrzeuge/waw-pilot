@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useRef } from "react";
 import { CalendarDays, FileText, Save, Truck } from "lucide-react";
 
 import { createVehicleAction } from "@/app/dashboard/vehicles/new/actions";
@@ -11,6 +11,8 @@ import {
     restoreFormSnapshot,
     type FormSnapshot,
 } from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
+import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,19 +42,19 @@ export function VehicleForm({
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
 
-    useEffect(() => {
-        if (!state.message || state.success) return;
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
 
-        messageRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-        messageRef.current?.focus({ preventScroll: true });
+            if (!form || !snapshot) return;
 
-        const form = formRef.current;
-        const snapshot = lastSubmittedSnapshotRef.current;
-
-        if (!form || !snapshot) return;
-
-        window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
-    }, [state.message, state.success]);
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -82,13 +84,11 @@ export function VehicleForm({
                 }}
             >
                 {state.message ? (
-                    <div
+                    <ActionMessage
                         ref={messageRef}
-                        tabIndex={-1}
-                        className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none"
-                    >
-                        {state.message}
-                    </div>
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">

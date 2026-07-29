@@ -1,10 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { CalendarDays, FileText, Route, Save, Truck, UserRound } from "lucide-react";
 
 import { createTravelExpenseFormAction } from "@/app/dashboard/travel-expenses/new/actions";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
+import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -36,12 +43,29 @@ export function TravelExpenseForm({
         createTravelExpenseFormAction,
         initialState,
     );
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
 
     const today = new Date().toISOString().slice(0, 10);
     const hasSaleContext = Boolean(initialValues?.saleId);
     const backHref = initialValues?.saleId
         ? `/dashboard/sales/${initialValues.saleId}`
         : "/dashboard/travel-expenses";
+
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
+
+            if (!form || !snapshot) return;
+
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -60,7 +84,16 @@ export function TravelExpenseForm({
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {initialValues?.saleId ? (
                     <input type="hidden" name="sale_id" value={initialValues.saleId} />
                 ) : null}
@@ -72,9 +105,11 @@ export function TravelExpenseForm({
                 ) : null}
 
                 {state.message ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-                        {state.message}
-                    </div>
+                    <ActionMessage
+                        ref={messageRef}
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 {hasSaleContext ? (

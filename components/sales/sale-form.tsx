@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
     useActionState,
-    useEffect,
     useRef,
     useState,
     useTransition,
@@ -40,9 +39,11 @@ import {
     normalizeSaleBuyerType,
     type SaleBuyerType,
 } from "@/utils/sale-tax-rules";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
+import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -243,23 +244,19 @@ export function SaleForm({
     const previewVatAmount = roundMoney(previewNetAmount * (previewVatRate / 100));
     const previewGrossAmount = roundMoney(previewNetAmount + previewVatAmount);
 
-    useEffect(() => {
-        if (!state.message) return;
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef: errorMessageRef,
+        restoreLastSubmission: () => {
+            const snapshot = lastSubmittedFormSnapshotRef.current;
+            const form = formRef.current;
 
-        errorMessageRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-        });
-        errorMessageRef.current?.focus({ preventScroll: true });
+            if (!snapshot || !form) return;
 
-        const snapshot = lastSubmittedFormSnapshotRef.current;
-        if (!snapshot || !formRef.current) return;
-
-        requestAnimationFrame(() => {
-            if (!formRef.current) return;
-            restoreFormSnapshot(formRef.current, snapshot);
-        });
-    }, [state.message]);
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     function handleSaleTypeChange(nextSaleType: SaleType) {
         const nextTaxConfiguration = getSaleTaxConfiguration({
@@ -364,14 +361,11 @@ export function SaleForm({
             >
                 <input type="hidden" name="vehicle_mode" value={vehicleMode} />
                 {state.message ? (
-                    <div
+                    <ActionMessage
                         ref={errorMessageRef}
-                        role="alert"
-                        tabIndex={-1}
-                        className="scroll-mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 outline-none focus:ring-4 focus:ring-red-100"
-                    >
-                        {state.message}
-                    </div>
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">

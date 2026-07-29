@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
     ArrowLeft,
@@ -18,6 +18,13 @@ import {
     updateVehicleAction,
     type UpdateVehicleState,
 } from "@/app/dashboard/vehicles/[vehicleId]/edit/actions";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
+import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +57,9 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
     const updateVehicle = updateVehicleAction.bind(null, vehicle.id);
     const [state, formAction] = useActionState(updateVehicle, initialState);
     const [damageNotes, setDamageNotes] = useState(vehicle.damage_notes ?? "");
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
     const primaryDocumentTypes = [
         {
             type: "vehicle_registration" as const,
@@ -69,6 +79,20 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                 (document) => document.document_type === definition.type,
             ) ?? null,
     }));
+
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
+
+            if (!form || !snapshot) return;
+
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -90,11 +114,22 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {state.message ? (
-                    <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-bold text-red-700">
-                        {state.message}
-                    </div>
+                    <ActionMessage
+                        ref={messageRef}
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 <section className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">

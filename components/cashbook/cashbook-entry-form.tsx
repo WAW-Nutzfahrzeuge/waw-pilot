@@ -26,6 +26,13 @@ import {
     isAllowedDocumentFile,
 } from "@/lib/documents/upload-validation";
 import { financialCategories } from "@/lib/accounting/financial-categories";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
+import { ActionMessage } from "@/components/shared/action-message";
 
 const initialState = {
     success: false,
@@ -39,12 +46,29 @@ export function CashbookEntryForm() {
     );
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
     const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(
         null,
     );
 
     const today = new Date().toISOString().slice(0, 10);
+
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
+
+            if (!form || !snapshot) return;
+
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     function handleReceiptFileChange() {
         const file = fileInputRef.current?.files?.[0] ?? null;
@@ -88,11 +112,22 @@ export function CashbookEntryForm() {
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {state.message ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-                        {state.message}
-                    </div>
+                    <ActionMessage
+                        ref={messageRef}
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">

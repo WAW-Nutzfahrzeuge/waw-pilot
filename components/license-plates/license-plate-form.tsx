@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
 import {
     ArrowLeft,
     BadgeCheck,
@@ -16,6 +16,13 @@ import { createLicensePlateCaseAction } from "@/app/dashboard/plates/new/actions
 import { updateLicensePlateCaseAction } from "@/app/dashboard/plates/[plateCaseId]/edit/actions";
 import type { LicensePlateFormData } from "@/lib/license-plates/license-plate-form-data";
 import type { LicensePlateType } from "@/lib/license-plates/license-plate-queries";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
+import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
+import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { Button } from "@/components/ui/button";
@@ -60,6 +67,9 @@ export function LicensePlateForm({
             : createLicensePlateCaseAction;
 
     const [state, formAction, isPending] = useActionState(action, initialState);
+    const formRef = useRef<HTMLFormElement | null>(null);
+    const messageRef = useRef<HTMLDivElement | null>(null);
+    const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
 
     const [plateType, setPlateType] = useState<LicensePlateType>(
         initialValues?.plate_type ?? "short_term",
@@ -71,6 +81,20 @@ export function LicensePlateForm({
         mode === "edit" && initialValues?.id
             ? `/dashboard/plates/${initialValues.id}`
             : "/dashboard/plates";
+
+    useFormActionFeedback({
+        message: state.message,
+        success: state.success,
+        messageRef,
+        restoreLastSubmission: () => {
+            const form = formRef.current;
+            const snapshot = lastSubmittedSnapshotRef.current;
+
+            if (!form || !snapshot) return;
+
+            window.requestAnimationFrame(() => restoreFormSnapshot(form, snapshot));
+        },
+    });
 
     return (
         <div className="space-y-6">
@@ -100,7 +124,16 @@ export function LicensePlateForm({
                 }
             />
 
-            <form action={formAction} className="space-y-6">
+            <form
+                ref={formRef}
+                action={formAction}
+                className="space-y-6"
+                onSubmit={(event) => {
+                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
+                        event.currentTarget,
+                    );
+                }}
+            >
                 {initialValues?.id ? (
                     <input
                         type="hidden"
@@ -110,9 +143,11 @@ export function LicensePlateForm({
                 ) : null}
 
                 {state.message ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">
-                        {state.message}
-                    </div>
+                    <ActionMessage
+                        ref={messageRef}
+                        title={state.message}
+                        tone={state.success ? "success" : "danger"}
+                    />
                 ) : null}
 
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">

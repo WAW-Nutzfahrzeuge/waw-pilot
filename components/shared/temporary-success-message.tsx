@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+
+import { ActionMessage } from "@/components/shared/action-message";
 
 type TemporarySuccessMessageProps = {
     title: string;
@@ -10,40 +11,28 @@ type TemporarySuccessMessageProps = {
 };
 
 export function TemporarySuccessMessage({
-                                            title,
-                                            description,
-                                            durationMs = 3000,
-                                        }: TemporarySuccessMessageProps) {
-    const [isVisible, setIsVisible] = useState(true);
+    title,
+    description,
+    durationMs = 3000,
+}: TemporarySuccessMessageProps) {
+    const messageKey = `${title}:${description ?? ""}`;
+    const [hiddenMessageKey, setHiddenMessageKey] = useState<string | null>(null);
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
-            setIsVisible(false);
+            setHiddenMessageKey(messageKey);
         }, durationMs);
 
         return () => window.clearTimeout(timeoutId);
-    }, [durationMs]);
+    }, [durationMs, messageKey]);
 
-    if (!isVisible) {
+    if (hiddenMessageKey === messageKey) {
         return null;
     }
 
     return (
-        <div className="mt-4 rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-            <div className="flex items-start gap-2">
-                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-700" />
-                <div>
-                    <p className="text-sm font-extrabold text-emerald-900">
-                        {title}
-                    </p>
-
-                    {description ? (
-                        <p className="mt-1 text-xs font-semibold leading-5 text-emerald-700">
-                            {description}
-                        </p>
-                    ) : null}
-                </div>
-            </div>
+        <div className="mt-4">
+            <ActionMessage title={title} description={description} compact />
         </div>
     );
 }
