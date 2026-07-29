@@ -1,9 +1,4 @@
-"use client";
-
-import { useFormStatus } from "react-dom";
-import { FileText, Loader2 } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 
 type GenerateSaleDocumentSubmitButtonProps = {
     disabled: boolean;
@@ -11,31 +6,20 @@ type GenerateSaleDocumentSubmitButtonProps = {
 };
 
 export function GenerateSaleDocumentSubmitButton({
-                                                     disabled,
-                                                     isGenerated = false,
-                                                 }: GenerateSaleDocumentSubmitButtonProps) {
-    const { pending } = useFormStatus();
-
+    disabled,
+    isGenerated = false,
+}: GenerateSaleDocumentSubmitButtonProps) {
     return (
-        <Button
-            type="submit"
-            disabled={disabled || pending}
+        <PendingSubmitButton
+            disabled={disabled}
+            iconName="file-text"
+            label={isGenerated ? "Neu erzeugen" : "PDF erzeugen"}
+            pendingLabel="PDF wird erstellt..."
             className={
                 isGenerated
                     ? "h-11 w-full rounded-2xl bg-emerald-700 font-extrabold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-70"
                     : "h-11 w-full rounded-2xl bg-cyan-700 font-extrabold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-50"
             }
-        >
-            {pending ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-                <FileText className="mr-2 size-4" />
-            )}
-            {pending
-                ? "PDF wird erstellt..."
-                : isGenerated
-                    ? "Neu erzeugen"
-                    : "PDF erzeugen"}
-        </Button>
+        />
     );
 }

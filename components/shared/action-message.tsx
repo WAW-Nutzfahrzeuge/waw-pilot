@@ -1,5 +1,3 @@
-"use client";
-
 import { forwardRef } from "react";
 import { CheckCircle2, FileWarning } from "lucide-react";
 

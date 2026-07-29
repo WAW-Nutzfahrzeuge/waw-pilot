@@ -1,13 +1,8 @@
-"use client";
-
-import { useFormStatus } from "react-dom";
-import { FilePlus2, Loader2, Mail } from "lucide-react";
-
 import {
     createZugferdInvoiceAction,
     sendZugferdInvoiceEmailAction,
 } from "@/app/dashboard/sales/[saleId]/invoice-actions";
-import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 
 type ZugferdInvoiceActionsProps = {
     saleId: string;
@@ -51,12 +46,12 @@ function CreateButton({
     isValidated: boolean;
     isServiceConfigured: boolean;
 }) {
-    const { pending } = useFormStatus();
-
     return (
-        <Button
-            type="submit"
-            disabled={pending || !isServiceConfigured}
+        <PendingSubmitButton
+            disabled={!isServiceConfigured}
+            iconName="file-plus"
+            label={isValidated ? "Neu erstellen und prüfen" : "ZUGFeRD erstellen und prüfen"}
+            pendingLabel="ZUGFeRD wird erstellt und validiert..."
             variant="outline"
             className="rounded-2xl bg-white font-bold"
             title={
@@ -64,36 +59,17 @@ function CreateButton({
                     ? undefined
                     : "ZUGFeRD-Service ist noch nicht eingerichtet."
             }
-        >
-            {pending ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-                <FilePlus2 className="mr-2 size-4" />
-            )}
-            {pending
-                ? "ZUGFeRD wird erstellt und validiert..."
-                : isValidated
-                  ? "Neu erstellen und prüfen"
-                  : "ZUGFeRD erstellen und prüfen"}
-        </Button>
+        />
     );
 }
 
 function SendButton() {
-    const { pending } = useFormStatus();
-
     return (
-        <Button
-            type="submit"
-            disabled={pending}
+        <PendingSubmitButton
+            iconName="mail"
+            label="ZUGFeRD per E-Mail senden"
+            pendingLabel="Wird gesendet..."
             className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-        >
-            {pending ? (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-                <Mail className="mr-2 size-4" />
-            )}
-            {pending ? "Wird gesendet..." : "ZUGFeRD per E-Mail senden"}
-        </Button>
+        />
     );
 }
