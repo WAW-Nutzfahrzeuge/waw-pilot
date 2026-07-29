@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
     CalendarDays,
@@ -34,6 +35,7 @@ type LicensePlatesOverviewProps = {
 type PlateFilter = "all" | "short_term" | "export" | "customs" | "open";
 
 export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PlateFilter>("all");
 
@@ -217,11 +219,11 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 
                                 <tbody className="divide-y divide-slate-100">
                                 {filteredCases.map((item) => (
-                                    <tr
-                                        key={item.id}
-                                        onClick={() => {
-                                            window.location.href = `/dashboard/plates/${item.id}`;
-                                        }}
+                                        <tr
+                                            key={item.id}
+                                            onClick={() => {
+                                                router.push(`/dashboard/plates/${item.id}`);
+                                            }}
                                         className="group cursor-pointer bg-white transition-colors hover:bg-cyan-50/30"
                                     >
                                         <td className="px-5 py-5">
@@ -308,10 +310,12 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 }
 
 function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
+    const router = useRouter();
+
     return (
         <div
             onClick={() => {
-                window.location.href = `/dashboard/plates/${item.id}`;
+                router.push(`/dashboard/plates/${item.id}`);
             }}
             className="cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]"
         >

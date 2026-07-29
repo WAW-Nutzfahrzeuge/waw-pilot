@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowUpRight,
@@ -42,9 +43,10 @@ type CustomersOverviewProps = {
 export function CustomersOverview({
                                       customers,
                                       customerSaved = false,
-                                      customerCreated = false,
-                                      highlightedCustomerId,
-                                  }: CustomersOverviewProps) {
+                                  customerCreated = false,
+                                  highlightedCustomerId,
+                              }: CustomersOverviewProps) {
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [activeHighlightId, setActiveHighlightId] = useState(
         highlightedCustomerId,
@@ -201,7 +203,7 @@ export function CustomersOverview({
                                 <div
                                     key={customer.id}
                                     onClick={() => {
-                                        window.location.href = `/dashboard/customers/${customer.id}`;
+                                        router.push(`/dashboard/customers/${customer.id}`);
                                     }}
                                     className={cn(
                                         "cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-500 active:scale-[0.99]",
@@ -348,7 +350,7 @@ export function CustomersOverview({
                                     <tr
                                         key={customer.id}
                                         onClick={() => {
-                                            window.location.href = `/dashboard/customers/${customer.id}`;
+                                            router.push(`/dashboard/customers/${customer.id}`);
                                         }}
                                         className={cn(
                                             "group cursor-pointer transition-all duration-500 hover:bg-cyan-50/30",

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
     ArrowUpRight,
@@ -60,7 +61,8 @@ export function SalesOverview({
                                   sales,
                                   initialPaymentStatus = null,
                                   initialMonthFilter = null,
-                              }: SalesOverviewProps) {
+}: SalesOverviewProps) {
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [paymentFilter, setPaymentFilter] = useState<PaymentFilter>(() =>
         getInitialPaymentFilter(initialPaymentStatus),
@@ -233,7 +235,7 @@ export function SalesOverview({
                                     <div
                                         key={sale.id}
                                         onClick={() => {
-                                            window.location.href = `/dashboard/sales/${sale.id}`;
+                                            router.push(`/dashboard/sales/${sale.id}`);
                                         }}
                                         className="cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]"
                                     >
@@ -373,7 +375,7 @@ export function SalesOverview({
                                         <tr
                                             key={sale.id}
                                             onClick={() => {
-                                                window.location.href = `/dashboard/sales/${sale.id}`;
+                                                router.push(`/dashboard/sales/${sale.id}`);
                                             }}
                                             className="group cursor-pointer bg-white transition-colors hover:bg-cyan-50/30"
                                         >

@@ -8,16 +8,7 @@ import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
 import type { PurchaseCaseDetail } from "@/lib/purchases/purchase-detail-queries";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/forms/form-field";
@@ -37,23 +28,18 @@ export function PurchaseSellerEditDialog({
     seller,
 }: PurchaseSellerEditDialogProps) {
     return (
-        <Dialog>
-            <DialogTrigger asChild>
+        <FormDialog
+            trigger={
                 <Button variant="outline" className="rounded-2xl bg-white font-bold">
                     <Edit3 className="mr-2 size-4" />
                     Bearbeiten
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-3xl bg-white">
-                <form action={updateCustomerMasterDataAction} className="space-y-5">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-extrabold text-slate-950">
-                            Verkäufer bearbeiten
-                        </DialogTitle>
-                        <DialogDescription>
-                            Änderungen werden am verknüpften Kundendatensatz gespeichert und in dieser Ankaufsakte angezeigt.
-                        </DialogDescription>
-                    </DialogHeader>
+            }
+            title="Verkäufer bearbeiten"
+            description="Änderungen werden am verknüpften Kundendatensatz gespeichert und in dieser Ankaufsakte angezeigt."
+            action={updateCustomerMasterDataAction}
+            submitLabel="Verkäufer speichern"
+        >
                     <input type="hidden" name="customer_id" value={seller.id} />
                     <input
                         type="hidden"
@@ -155,20 +141,7 @@ export function PurchaseSellerEditDialog({
                             defaultValue={seller.tax_number ?? ""}
                         />
                     </div>
-
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Abbrechen
-                            </Button>
-                        </DialogClose>
-                        <Button type="submit" className="bg-cyan-700 font-bold text-white hover:bg-cyan-800">
-                            Verkäufer speichern
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+        </FormDialog>
     );
 }
 
@@ -177,23 +150,18 @@ export function PurchaseVehicleEditDialog({
     vehicle,
 }: PurchaseVehicleEditDialogProps) {
     return (
-        <Dialog>
-            <DialogTrigger asChild>
+        <FormDialog
+            trigger={
                 <Button variant="outline" className="rounded-2xl bg-white font-bold">
                     <Edit3 className="mr-2 size-4" />
                     Bearbeiten
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-3xl bg-white">
-                <form action={updatePurchaseVehicleAction} className="space-y-5">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-extrabold text-slate-950">
-                            Fahrzeug bearbeiten
-                        </DialogTitle>
-                        <DialogDescription>
-                            Änderungen werden am Fahrzeug im Bestand gespeichert und in dieser Ankaufsakte angezeigt.
-                        </DialogDescription>
-                    </DialogHeader>
+            }
+            title="Fahrzeug bearbeiten"
+            description="Änderungen werden am Fahrzeug im Bestand gespeichert und in dieser Ankaufsakte angezeigt."
+            action={updatePurchaseVehicleAction}
+            submitLabel="Fahrzeug speichern"
+        >
                     <input type="hidden" name="vehicle_id" value={vehicle.id} />
                     <input
                         type="hidden"
@@ -278,18 +246,6 @@ export function PurchaseVehicleEditDialog({
                             className="min-h-24 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                         />
                     </FormField>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Abbrechen
-                            </Button>
-                        </DialogClose>
-                        <Button type="submit" className="bg-cyan-700 font-bold text-white hover:bg-cyan-800">
-                            Fahrzeug speichern
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+        </FormDialog>
     );
 }

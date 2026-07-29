@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
     Banknote,
@@ -555,13 +556,14 @@ export function CashbookOverview({
 }
 
 function CashbookDesktopRow({ entry }: { entry: CashbookEntryRow }) {
+    const router = useRouter();
     const targetHref = getEntryTargetHref(entry);
 
     return (
         <tr
             onClick={() => {
                 if (targetHref) {
-                    window.location.href = targetHref;
+                    router.push(targetHref);
                 }
             }}
             className={
@@ -636,13 +638,14 @@ function CashbookDesktopRow({ entry }: { entry: CashbookEntryRow }) {
 }
 
 function CashbookMobileCard({ entry }: { entry: CashbookEntryRow }) {
+    const router = useRouter();
     const targetHref = getEntryTargetHref(entry);
 
     return (
         <div
             onClick={() => {
                 if (targetHref) {
-                    window.location.href = targetHref;
+                    router.push(targetHref);
                 }
             }}
             className={

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowUpRight,
@@ -196,6 +197,7 @@ export function InvoicesOverview({
     invoiceRegenerated = false,
     highlightedInvoiceId,
 }: InvoicesOverviewProps) {
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
     const [activeHighlightId, setActiveHighlightId] = useState(
@@ -374,7 +376,7 @@ export function InvoicesOverview({
                                 <div
                                     key={invoice.id}
                                     onClick={() => {
-                                        window.location.href = `/dashboard/sales/${invoice.sale_id}`;
+                                        router.push(`/dashboard/sales/${invoice.sale_id}`);
                                     }}
                                     className={cn(
                                         "cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-500 active:scale-[0.99]",
@@ -531,7 +533,7 @@ export function InvoicesOverview({
                                     <tr
                                         key={invoice.id}
                                         onClick={() => {
-                                            window.location.href = `/dashboard/sales/${invoice.sale_id}`;
+                                            router.push(`/dashboard/sales/${invoice.sale_id}`);
                                         }}
                                         className={cn(
                                             "group cursor-pointer transition-all duration-500 hover:bg-cyan-50/30",

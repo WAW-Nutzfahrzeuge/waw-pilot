@@ -10,16 +10,7 @@ import type { SaleDetail } from "@/lib/sales/sale-detail-queries";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import { Button } from "@/components/ui/button";
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/forms/form-field";
@@ -39,23 +30,18 @@ export function SaleCustomerEditDialog({
     customer,
 }: SaleCustomerEditDialogProps) {
     return (
-        <Dialog>
-            <DialogTrigger asChild>
+        <FormDialog
+            trigger={
                 <Button variant="outline" className="rounded-2xl bg-white font-bold">
                     <Edit3 className="mr-2 size-4" />
                     Kunde bearbeiten
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-3xl bg-white">
-                <form action={updateSaleCustomerAction} className="space-y-5">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-extrabold text-slate-950">
-                            Kunde bearbeiten
-                        </DialogTitle>
-                        <DialogDescription>
-                            Änderungen gelten für zukünftige Vorgänge. Bereits erzeugte Rechnungs-PDFs bleiben unverändert.
-                        </DialogDescription>
-                    </DialogHeader>
+            }
+            title="Kunde bearbeiten"
+            description="Änderungen gelten für zukünftige Vorgänge. Bereits erzeugte Rechnungs-PDFs bleiben unverändert."
+            action={updateSaleCustomerAction}
+            submitLabel="Kunde speichern"
+        >
                     <input type="hidden" name="sale_id" value={saleId} />
                     <input type="hidden" name="customer_id" value={customer.id} />
                     <div className="grid gap-4 md:grid-cols-2">
@@ -165,19 +151,7 @@ export function SaleCustomerEditDialog({
                             defaultValue={customer.commercial_register_number ?? ""}
                         />
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Abbrechen
-                            </Button>
-                        </DialogClose>
-                        <Button type="submit" className="bg-cyan-700 font-bold text-white hover:bg-cyan-800">
-                            Kunde speichern
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+        </FormDialog>
     );
 }
 
@@ -186,23 +160,18 @@ export function SaleVehicleEditDialog({
     vehicle,
 }: SaleVehicleEditDialogProps) {
     return (
-        <Dialog>
-            <DialogTrigger asChild>
+        <FormDialog
+            trigger={
                 <Button variant="outline" className="rounded-2xl bg-white font-bold">
                     <Edit3 className="mr-2 size-4" />
                     Fahrzeug bearbeiten
                 </Button>
-            </DialogTrigger>
-            <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-3xl bg-white">
-                <form action={updateSaleVehicleAction} className="space-y-5">
-                    <DialogHeader>
-                        <DialogTitle className="text-xl font-extrabold text-slate-950">
-                            Fahrzeug bearbeiten
-                        </DialogTitle>
-                        <DialogDescription>
-                            Änderungen gelten für die Verkaufsakte und zukünftige Rechnungen. Bereits erzeugte PDFs bleiben unverändert.
-                        </DialogDescription>
-                    </DialogHeader>
+            }
+            title="Fahrzeug bearbeiten"
+            description="Änderungen gelten für die Verkaufsakte und zukünftige Rechnungen. Bereits erzeugte PDFs bleiben unverändert."
+            action={updateSaleVehicleAction}
+            submitLabel="Fahrzeug speichern"
+        >
                     <input type="hidden" name="sale_id" value={saleId} />
                     <input type="hidden" name="vehicle_id" value={vehicle.id} />
                     <div className="grid gap-4 md:grid-cols-2">
@@ -263,18 +232,6 @@ export function SaleVehicleEditDialog({
                             className="min-h-28 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                         />
                     </FormField>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="outline">
-                                Abbrechen
-                            </Button>
-                        </DialogClose>
-                        <Button type="submit" className="bg-cyan-700 font-bold text-white hover:bg-cyan-800">
-                            Fahrzeug speichern
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
+        </FormDialog>
     );
 }

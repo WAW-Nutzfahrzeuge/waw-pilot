@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
     ArrowUpRight,
@@ -36,6 +37,7 @@ type PurchasesOverviewProps = {
 type PurchaseFilter = "all" | "open" | "paid" | "documents" | "completed";
 
 export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
+    const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
 
@@ -232,7 +234,7 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                                     <tr
                                         key={purchase.id}
                                         onClick={() => {
-                                            window.location.href = `/dashboard/ankauf/${purchase.id}`;
+                                            router.push(`/dashboard/ankauf/${purchase.id}`);
                                         }}
                                         className="group cursor-pointer bg-white transition-colors hover:bg-cyan-50/30"
                                     >
@@ -336,10 +338,12 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
 }
 
 function PurchaseMobileCard({ purchase }: { purchase: PurchaseCaseRow }) {
+    const router = useRouter();
+
     return (
         <div
             onClick={() => {
-                window.location.href = `/dashboard/ankauf/${purchase.id}`;
+                router.push(`/dashboard/ankauf/${purchase.id}`);
             }}
             className="cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]"
         >

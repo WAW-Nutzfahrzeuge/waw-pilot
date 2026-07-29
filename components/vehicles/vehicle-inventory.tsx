@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
     ArrowUpRight,
@@ -278,6 +279,8 @@ function VehicleTable({
                           tab,
                           highlightedVehicleId = null,
                       }: VehicleTableProps) {
+    const router = useRouter();
+
     if (vehicles.length === 0) {
         return (
             <div className="flex min-h-72 flex-col items-center justify-center p-8 text-center">
@@ -305,7 +308,7 @@ function VehicleTable({
                         <div
                             key={vehicle.id}
                             onClick={() => {
-                                window.location.href = `/dashboard/vehicles/${vehicle.id}`;
+                                router.push(`/dashboard/vehicles/${vehicle.id}`);
                             }}
                             className={`cursor-pointer rounded-[1.5rem] border p-4 shadow-sm transition-all duration-300 active:scale-[0.99] ${
                                 isHighlighted
@@ -454,7 +457,7 @@ function VehicleTable({
                             <tr
                                 key={vehicle.id}
                                 onClick={() => {
-                                    window.location.href = `/dashboard/vehicles/${vehicle.id}`;
+                                    router.push(`/dashboard/vehicles/${vehicle.id}`);
                                 }}
                                 className={`group cursor-pointer transition-colors ${
                                     isHighlighted
