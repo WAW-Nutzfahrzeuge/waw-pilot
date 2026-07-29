@@ -412,16 +412,9 @@ export function PurchaseForm({
 
 function VehicleCreateFields() {
     const [damageNotes, setDamageNotes] = useState("");
-    const [showDamageOnInvoice, setShowDamageOnInvoice] = useState(false);
-    const hasDamageNotes = damageNotes.trim().length > 0;
 
     const handleDamageNotesChange: ChangeEventHandler<HTMLTextAreaElement> = (event) => {
-        const nextDamageNotes = event.currentTarget.value;
-        setDamageNotes(nextDamageNotes);
-
-        if (!nextDamageNotes.trim()) {
-            setShowDamageOnInvoice(false);
-        }
+        setDamageNotes(event.currentTarget.value);
     };
 
     return (
@@ -447,31 +440,6 @@ function VehicleCreateFields() {
                     placeholder="Bekannte Schäden oder Mängel am Fahrzeug eintragen."
                     className="mt-2 min-h-24 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                 />
-                <label
-                    className={
-                        hasDamageNotes
-                            ? "mt-3 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900"
-                            : "mt-3 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm font-semibold text-slate-500"
-                    }
-                >
-                    <input
-                        type="checkbox"
-                        name="new_vehicle_show_damage_on_invoice"
-                        value="yes"
-                        checked={showDamageOnInvoice}
-                        disabled={!hasDamageNotes}
-                        onChange={(event) => setShowDamageOnInvoice(event.currentTarget.checked)}
-                        className="mt-1 size-4 rounded border-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                    />
-                    <span>
-                        Schäden auf Rechnung ausweisen
-                        {!hasDamageNotes ? (
-                            <span className="mt-1 block text-xs font-bold text-slate-500">
-                                Erst verfügbar, wenn im Feld „Schäden“ ein Hinweis eingetragen ist.
-                            </span>
-                        ) : null}
-                    </span>
-                </label>
             </div>
         </div>
     );

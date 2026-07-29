@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { CalendarDays, FileText, Save, Truck } from "lucide-react";
 
 import { createVehicleAction } from "@/app/dashboard/vehicles/new/actions";
@@ -38,8 +38,6 @@ export function VehicleForm({
         createVehicleAction,
         initialState,
     );
-    const [damageNotes, setDamageNotes] = useState("");
-    const hasDamageNotes = damageNotes.trim().length > 0;
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
@@ -151,8 +149,6 @@ export function VehicleForm({
                             <Textarea
                                 id="damage_notes"
                                 name="damage_notes"
-                                value={damageNotes}
-                                onChange={(event) => setDamageNotes(event.target.value)}
                                 placeholder="Bekannte Schäden oder Mängel am Fahrzeug eintragen."
                                 className="min-h-28 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                             />
@@ -160,35 +156,6 @@ export function VehicleForm({
                                 Bekannte Schäden oder Mängel am Fahrzeug eintragen.
                             </p>
                         </div>
-
-                        <label
-                            className={
-                                hasDamageNotes
-                                    ? "flex cursor-pointer items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4"
-                                    : "flex cursor-not-allowed items-start gap-3 rounded-3xl border border-slate-200 bg-slate-50 p-4 opacity-75"
-                            }
-                        >
-                            <input
-                                type="checkbox"
-                                name="show_damage_on_invoice"
-                                value="yes"
-                                disabled={!hasDamageNotes}
-                                className="mt-1 size-4 rounded border-amber-300 text-amber-700 disabled:cursor-not-allowed"
-                            />
-                            <span>
-                                <span className="block font-extrabold text-slate-950">
-                                    Schadensangaben auf Rechnungen anzeigen
-                                </span>
-                                <span className="mt-1 block text-sm font-medium leading-6 text-slate-600">
-                                    Schäden bleiben intern, solange diese Option nicht aktiviert ist.
-                                </span>
-                                {!hasDamageNotes ? (
-                                    <span className="mt-1 block text-xs font-bold text-amber-700">
-                                        Bitte erfasse zuerst eine Schadensbeschreibung.
-                                    </span>
-                                ) : null}
-                            </span>
-                        </label>
                     </CardContent>
                 </Card>
 

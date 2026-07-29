@@ -481,24 +481,11 @@ async function resolveVehicleId({
     const color = getStringValue(formData, "new_vehicle_color");
     const vehicleCategory = getStringValue(formData, "new_vehicle_category");
     const damageNotes = getStringValue(formData, "new_vehicle_damage_notes");
-    const hasDamageNotes = Boolean(damageNotes?.trim());
-    const requestedShowDamageOnInvoice =
-        getStringValue(formData, "new_vehicle_show_damage_on_invoice") === "yes";
-    const showDamageOnInvoice =
-        hasDamageNotes && requestedShowDamageOnInvoice;
 
     if (!manufacturer || !model || !vehicleType || !vin) {
         return {
             success: false as const,
             message: "Hersteller, Modell, Typ und VIN des Fahrzeugs sind Pflichtfelder.",
-        };
-    }
-
-    if (requestedShowDamageOnInvoice && !hasDamageNotes) {
-        return {
-            success: false as const,
-            message:
-                "Schäden können nur auf der Rechnung ausgewiesen werden, wenn eine Schadensbeschreibung vorhanden ist.",
         };
     }
 
@@ -548,7 +535,7 @@ async function resolveVehicleId({
             seller_customer_id: sellerCustomerId,
             notes: null,
             damage_notes: damageNotes,
-            show_damage_on_invoice: showDamageOnInvoice,
+            show_damage_on_invoice: false,
         })
         .select("id, internal_number, manufacturer, model")
         .single();

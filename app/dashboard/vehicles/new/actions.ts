@@ -200,24 +200,11 @@ export async function createVehicleAction(
     const purchaseDate = getDateValue(formData, "purchase_date");
     const notes = getStringValue(formData, "notes");
     const damageNotes = getStringValue(formData, "damage_notes");
-    const showDamageOnInvoice =
-        Boolean(damageNotes?.trim()) &&
-        getStringValue(formData, "show_damage_on_invoice") === "yes";
     const vehicleRegistrationFile = getFileValue(
         formData,
         "vehicle_registration_file",
     );
     const purchaseInvoiceFile = getFileValue(formData, "purchase_invoice_file");
-
-    if (
-        getStringValue(formData, "show_damage_on_invoice") === "yes" &&
-        !damageNotes?.trim()
-    ) {
-        return {
-            success: false,
-            message: "Bitte erfassen Sie zuerst eine Schadensbeschreibung.",
-        };
-    }
 
     const internalNumber = submittedInternalNumber ?? (await getNextVehicleInternalNumber());
 
@@ -306,7 +293,7 @@ export async function createVehicleAction(
             seller_customer_id: sellerCustomerId || null,
             notes,
             damage_notes: damageNotes,
-            show_damage_on_invoice: showDamageOnInvoice,
+            show_damage_on_invoice: false,
         })
         .select("id")
         .single();
