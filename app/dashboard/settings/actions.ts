@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { PDFDocument } from "pdf-lib";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getDocumentUploadFailedMessage,
@@ -57,6 +57,24 @@ type CompanyAssetPathRow = {
 type CompanyTermsPathRow = {
     terms_pdf_path: string | null;
 };
+
+function revalidateCompanySettingsPaths() {
+    revalidatePaths([
+        "/dashboard/settings",
+        "/dashboard/invoices",
+        "/dashboard/documents",
+        "/dashboard/sales",
+        "/dashboard/reports",
+    ]);
+}
+
+function revalidateCompanyPdfAssetPaths() {
+    revalidatePaths([
+        "/dashboard/settings",
+        "/dashboard/sales",
+        "/dashboard/invoices",
+    ]);
+}
 
 function getStringValue(formData: FormData, key: string): string {
     const value = formData.get(key);
@@ -275,11 +293,7 @@ export async function updateCompanySettingsAction(
         };
     }
 
-    revalidatePath("/dashboard/settings");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/reports");
+    revalidateCompanySettingsPaths();
 
     redirect("/dashboard/settings?companySaved=1");
 }
@@ -440,9 +454,7 @@ export async function uploadCompanySignatureAssetAction(formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
-    revalidatePath("/dashboard/settings");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
+    revalidateCompanyPdfAssetPaths();
 
     redirect(`/dashboard/settings?${asset.redirectFlag}=1`);
 }
@@ -492,9 +504,7 @@ export async function removeCompanySignatureAssetAction(formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
-    revalidatePath("/dashboard/settings");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
+    revalidateCompanyPdfAssetPaths();
 
     redirect("/dashboard/settings?assetRemoved=1");
 }
@@ -566,9 +576,7 @@ export async function uploadCompanyTermsPdfAction(formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
-    revalidatePath("/dashboard/settings");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
+    revalidateCompanyPdfAssetPaths();
 
     redirect("/dashboard/settings?termsUploaded=1");
 }
@@ -612,9 +620,7 @@ export async function removeCompanyTermsPdfAction(_formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
-    revalidatePath("/dashboard/settings");
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
+    revalidateCompanyPdfAssetPaths();
 
     redirect("/dashboard/settings?termsRemoved=1");
 }

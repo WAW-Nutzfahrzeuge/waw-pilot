@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
@@ -88,6 +88,44 @@ type InvoiceEmailQueryRow = {
         | InvoiceEmailDocumentRelation[]
         | null;
 };
+
+function revalidateInvoiceDocumentPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/invoices",
+        "/dashboard/documents",
+    ]);
+}
+
+function revalidateInvoiceCreationPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/documents",
+        "/dashboard/activities",
+    ]);
+}
+
+function revalidateInvoiceEmailPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/invoices",
+        "/dashboard/activities",
+        "/dashboard/emails",
+    ]);
+}
+
+function revalidateInvoicePaymentPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/cashbook",
+        "/dashboard/documents",
+        "/dashboard/activities",
+    ]);
+}
 
 async function getCurrentAuthUserId(): Promise<string | null> {
     const authSupabase = await createAuthServerSupabaseClient();
@@ -412,9 +450,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
     }
 
     if (existingInvoiceData) {
-        revalidatePath(`/dashboard/sales/${saleId}`);
-        revalidatePath("/dashboard/invoices");
-        revalidatePath("/dashboard/documents");
+        revalidateInvoiceDocumentPaths(saleId);
 
         redirect(`/dashboard/sales/${saleId}`);
     }
@@ -540,11 +576,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
         );
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/activities");
+    revalidateInvoiceCreationPaths(saleId);
 
     redirect(
         `/dashboard/sales/${saleId}?invoiceCreated=${encodeURIComponent(
@@ -706,10 +738,12 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         entityId: invoiceId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/invoices",
+        "/dashboard/documents",
+        "/dashboard/activities",
+    ]);
 
     redirect(
         `/dashboard/sales/${saleId}?invoiceRegenerated=${encodeURIComponent(
@@ -862,10 +896,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         entityId: invoiceId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/activities");
-    revalidatePath("/dashboard/emails");
+    revalidateInvoiceEmailPaths(saleId);
 
     redirect(getInvoiceEmailSuccessRedirect(saleId, invoiceId, customer.email));
 }
@@ -1124,9 +1155,11 @@ export async function createZugferdInvoiceAction(formData: FormData) {
         entityId: invoiceId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/activities");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/documents",
+        "/dashboard/activities",
+    ]);
 
     redirect(getZugferdSuccessRedirect(saleId, invoiceId, "created"));
 }
@@ -1287,9 +1320,11 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
         entityId: invoiceId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/activities");
-    revalidatePath("/dashboard/emails");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/activities",
+        "/dashboard/emails",
+    ]);
 
     redirect(getZugferdSuccessRedirect(saleId, invoiceId, "sent", customer.email));
 }
@@ -1350,9 +1385,11 @@ export async function markInvoicePaidAction(formData: FormData) {
     }
 
     if (invoiceData.payment_status === "paid") {
-        revalidatePath(`/dashboard/sales/${saleId}`);
-        revalidatePath("/dashboard/invoices");
-        revalidatePath("/dashboard/cashbook");
+        revalidatePaths([
+            `/dashboard/sales/${saleId}`,
+            "/dashboard/invoices",
+            "/dashboard/cashbook",
+        ]);
 
         redirect(`/dashboard/sales/${saleId}`);
     }
@@ -1451,12 +1488,7 @@ export async function markInvoicePaidAction(formData: FormData) {
         });
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/invoices");
-    revalidatePath("/dashboard/cashbook");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/activities");
+    revalidateInvoicePaymentPaths(saleId);
 
     redirect(`/dashboard/sales/${saleId}`);
 }

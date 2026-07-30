@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { Label } from "@/components/ui/label";
 import {
@@ -22,6 +22,7 @@ export function MonthFilter({
     updateUrl?: boolean;
 }) {
     const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
 
     function handleChange(nextValue: string) {
@@ -37,7 +38,7 @@ export function MonthFilter({
         }
 
         const query = params.toString();
-        router.push(query ? `?${query}` : window.location.pathname);
+        router.push(query ? `${pathname}?${query}` : pathname);
     }
 
     return (
