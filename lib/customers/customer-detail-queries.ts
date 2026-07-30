@@ -340,6 +340,7 @@ export async function getCustomerDetail(
     }
 
     const vehiclesRows = (vehiclesData ?? []) as VehicleRow[];
+    const vehicleById = new Map(vehiclesRows.map((vehicle) => [vehicle.id, vehicle]));
 
     const vehicles: CustomerDetailVehicle[] = vehiclesRows.map((vehicle) => ({
         id: vehicle.id,
@@ -362,12 +363,18 @@ export async function getCustomerDetail(
     }));
 
     const salesRows = (salesData ?? []) as SaleRow[];
-    const saleVehicleIds = Array.from(
-        new Set(salesRows.map((sale) => sale.vehicle_id).filter(Boolean)),
+    const missingSaleVehicleIds = Array.from(
+        new Set(
+            salesRows
+                .map((sale) => sale.vehicle_id)
+                .filter((vehicleId): vehicleId is string =>
+                    Boolean(vehicleId) && !vehicleById.has(vehicleId),
+                ),
+        ),
     );
 
     const { data: saleVehiclesData, error: saleVehiclesError } =
-        saleVehicleIds.length > 0
+        missingSaleVehicleIds.length > 0
             ? await supabase
                 .from("vehicles")
                 .select(
@@ -391,7 +398,7 @@ export async function getCustomerDetail(
           `,
                 )
                 .eq("company_id", companyId)
-                .in("id", saleVehicleIds)
+                .in("id", missingSaleVehicleIds)
             : { data: [], error: null };
 
     if (saleVehiclesError) {
@@ -401,8 +408,11 @@ export async function getCustomerDetail(
     }
 
     const saleVehicles = (saleVehiclesData ?? []) as VehicleRow[];
+    for (const vehicle of saleVehicles) {
+        vehicleById.set(vehicle.id, vehicle);
+    }
+
     const invoicesRows = (invoicesData ?? []) as InvoiceRow[];
-    const saleVehicleById = new Map(saleVehicles.map((vehicle) => [vehicle.id, vehicle]));
     const invoiceBySaleId = new Map(
         invoicesRows
             .filter((invoice) => invoice.sale_id)
@@ -411,7 +421,7 @@ export async function getCustomerDetail(
 
     const sales: CustomerDetailSale[] = salesRows.map((sale) => {
         const vehicle = sale.vehicle_id
-            ? saleVehicleById.get(sale.vehicle_id) ?? null
+            ? vehicleById.get(sale.vehicle_id) ?? null
             : null;
         const invoice = invoiceBySaleId.get(sale.id) ?? null;
 

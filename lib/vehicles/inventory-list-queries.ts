@@ -182,7 +182,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         return [];
     }
 
-    const { data: purchasesData, error: purchasesError } = await supabase
+    const purchasesPromise = supabase
         .from("purchase_cases")
         .select(
             `
@@ -202,13 +202,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         .in("vehicle_id", vehicleIds)
         .order("purchase_date", { ascending: false });
 
-    if (purchasesError) {
-        throw new Error(
-            `Ankaufsdaten für Bestandsliste konnten nicht geladen werden: ${purchasesError.message}`,
-        );
-    }
-
-    const { data: salesData, error: salesError } = await supabase
+    const salesPromise = supabase
         .from("sales")
         .select(
             `
@@ -229,6 +223,17 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         .in("vehicle_id", vehicleIds)
         .neq("status", "cancelled")
         .order("sale_date", { ascending: false });
+
+    const [
+        { data: purchasesData, error: purchasesError },
+        { data: salesData, error: salesError },
+    ] = await Promise.all([purchasesPromise, salesPromise]);
+
+    if (purchasesError) {
+        throw new Error(
+            `Ankaufsdaten für Bestandsliste konnten nicht geladen werden: ${purchasesError.message}`,
+        );
+    }
 
     if (salesError) {
         throw new Error(
