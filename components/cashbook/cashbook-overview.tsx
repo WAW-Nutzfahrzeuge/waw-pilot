@@ -122,6 +122,30 @@ export function CashbookOverview({
         useState<EntryTypeFilter>("all");
     const isDateFiltered = Boolean(dateFrom || dateTo);
     const periodLabel = getPeriodLabel(dateFrom, dateTo);
+    const cashbookSearchIndex = useMemo(() => {
+        const index = new Map<string, string>();
+
+        for (const entry of entries) {
+            index.set(
+                entry.id,
+                [
+                    entry.description,
+                    entry.vehicle_name,
+                    entry.invoice_number,
+                    entry.purchase_number,
+                    entry.customer_name,
+                    getCashbookCategoryLabel(entry.category),
+                    getCashbookPaymentMethodLabel(entry.payment_method),
+                    getCashbookTypeLabel(entry.entry_type),
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            );
+        }
+
+        return index;
+    }, [entries]);
 
     const filteredEntries = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -137,23 +161,9 @@ export function CashbookOverview({
 
             if (!normalizedQuery) return true;
 
-            const searchableText = [
-                entry.description,
-                entry.vehicle_name,
-                entry.invoice_number,
-                entry.purchase_number,
-                entry.customer_name,
-                getCashbookCategoryLabel(entry.category),
-                getCashbookPaymentMethodLabel(entry.payment_method),
-                getCashbookTypeLabel(entry.entry_type),
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
+            return cashbookSearchIndex.get(entry.id)?.includes(normalizedQuery) ?? false;
         });
-    }, [query, entries, paymentFilter, entryTypeFilter]);
+    }, [query, entries, paymentFilter, entryTypeFilter, cashbookSearchIndex]);
 
     const cashbookSummary = useMemo(() => {
         return filteredEntries.reduce(

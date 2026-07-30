@@ -40,6 +40,30 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
+    const purchaseSearchIndex = useMemo(() => {
+        const index = new Map<string, string>();
+
+        for (const purchase of purchases) {
+            index.set(
+                purchase.id,
+                [
+                    purchase.purchase_number,
+                    purchase.seller_name,
+                    purchase.vehicle_name,
+                    purchase.vin,
+                    purchase.notes,
+                    getPurchaseStatusLabel(purchase.status),
+                    getPurchasePaymentStatusLabel(purchase.payment_status),
+                    getPurchaseDocumentStatusLabel(purchase.document_check_status),
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            );
+        }
+
+        return index;
+    }, [purchases]);
 
     const purchaseSummary = useMemo(() => {
         return purchases.reduce(
@@ -88,23 +112,9 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
 
             if (!normalizedQuery) return true;
 
-            const searchableText = [
-                purchase.purchase_number,
-                purchase.seller_name,
-                purchase.vehicle_name,
-                purchase.vin,
-                purchase.notes,
-                getPurchaseStatusLabel(purchase.status),
-                getPurchasePaymentStatusLabel(purchase.payment_status),
-                getPurchaseDocumentStatusLabel(purchase.document_check_status),
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
+            return purchaseSearchIndex.get(purchase.id)?.includes(normalizedQuery) ?? false;
         });
-    }, [filter, purchases, query]);
+    }, [filter, purchases, purchaseSearchIndex, query]);
 
     return (
         <div className="space-y-6">

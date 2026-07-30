@@ -70,6 +70,29 @@ export function SalesOverview({
     const [monthFilter, setMonthFilter] = useState(() =>
         normalizeMonthFilter(initialMonthFilter),
     );
+    const saleSearchIndex = useMemo(() => {
+        const index = new Map<string, string>();
+
+        for (const sale of sales) {
+            index.set(
+                sale.id,
+                [
+                    sale.invoice_number,
+                    sale.vehicle_name,
+                    sale.vin,
+                    sale.customer_name,
+                    sale.customer_country,
+                    getSaleTypeLabel(sale.sale_type),
+                    ...sale.missing_required_document_labels,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            );
+        }
+
+        return index;
+    }, [sales]);
 
     const filteredSales = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -91,22 +114,9 @@ export function SalesOverview({
 
             if (!normalizedQuery) return true;
 
-            const searchableText = [
-                sale.invoice_number,
-                sale.vehicle_name,
-                sale.vin,
-                sale.customer_name,
-                sale.customer_country,
-                getSaleTypeLabel(sale.sale_type),
-                ...sale.missing_required_document_labels,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
+            return saleSearchIndex.get(sale.id)?.includes(normalizedQuery) ?? false;
         });
-    }, [query, sales, paymentFilter, monthFilter]);
+    }, [query, sales, paymentFilter, monthFilter, saleSearchIndex]);
 
     const salesSummary = useMemo(() => {
         const monthFilteredSales = sales.filter((sale) =>
