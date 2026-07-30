@@ -1,6 +1,7 @@
 import { getCurrentCompanyId } from "@/lib/company";
 import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { matchesMonthFilter, type MonthFilterValue } from "@/utils/month-filter";
 
 export type InvoiceStatus = "draft" | "created" | "sent" | "paid" | "cancelled";
 export type InvoicePaymentStatus = "open" | "partial" | "paid";
@@ -80,6 +81,10 @@ type InvoiceQueryRow = {
         vehicle_type: string | null;
         vin: string;
     } | null;
+};
+
+type InvoiceDashboardSummaryRow = {
+    invoice_date: string;
 };
 
 function getCustomerName(customer: InvoiceQueryRow["customers"]): string {
@@ -221,4 +226,30 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
 
             return getInvoiceSortWeight(a.invoice_type) - getInvoiceSortWeight(b.invoice_type);
         });
+}
+
+export async function getInvoiceDashboardSummary(
+    monthFilter: MonthFilterValue,
+): Promise<{ invoicesCount: number }> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("invoices")
+        .select("invoice_date")
+        .eq("company_id", companyId);
+
+    if (error) {
+        throw new Error(`Rechnungs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
+    }
+
+    let invoicesCount = 0;
+
+    for (const invoice of (data ?? []) as InvoiceDashboardSummaryRow[]) {
+        if (matchesMonthFilter(invoice.invoice_date, monthFilter)) {
+            invoicesCount += 1;
+        }
+    }
+
+    return { invoicesCount };
 }

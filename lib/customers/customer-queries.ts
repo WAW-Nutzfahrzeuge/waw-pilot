@@ -24,6 +24,22 @@ export type CustomerRow = {
     sales_count: number;
 };
 
+export async function getCustomersCount(): Promise<number> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { count, error } = await supabase
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId);
+
+    if (error) {
+        throw new Error(`Kundenanzahl konnte nicht geladen werden: ${error.message}`);
+    }
+
+    return count ?? 0;
+}
+
 export async function getCustomers(): Promise<CustomerRow[]> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -61,6 +77,48 @@ export async function getCustomers(): Promise<CustomerRow[]> {
 
     return (data ?? []).map((customer) => ({
         ...customer,
+        vehicles_count: 0,
+        sales_count: 0,
+    }));
+}
+
+export async function getSaleFormCustomers(): Promise<CustomerRow[]> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("customers")
+        .select(
+            `
+      id,
+      type,
+      company_name,
+      owner_name,
+      first_name,
+      last_name,
+      street,
+      postal_code,
+      city,
+      country,
+      email,
+      preferred_language,
+      phone,
+      tax_number,
+      vat_id,
+      commercial_register_number,
+      created_at
+    `,
+        )
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        throw new Error(`Kunden für Verkaufsformular konnten nicht geladen werden: ${error.message}`);
+    }
+
+    return (data ?? []).map((customer) => ({
+        ...customer,
+        notes: null,
         vehicles_count: 0,
         sales_count: 0,
     }));

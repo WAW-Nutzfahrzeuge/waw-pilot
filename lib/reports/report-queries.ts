@@ -8,7 +8,7 @@ import { getInvoices } from "@/lib/invoices/invoice-queries";
 import { getPurchaseCases } from "@/lib/purchases/purchase-queries";
 import { getSales } from "@/lib/sales/sale-queries";
 import { getSaleProfitNet } from "@/lib/sales/sale-helpers";
-import { getVehicles } from "@/lib/vehicles/vehicle-queries";
+import { getVehicleReportSummary } from "@/lib/vehicles/vehicle-queries";
 
 export type ReportsPeriod =
     | "all"
@@ -240,9 +240,9 @@ export async function getReportsData(
             ? getCustomPeriodLabel(dateFrom, dateTo)
             : presetRange.label;
 
-    const [vehicles, sales, invoices, purchases, cashbookEntries] =
+    const [vehicleSummary, sales, invoices, purchases, cashbookEntries] =
         await Promise.all([
-            getVehicles(),
+            getVehicleReportSummary(),
             getSales(),
             getInvoices(),
             getPurchaseCases(),
@@ -274,24 +274,6 @@ export async function getReportsData(
                 isInDateRange(entry.booking_date, dateFrom, dateTo),
             )
             : cashbookEntries;
-
-    let currentVehiclesCount = 0;
-    let soldVehiclesCount = 0;
-    let inventoryValueNet = 0;
-
-    for (const vehicle of vehicles) {
-        const isCurrent =
-            vehicle.status === "in_stock" || vehicle.status === "reserved";
-
-        if (isCurrent) {
-            currentVehiclesCount += 1;
-            inventoryValueNet += Number(vehicle.purchase_price_net ?? 0);
-        }
-
-        if (vehicle.status === "sold") {
-            soldVehiclesCount += 1;
-        }
-    }
 
     let totalRevenueNet = 0;
     let totalSalesGross = 0;
@@ -373,10 +355,10 @@ export async function getReportsData(
         cashbookExpenses: calculateTotalExpenses(filteredCashbookEntries),
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
-        vehiclesCount: vehicles.length,
-        currentVehiclesCount,
-        soldVehiclesCount,
-        inventoryValueNet,
+        vehiclesCount: vehicleSummary.vehiclesCount,
+        currentVehiclesCount: vehicleSummary.currentVehiclesCount,
+        soldVehiclesCount: vehicleSummary.soldVehiclesCount,
+        inventoryValueNet: vehicleSummary.inventoryValueNet,
 
         topSalesByRevenue: [...mappedSales]
             .sort((a, b) => b.revenueNet - a.revenueNet)

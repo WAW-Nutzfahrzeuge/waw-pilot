@@ -1,8 +1,8 @@
 import { getCashbookEntries } from "@/lib/cashbook/cashbook-queries";
 import { calculateBalance } from "@/lib/cashbook/cashbook-helpers";
-import { getCustomers } from "@/lib/customers/customer-queries";
+import { getCustomersCount } from "@/lib/customers/customer-queries";
 import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
-import { getInvoices } from "@/lib/invoices/invoice-queries";
+import { getInvoiceDashboardSummary } from "@/lib/invoices/invoice-queries";
 import { getLicensePlateCases } from "@/lib/license-plates/license-plate-queries";
 import {
     getLicensePlateStatusLabel,
@@ -10,7 +10,7 @@ import {
 } from "@/lib/license-plates/license-plate-helpers";
 import { getSales } from "@/lib/sales/sale-queries";
 import { getSaleProfitNet } from "@/lib/sales/sale-helpers";
-import { getVehicles } from "@/lib/vehicles/vehicle-queries";
+import { getVehicleDashboardSummary } from "@/lib/vehicles/vehicle-queries";
 import { getPurchaseCases } from "@/lib/purchases/purchase-queries";
 import { matchesMonthFilter, normalizeMonthFilter } from "@/utils/month-filter";
 
@@ -77,42 +77,24 @@ export type DashboardData = {
 export async function getDashboardData(month?: string | null): Promise<DashboardData> {
     const monthFilter = normalizeMonthFilter(month);
     const [
-        customers,
-        vehicles,
+        customersCount,
+        vehicleSummary,
         sales,
-        invoices,
+        invoiceSummary,
         documentSummary,
         cashbookEntries,
         licensePlateCases,
         purchaseCases,
     ] = await Promise.all([
-        getCustomers(),
-        getVehicles(),
+        getCustomersCount(),
+        getVehicleDashboardSummary(),
         getSales(),
-        getInvoices(),
+        getInvoiceDashboardSummary(monthFilter),
         getDocumentDashboardSummary(),
         getCashbookEntries(),
         getLicensePlateCases(),
         getPurchaseCases(),
     ]);
-
-    let currentVehiclesCount = 0;
-    let soldVehiclesCount = 0;
-    let vehiclesWithOpenDocumentsCount = 0;
-
-    for (const vehicle of vehicles) {
-        if (vehicle.status === "in_stock" || vehicle.status === "reserved") {
-            currentVehiclesCount += 1;
-        }
-
-        if (vehicle.status === "sold") {
-            soldVehiclesCount += 1;
-        }
-
-        if (vehicle.document_status !== "complete") {
-            vehiclesWithOpenDocumentsCount += 1;
-        }
-    }
 
     const recentFilteredSales: typeof sales = [];
     let salesCount = 0;
@@ -133,13 +115,6 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         }
         totalRevenueNet += sale.net_amount;
         totalProfitNet += getSaleProfitNet(sale);
-    }
-
-    let filteredInvoicesCount = 0;
-    for (const invoice of invoices) {
-        if (matchesMonthFilter(invoice.invoice_date, monthFilter)) {
-            filteredInvoicesCount += 1;
-        }
     }
 
     const filteredCashbookEntries: typeof cashbookEntries = [];
@@ -226,9 +201,9 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         });
     }
 
-    if (vehiclesWithOpenDocumentsCount > 0) {
+    if (vehicleSummary.vehiclesWithOpenDocumentsCount > 0) {
         openActions.push({
-            label: `${vehiclesWithOpenDocumentsCount} Fahrzeugakte(n) prüfen`,
+            label: `${vehicleSummary.vehiclesWithOpenDocumentsCount} Fahrzeugakte(n) prüfen`,
             description: "Pflichtdokumente im Fahrzeugbestand ergänzen.",
             href: "/dashboard/vehicles",
             tone: "danger",
@@ -245,12 +220,12 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     }
 
     return {
-        customersCount: customers.length,
-        vehiclesCount: vehicles.length,
-        currentVehiclesCount,
-        soldVehiclesCount,
+        customersCount,
+        vehiclesCount: vehicleSummary.vehiclesCount,
+        currentVehiclesCount: vehicleSummary.currentVehiclesCount,
+        soldVehiclesCount: vehicleSummary.soldVehiclesCount,
         salesCount,
-        invoicesCount: filteredInvoicesCount,
+        invoicesCount: invoiceSummary.invoicesCount,
         documentsCount: documentSummary.documentsCount,
 
         licensePlateCasesCount: licensePlateCases.length,
@@ -269,13 +244,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         totalProfitNet,
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
-        recentVehicles: vehicles.slice(0, 4).map((vehicle) => ({
-            id: vehicle.id,
-            internalNumber: vehicle.internal_number,
-            name: `${vehicle.manufacturer} ${vehicle.model}`,
-            status: vehicle.status,
-            createdAt: vehicle.created_at,
-        })),
+        recentVehicles: vehicleSummary.recentVehicles,
 
         recentSales: recentFilteredSales.map((sale) => ({
             id: sale.id,

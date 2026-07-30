@@ -1,5 +1,5 @@
 import { SaleForm } from "@/components/sales/sale-form";
-import { getCustomers } from "@/lib/customers/customer-queries";
+import { getSaleFormCustomers } from "@/lib/customers/customer-queries";
 import { getSellableVehicles } from "@/lib/vehicles/vehicle-queries";
 
 type NewSalePageProps = {
@@ -12,7 +12,7 @@ type NewSalePageProps = {
 export default async function NewSalePage({ searchParams }: NewSalePageProps) {
     const [{ vehicleId, customerId }, customers, vehicles] = await Promise.all([
         searchParams,
-        getCustomers(),
+        getSaleFormCustomers(),
         getSellableVehicles(),
     ]);
 
