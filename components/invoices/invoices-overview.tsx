@@ -223,13 +223,40 @@ export function InvoicesOverview({
         };
     }, [highlightedInvoiceId]);
 
-    const standardInvoices = invoices.filter(
-        (invoice) => invoice.invoice_type === "standard",
-    ).length;
+    const invoiceSummary = useMemo(() => {
+        return invoices.reduce(
+            (summary, invoice) => {
+                if (invoice.invoice_type === "standard") {
+                    summary.standardInvoices += 1;
+                }
 
-    const proformaInvoices = invoices.filter(
-        (invoice) => invoice.invoice_type === "proforma",
-    ).length;
+                if (invoice.invoice_type === "proforma") {
+                    summary.proformaInvoices += 1;
+                }
+
+                if (invoice.payment_status !== "paid") {
+                    summary.openInvoices += 1;
+                }
+
+                if (invoice.datev_status === "not_sent") {
+                    summary.notSentToDatev += 1;
+                }
+
+                summary.totalGross += invoice.gross_amount;
+                summary.totalNet += invoice.net_amount;
+
+                return summary;
+            },
+            {
+                notSentToDatev: 0,
+                openInvoices: 0,
+                proformaInvoices: 0,
+                standardInvoices: 0,
+                totalGross: 0,
+                totalNet: 0,
+            },
+        );
+    }, [invoices]);
 
     const filteredInvoices = useMemo(() => {
         const normalizedQuery = normalizeSearchText(query);
@@ -248,23 +275,6 @@ export function InvoicesOverview({
             );
         });
     }, [query, invoices, invoiceFilter]);
-
-    const totalNet = invoices.reduce((sum, invoice) => sum + invoice.net_amount, 0);
-
-    const totalGross = invoices.reduce(
-        (sum, invoice) => sum + invoice.gross_amount,
-        0,
-    );
-
-    const openInvoices = invoices.filter(
-        (invoice) => invoice.payment_status !== "paid",
-    ).length;
-
-    const notSentToDatev = invoices.filter(
-        (invoice) => invoice.datev_status === "not_sent",
-    ).length;
-
-    const specialInvoices = proformaInvoices;
 
     return (
         <div className="space-y-6">
@@ -297,28 +307,28 @@ export function InvoicesOverview({
                 <InvoiceStatCard
                     label="Rechnungen"
                     value={invoices.length}
-                    description={`${standardInvoices} normal · ${specialInvoices} Proforma/Anzahlung`}
+                    description={`${invoiceSummary.standardInvoices} normal · ${invoiceSummary.proformaInvoices} Proforma/Anzahlung`}
                     icon={Receipt}
                 />
                 <InvoiceStatCard
                     label="Netto-Betrag"
-                    value={formatCurrency(totalNet)}
-                    description={`Brutto: ${formatCurrency(totalGross)}`}
+                    value={formatCurrency(invoiceSummary.totalNet)}
+                    description={`Brutto: ${formatCurrency(invoiceSummary.totalGross)}`}
                     icon={FileText}
                 />
                 <InvoiceStatCard
                     label="Offene Rechnungen"
-                    value={openInvoices}
+                    value={invoiceSummary.openInvoices}
                     description="Zahlung noch offen"
                     icon={Wallet}
-                    danger={openInvoices > 0}
+                    danger={invoiceSummary.openInvoices > 0}
                 />
                 <InvoiceStatCard
                     label="DATEV offen"
-                    value={notSentToDatev}
+                    value={invoiceSummary.notSentToDatev}
                     description="noch nicht markiert"
                     icon={Send}
-                    danger={notSentToDatev > 0}
+                    danger={invoiceSummary.notSentToDatev > 0}
                 />
             </section>
 
@@ -358,13 +368,13 @@ export function InvoicesOverview({
                                     active={invoiceFilter === "standard"}
                                     onClick={() => setInvoiceFilter("standard")}
                                     label="Rechnungen"
-                                    count={standardInvoices}
+                                    count={invoiceSummary.standardInvoices}
                                 />
                                 <InvoiceFilterButton
                                     active={invoiceFilter === "proforma"}
                                     onClick={() => setInvoiceFilter("proforma")}
                                     label="Proforma"
-                                    count={proformaInvoices}
+                                    count={invoiceSummary.proformaInvoices}
                                 />
                             </div>
                         </div>

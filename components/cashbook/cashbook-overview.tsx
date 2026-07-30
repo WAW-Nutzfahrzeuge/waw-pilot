@@ -19,10 +19,6 @@ import {
 
 import type { CashbookEntryRow } from "@/lib/cashbook/cashbook-queries";
 import {
-    calculateBalance,
-    calculatePaymentMethodBalance,
-    calculateTotalExpenses,
-    calculateTotalIncome,
     getCashbookCategoryLabel,
     getCashbookPaymentMethodLabel,
     getCashbookTypeLabel,
@@ -159,19 +155,47 @@ export function CashbookOverview({
         });
     }, [query, entries, paymentFilter, entryTypeFilter]);
 
-    const totalIncome = calculateTotalIncome(filteredEntries);
-    const totalExpenses = calculateTotalExpenses(filteredEntries);
-    const totalBalance = calculateBalance(filteredEntries);
-    const cashBalance = calculatePaymentMethodBalance(filteredEntries, "cash");
-    const bankBalance = calculatePaymentMethodBalance(filteredEntries, "bank");
+    const cashbookSummary = useMemo(() => {
+        return filteredEntries.reduce(
+            (summary, entry) => {
+                const signedAmount =
+                    entry.entry_type === "income" ? entry.amount : -entry.amount;
 
-    const purchaseExpenses = filteredEntries
-        .filter(
-            (entry) =>
-                entry.entry_type === "expense" &&
-                (entry.category === "vehicle_purchase" || entry.purchase_case_id),
-        )
-        .reduce((sum, entry) => sum + entry.amount, 0);
+                if (entry.entry_type === "income") {
+                    summary.totalIncome += entry.amount;
+                } else {
+                    summary.totalExpenses += entry.amount;
+
+                    if (
+                        entry.category === "vehicle_purchase" ||
+                        entry.purchase_case_id
+                    ) {
+                        summary.purchaseExpenses += entry.amount;
+                    }
+                }
+
+                if (entry.payment_method === "cash") {
+                    summary.cashBalance += signedAmount;
+                }
+
+                if (entry.payment_method === "bank") {
+                    summary.bankBalance += signedAmount;
+                }
+
+                summary.totalBalance += signedAmount;
+
+                return summary;
+            },
+            {
+                bankBalance: 0,
+                cashBalance: 0,
+                purchaseExpenses: 0,
+                totalBalance: 0,
+                totalExpenses: 0,
+                totalIncome: 0,
+            },
+        );
+    }, [filteredEntries]);
 
     function handlePrint() {
         window.print();
@@ -227,31 +251,31 @@ export function CashbookOverview({
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 print:hidden">
                 <CashbookStatCard
                     label="Gesamtsaldo"
-                    value={formatCurrency(totalBalance)}
-                    description={`${formatCurrency(totalIncome)} Einnahmen · ${formatCurrency(totalExpenses)} Ausgaben`}
+                    value={formatCurrency(cashbookSummary.totalBalance)}
+                    description={`${formatCurrency(cashbookSummary.totalIncome)} Einnahmen · ${formatCurrency(cashbookSummary.totalExpenses)} Ausgaben`}
                     icon={BookOpenCheck}
-                    tone={totalBalance >= 0 ? "success" : "danger"}
+                    tone={cashbookSummary.totalBalance >= 0 ? "success" : "danger"}
                 />
                 <CashbookStatCard
                     label="Barbestand"
-                    value={formatCurrency(cashBalance)}
+                    value={formatCurrency(cashbookSummary.cashBalance)}
                     description="nur Barbuchungen"
                     icon={Coins}
-                    tone={cashBalance >= 0 ? "success" : "danger"}
+                    tone={cashbookSummary.cashBalance >= 0 ? "success" : "danger"}
                 />
                 <CashbookStatCard
                     label="Bankbestand"
-                    value={formatCurrency(bankBalance)}
+                    value={formatCurrency(cashbookSummary.bankBalance)}
                     description="nur Bankbuchungen"
                     icon={Banknote}
-                    tone={bankBalance >= 0 ? "success" : "danger"}
+                    tone={cashbookSummary.bankBalance >= 0 ? "success" : "danger"}
                 />
                 <CashbookStatCard
                     label="Ankauf-Ausgaben"
-                    value={formatCurrency(purchaseExpenses)}
+                    value={formatCurrency(cashbookSummary.purchaseExpenses)}
                     description="Fahrzeugeinkäufe"
                     icon={ShoppingCart}
-                    tone={purchaseExpenses > 0 ? "danger" : "success"}
+                    tone={cashbookSummary.purchaseExpenses > 0 ? "danger" : "success"}
                 />
                 <CashbookStatCard
                     label="Buchungen"
@@ -468,12 +492,12 @@ export function CashbookOverview({
                                         : "Zusammenfassung gesamt"}
                                 </h2>
                                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                    <PrintSummaryItem label="Einnahmen gesamt" value={formatCurrency(totalIncome)} />
-                                    <PrintSummaryItem label="Ausgaben gesamt" value={formatCurrency(totalExpenses)} />
-                                    <PrintSummaryItem label="Ankauf-Ausgaben" value={formatCurrency(purchaseExpenses)} />
-                                    <PrintSummaryItem label="Barbestand" value={formatCurrency(cashBalance)} />
-                                    <PrintSummaryItem label="Bankbestand" value={formatCurrency(bankBalance)} />
-                                    <PrintSummaryItem label="Gesamtsaldo" value={formatCurrency(totalBalance)} />
+                                    <PrintSummaryItem label="Einnahmen gesamt" value={formatCurrency(cashbookSummary.totalIncome)} />
+                                    <PrintSummaryItem label="Ausgaben gesamt" value={formatCurrency(cashbookSummary.totalExpenses)} />
+                                    <PrintSummaryItem label="Ankauf-Ausgaben" value={formatCurrency(cashbookSummary.purchaseExpenses)} />
+                                    <PrintSummaryItem label="Barbestand" value={formatCurrency(cashbookSummary.cashBalance)} />
+                                    <PrintSummaryItem label="Bankbestand" value={formatCurrency(cashbookSummary.bankBalance)} />
+                                    <PrintSummaryItem label="Gesamtsaldo" value={formatCurrency(cashbookSummary.totalBalance)} />
                                 </div>
                             </div>
                         </div>
@@ -495,18 +519,18 @@ export function CashbookOverview({
                             <div className="mt-4 space-y-2.5">
                                 <SummaryRow
                                     label="Einnahmen gesamt"
-                                    value={formatCurrency(totalIncome)}
+                                    value={formatCurrency(cashbookSummary.totalIncome)}
                                 />
                                 <SummaryRow
                                     label="Ausgaben gesamt"
-                                    value={formatCurrency(totalExpenses)}
+                                    value={formatCurrency(cashbookSummary.totalExpenses)}
                                 />
                                 <SummaryRow
                                     label="Ankauf-Ausgaben"
-                                    value={formatCurrency(purchaseExpenses)}
+                                    value={formatCurrency(cashbookSummary.purchaseExpenses)}
                                 />
-                                <SummaryRow label="Barbestand" value={formatCurrency(cashBalance)} />
-                                <SummaryRow label="Bankbestand" value={formatCurrency(bankBalance)} />
+                                <SummaryRow label="Barbestand" value={formatCurrency(cashbookSummary.cashBalance)} />
+                                <SummaryRow label="Bankbestand" value={formatCurrency(cashbookSummary.bankBalance)} />
                             </div>
 
                             <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-3">
@@ -516,7 +540,7 @@ export function CashbookOverview({
                                         : "Aktueller Gesamtsaldo"}
                                 </p>
                                 <p className="mt-1.5 break-words text-2xl font-extrabold text-cyan-200">
-                                    {formatCurrency(totalBalance)}
+                                    {formatCurrency(cashbookSummary.totalBalance)}
                                 </p>
                             </div>
                         </CardContent>
