@@ -137,9 +137,12 @@ export function FinancialOverview({
     const [query, setQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const periodLabel = getPeriodLabel(dateFrom, dateTo);
-    const visibleBaseEntries = activeTab === "cash"
-        ? entries.filter((entry) => entry.is_cash_relevant)
-        : entries;
+    const visibleBaseEntries = useMemo(
+        () => activeTab === "cash"
+            ? entries.filter((entry) => entry.is_cash_relevant)
+            : entries,
+        [activeTab, entries],
+    );
 
     const filteredEntries = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -170,18 +173,36 @@ export function FinancialOverview({
         });
     }, [query, statusFilter, visibleBaseEntries]);
 
-    const activeEntries = filteredEntries.filter((entry) => entry.status === "active");
-    const income = activeEntries
-        .filter((entry) => entry.direction === "in")
-        .reduce((sum, entry) => sum + entry.amount, 0);
-    const expenses = activeEntries
-        .filter((entry) => entry.direction === "out")
-        .reduce((sum, entry) => sum + entry.amount, 0);
-    const unreviewedCount = entries.filter(
-        (entry) =>
-            entry.accounting_status === "UNREVIEWED" ||
-            entry.accounting_status === "REVIEW_REQUIRED",
-    ).length;
+    const financialSummary = useMemo(() => {
+        let income = 0;
+        let expenses = 0;
+        let unreviewedCount = 0;
+
+        for (const entry of entries) {
+            if (
+                entry.accounting_status === "UNREVIEWED" ||
+                entry.accounting_status === "REVIEW_REQUIRED"
+            ) {
+                unreviewedCount += 1;
+            }
+        }
+
+        for (const entry of filteredEntries) {
+            if (entry.status !== "active") continue;
+
+            if (entry.direction === "in") {
+                income += entry.amount;
+            } else {
+                expenses += entry.amount;
+            }
+        }
+
+        return {
+            income,
+            expenses,
+            unreviewedCount,
+        };
+    }, [entries, filteredEntries]);
 
     function handlePrint() {
         window.print();
@@ -285,24 +306,24 @@ export function FinancialOverview({
                     <>
                         <FinancialStatCard
                             label="Einnahmen"
-                            value={formatCurrency(income)}
+                            value={formatCurrency(financialSummary.income)}
                             description="Zahlungs- und Einnahmeströme"
                             icon={Coins}
                             tone="success"
                         />
                         <FinancialStatCard
                             label="Ausgaben"
-                            value={formatCurrency(expenses)}
+                            value={formatCurrency(financialSummary.expenses)}
                             description="Zahlungs- und Ausgabeströme"
                             icon={Banknote}
                             tone="danger"
                         />
                         <FinancialStatCard
                             label="Zu prüfen"
-                            value={unreviewedCount}
+                            value={financialSummary.unreviewedCount}
                             description="Kontierung offen"
                             icon={BookOpenCheck}
-                            tone={unreviewedCount > 0 ? "warning" : "success"}
+                            tone={financialSummary.unreviewedCount > 0 ? "warning" : "success"}
                         />
                         <FinancialStatCard
                             label="Einträge"
@@ -480,16 +501,21 @@ function FinancialTable({
     showRunningBalance: boolean;
     openingBalance: number;
 }) {
-    const chronologicalEntries = [...entries].reverse();
-    let runningBalance = openingBalance;
-    const runningBalances = new Map<string, number>();
+    const runningBalances = useMemo(() => {
+        if (!showRunningBalance) return new Map<string, number>();
 
-    chronologicalEntries.forEach((entry) => {
-        if (entry.status === "active") {
-            runningBalance += entry.direction === "in" ? entry.amount : -entry.amount;
+        const balances = new Map<string, number>();
+        let runningBalance = openingBalance;
+
+        for (const entry of [...entries].reverse()) {
+            if (entry.status === "active") {
+                runningBalance += entry.direction === "in" ? entry.amount : -entry.amount;
+            }
+            balances.set(entry.id, runningBalance);
         }
-        runningBalances.set(entry.id, runningBalance);
-    });
+
+        return balances;
+    }, [entries, openingBalance, showRunningBalance]);
 
     if (entries.length === 0) {
         return (

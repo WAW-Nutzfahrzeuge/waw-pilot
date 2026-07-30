@@ -13,6 +13,13 @@ type ActivityOverviewProps = {
     activities: ActivityLogRow[];
 };
 
+type ActivityOverviewItem = ActivityLogRow & {
+    displayDate: string;
+    entityLabel: string;
+    userInitials: string;
+    searchableText: string;
+};
+
 function formatActivityDate(value: string): string {
     return new Intl.DateTimeFormat("de-DE", {
         day: "2-digit",
@@ -40,25 +47,50 @@ function getEntityLabel(entityType: string | null): string {
 export function ActivityOverview({ activities }: ActivityOverviewProps) {
     const [query, setQuery] = useState("");
 
+    const activityItems = useMemo<ActivityOverviewItem[]>(() => {
+        return activities.map((activityLog) => {
+            const displayDate = formatActivityDate(activityLog.created_at);
+            const entityLabel = getEntityLabel(activityLog.entity_type);
+            const userInitials = activityLog.user_name
+                .split(" ")
+                .map((part) => part[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+
+            return {
+                ...activityLog,
+                displayDate,
+                entityLabel,
+                userInitials,
+                searchableText: [
+                    activityLog.user_name,
+                    activityLog.action,
+                    activityLog.entity_type,
+                    entityLabel,
+                    displayDate,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            };
+        });
+    }, [activities]);
+
+    const activityStats = useMemo(() => {
+        return {
+            userCount: new Set(activityItems.map((item) => item.user_name)).size,
+            lastActivityDate: activityItems[0]?.displayDate ?? "—",
+        };
+    }, [activityItems]);
+
     const filteredActivities = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        if (!normalizedQuery) return activities;
+        if (!normalizedQuery) return activityItems;
 
-        return activities.filter((activityLog) => {
-            const searchableText = [
-                activityLog.user_name,
-                activityLog.action,
-                activityLog.entity_type,
-                formatActivityDate(activityLog.created_at),
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
-        });
-    }, [activities, query]);
+        return activityItems.filter((activityLog) => activityLog.searchableText.includes(normalizedQuery));
+    }, [activityItems, query]);
 
     return (
         <div className="space-y-6">
@@ -78,14 +110,14 @@ export function ActivityOverview({ activities }: ActivityOverviewProps) {
                 />
                 <ActivityStatCard
                     label="Benutzer"
-                    value={new Set(activities.map((item) => item.user_name)).size}
+                    value={activityStats.userCount}
                     description="mit erfassten Aktionen"
                     icon={UserRound}
                     tone="emerald"
                 />
                 <ActivityStatCard
                     label="Letzte Aktion"
-                    value={activities[0] ? formatActivityDate(activities[0].created_at) : "—"}
+                    value={activityStats.lastActivityDate}
                     description="aktuellster Eintrag"
                     icon={Clock3}
                     tone="amber"
@@ -126,10 +158,10 @@ export function ActivityOverview({ activities }: ActivityOverviewProps) {
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <p className="text-xs font-extrabold uppercase tracking-wide text-cyan-700">
-                                            {getEntityLabel(activityLog.entity_type)}
+                                            {activityLog.entityLabel}
                                         </p>
                                         <p className="mt-2 text-sm font-bold text-slate-500">
-                                            {formatActivityDate(activityLog.created_at)}
+                                            {activityLog.displayDate}
                                         </p>
                                     </div>
 
@@ -168,22 +200,17 @@ export function ActivityOverview({ activities }: ActivityOverviewProps) {
                                 >
                                     <td className="whitespace-nowrap px-5 py-5">
                                         <p className="font-extrabold text-slate-950">
-                                            {formatActivityDate(activityLog.created_at)}
+                                            {activityLog.displayDate}
                                         </p>
                                         <p className="mt-1 text-xs font-bold uppercase tracking-wide text-slate-400">
-                                            {getEntityLabel(activityLog.entity_type)}
+                                            {activityLog.entityLabel}
                                         </p>
                                     </td>
 
                                     <td className="px-5 py-5">
                                         <div className="flex items-center gap-3">
                                             <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-sm font-black text-slate-700">
-                                                {activityLog.user_name
-                                                    .split(" ")
-                                                    .map((part) => part[0])
-                                                    .join("")
-                                                    .slice(0, 2)
-                                                    .toUpperCase()}
+                                                {activityLog.userInitials}
                                             </div>
                                             <p className="font-extrabold text-slate-950">
                                                 {activityLog.user_name}
