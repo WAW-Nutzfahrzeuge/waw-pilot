@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ArrowUpRight,
     Download,
@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { FlashMessage } from "@/components/shared/flash-message";
+import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
 import { cn } from "@/lib/utils";
 
 type InvoicesOverviewProps = {
@@ -105,26 +106,6 @@ function getAmountSearchValues(amount: number): string[] {
     ].map(normalizeSearchText);
 }
 
-function invoiceMatchesAmount(invoice: InvoiceRow, rawQuery: string): boolean {
-    const normalizedQuery = normalizeSearchText(rawQuery.replace(/€/g, ""));
-    const queryAmount = parseSearchAmount(rawQuery);
-    const invoiceAmounts = [
-        invoice.net_amount,
-        invoice.vat_amount,
-        invoice.gross_amount,
-    ];
-
-    return invoiceAmounts.some((amount) => {
-        if (queryAmount !== null && Math.abs(amount - queryAmount) < 0.005) {
-            return true;
-        }
-
-        return getAmountSearchValues(amount).some((amountValue) =>
-            amountValue.includes(normalizedQuery),
-        );
-    });
-}
-
 function getInvoiceSearchAliases(invoice: InvoiceRow): string[] {
     const aliases = ["datev"];
 
@@ -191,6 +172,14 @@ function getInvoiceSearchText(invoice: InvoiceRow): string {
     );
 }
 
+function getInvoiceAmountSearchText(invoice: InvoiceRow): string {
+    return [
+        ...getAmountSearchValues(invoice.net_amount),
+        ...getAmountSearchValues(invoice.vat_amount),
+        ...getAmountSearchValues(invoice.gross_amount),
+    ].join(" ");
+}
+
 export function InvoicesOverview({
     invoices,
     invoiceCreated = false,
@@ -200,62 +189,60 @@ export function InvoicesOverview({
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
-    const [activeHighlightId, setActiveHighlightId] = useState(
+    const activeHighlightId = useTemporaryHighlight(
         highlightedInvoiceId,
     );
+    const invoiceSearchIndex = useMemo(() => {
+        const index = new Map<
+            string,
+            {
+                amountText: string;
+                searchText: string;
+            }
+        >();
 
-    useEffect(() => {
-        const startTimeoutId = window.setTimeout(() => {
-            setActiveHighlightId(highlightedInvoiceId);
-        }, 0);
-
-        if (!highlightedInvoiceId) {
-            return () => window.clearTimeout(startTimeoutId);
+        for (const invoice of invoices) {
+            index.set(invoice.id, {
+                amountText: getInvoiceAmountSearchText(invoice),
+                searchText: getInvoiceSearchText(invoice),
+            });
         }
 
-        const timeoutId = window.setTimeout(() => {
-            setActiveHighlightId(undefined);
-        }, 3000);
-
-        return () => {
-            window.clearTimeout(startTimeoutId);
-            window.clearTimeout(timeoutId);
-        };
-    }, [highlightedInvoiceId]);
+        return index;
+    }, [invoices]);
 
     const invoiceSummary = useMemo(() => {
-        return invoices.reduce(
-            (summary, invoice) => {
-                if (invoice.invoice_type === "standard") {
-                    summary.standardInvoices += 1;
-                }
+        const summary = {
+            notSentToDatev: 0,
+            openInvoices: 0,
+            proformaInvoices: 0,
+            standardInvoices: 0,
+            totalGross: 0,
+            totalNet: 0,
+        };
 
-                if (invoice.invoice_type === "proforma") {
-                    summary.proformaInvoices += 1;
-                }
+        for (const invoice of invoices) {
+            if (invoice.invoice_type === "standard") {
+                summary.standardInvoices += 1;
+            }
 
-                if (invoice.payment_status !== "paid") {
-                    summary.openInvoices += 1;
-                }
+            if (invoice.invoice_type === "proforma") {
+                summary.proformaInvoices += 1;
+            }
 
-                if (invoice.datev_status === "not_sent") {
-                    summary.notSentToDatev += 1;
-                }
+            if (invoice.payment_status !== "paid") {
+                summary.openInvoices += 1;
+            }
 
-                summary.totalGross += invoice.gross_amount;
-                summary.totalNet += invoice.net_amount;
+            if (invoice.datev_status === "not_sent") {
+                summary.notSentToDatev += 1;
+            }
 
-                return summary;
-            },
-            {
-                notSentToDatev: 0,
-                openInvoices: 0,
-                proformaInvoices: 0,
-                standardInvoices: 0,
-                totalGross: 0,
-                totalNet: 0,
-            },
-        );
+            summary.totalGross += invoice.gross_amount;
+            summary.totalNet += invoice.net_amount;
+        }
+
+        return summary;
     }, [invoices]);
 
     const filteredInvoices = useMemo(() => {
@@ -269,12 +256,26 @@ export function InvoicesOverview({
 
             if (!normalizedQuery) return true;
 
+            const searchIndex = invoiceSearchIndex.get(invoice.id);
+            if (!searchIndex) return false;
+
+            const queryAmount = parseSearchAmount(query);
+            if (queryAmount !== null) {
+                return (
+                    Math.abs(invoice.net_amount - queryAmount) < 0.005 ||
+                    Math.abs(invoice.vat_amount - queryAmount) < 0.005 ||
+                    Math.abs(invoice.gross_amount - queryAmount) < 0.005 ||
+                    searchIndex.searchText.includes(normalizedQuery) ||
+                    searchIndex.amountText.includes(normalizedQuery)
+                );
+            }
+
             return (
-                getInvoiceSearchText(invoice).includes(normalizedQuery) ||
-                invoiceMatchesAmount(invoice, query)
+                searchIndex.searchText.includes(normalizedQuery) ||
+                searchIndex.amountText.includes(normalizedQuery)
             );
         });
-    }, [query, invoices, invoiceFilter]);
+    }, [query, invoices, invoiceFilter, invoiceSearchIndex]);
 
     return (
         <div className="space-y-6">

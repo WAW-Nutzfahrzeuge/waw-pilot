@@ -10,6 +10,36 @@ type TemporaryHighlightProps = {
     className?: string;
 };
 
+export function useTemporaryHighlight<TValue>(
+    activeValue: TValue | null | undefined,
+    timeoutMs = 3000,
+): TValue | undefined {
+    const [visibleValue, setVisibleValue] = useState<TValue | undefined>(
+        activeValue ?? undefined,
+    );
+
+    useEffect(() => {
+        const startTimeoutId = window.setTimeout(() => {
+            setVisibleValue(activeValue ?? undefined);
+        }, 0);
+
+        if (!activeValue) {
+            return () => window.clearTimeout(startTimeoutId);
+        }
+
+        const timeoutId = window.setTimeout(() => {
+            setVisibleValue(undefined);
+        }, timeoutMs);
+
+        return () => {
+            window.clearTimeout(startTimeoutId);
+            window.clearTimeout(timeoutId);
+        };
+    }, [activeValue, timeoutMs]);
+
+    return visibleValue;
+}
+
 export function TemporaryHighlight({
     active = false,
     children,

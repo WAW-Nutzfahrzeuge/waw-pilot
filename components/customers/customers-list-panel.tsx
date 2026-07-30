@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ArrowUpRight,
     Building2,
@@ -17,6 +17,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
 import {
     getCustomerAddress,
     getCustomerDisplayName,
@@ -49,28 +50,9 @@ export function CustomersListPanel({
 }: CustomersListPanelProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const [activeHighlightId, setActiveHighlightId] = useState(
+    const activeHighlightId = useTemporaryHighlight(
         highlightedCustomerId,
     );
-
-    useEffect(() => {
-        const startTimeoutId = window.setTimeout(() => {
-            setActiveHighlightId(highlightedCustomerId);
-        }, 0);
-
-        if (!highlightedCustomerId) {
-            return () => window.clearTimeout(startTimeoutId);
-        }
-
-        const timeoutId = window.setTimeout(() => {
-            setActiveHighlightId(undefined);
-        }, 3000);
-
-        return () => {
-            window.clearTimeout(startTimeoutId);
-            window.clearTimeout(timeoutId);
-        };
-    }, [highlightedCustomerId]);
 
     const customerItems = useMemo<CustomerListDisplayRow[]>(() => {
         return customers.map((customer) => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ArrowUpRight,
     Car,
@@ -31,6 +31,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { PageHeader } from "@/components/shared/page-header";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { FlashMessage } from "@/components/shared/flash-message";
+import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
 
 type VehicleTab = "current" | "sold";
 
@@ -46,53 +47,49 @@ export function VehicleInventory({
                                      highlightVehicleId = null,
                                  }: VehicleInventoryProps) {
     const [query, setQuery] = useState("");
-    const [activeHighlightId, setActiveHighlightId] = useState(highlightVehicleId);
+    const activeHighlightId = useTemporaryHighlight(highlightVehicleId);
+    const sortedVehicles = useMemo(
+        () =>
+            [...vehicles].sort((firstVehicle, secondVehicle) =>
+                secondVehicle.created_at.localeCompare(firstVehicle.created_at),
+            ),
+        [vehicles],
+    );
+    const vehicleSearchIndex = useMemo(() => {
+        const index = new Map<string, string>();
 
-    useEffect(() => {
-        const startTimeoutId = window.setTimeout(() => {
-            setActiveHighlightId(highlightVehicleId);
-        }, 0);
-
-        if (!highlightVehicleId) {
-            return () => window.clearTimeout(startTimeoutId);
+        for (const vehicle of sortedVehicles) {
+            index.set(
+                vehicle.id,
+                [
+                    vehicle.manufacturer,
+                    vehicle.model,
+                    vehicle.vehicle_type,
+                    vehicle.vin,
+                    vehicle.license_plate,
+                    vehicle.seller_name,
+                    vehicle.buyer_name,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            );
         }
 
-        const timeout = window.setTimeout(() => {
-            setActiveHighlightId(null);
-        }, 3000);
-
-        return () => {
-            window.clearTimeout(startTimeoutId);
-            window.clearTimeout(timeout);
-        };
-    }, [highlightVehicleId]);
+        return index;
+    }, [sortedVehicles]);
 
     const filteredVehicles = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        const sortedVehicles = [...vehicles].sort((firstVehicle, secondVehicle) =>
-            secondVehicle.created_at.localeCompare(firstVehicle.created_at),
-        );
-
         if (!normalizedQuery) return sortedVehicles;
 
-        return sortedVehicles.filter((vehicle) => {
-            const searchableText = [
-                vehicle.manufacturer,
-                vehicle.model,
-                vehicle.vehicle_type,
-                vehicle.vin,
-                vehicle.license_plate,
-                vehicle.seller_name,
-                vehicle.buyer_name,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
-        });
-    }, [query, vehicles]);
+        return sortedVehicles.filter(
+            (vehicle) =>
+                vehicleSearchIndex.get(vehicle.id)?.includes(normalizedQuery) ??
+                false,
+        );
+    }, [query, sortedVehicles, vehicleSearchIndex]);
 
     const inventorySummary = useMemo(() => {
         return vehicles.reduce(
