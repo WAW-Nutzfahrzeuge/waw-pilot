@@ -94,21 +94,46 @@ export function VehicleInventory({
         });
     }, [query, vehicles]);
 
-    const currentVehicles = filteredVehicles.filter(
-        (vehicle) => vehicle.status === "in_stock" || vehicle.status === "reserved",
-    );
+    const inventorySummary = useMemo(() => {
+        return vehicles.reduce(
+            (summary, vehicle) => {
+                if (vehicle.document_status !== "complete") {
+                    summary.missingDocumentsCount += 1;
+                }
 
-    const soldVehicles = filteredVehicles.filter(
-        (vehicle) => vehicle.status === "sold",
-    );
+                if (vehicle.status !== "sold") {
+                    summary.totalStockValue += vehicle.purchase_price_net;
+                }
 
-    const missingDocumentsCount = vehicles.filter(
-        (vehicle) => vehicle.document_status !== "complete",
-    ).length;
+                return summary;
+            },
+            {
+                missingDocumentsCount: 0,
+                totalStockValue: 0,
+            },
+        );
+    }, [vehicles]);
 
-    const totalStockValue = vehicles
-        .filter((vehicle) => vehicle.status !== "sold")
-        .reduce((sum, vehicle) => sum + vehicle.purchase_price_net, 0);
+    const visibleVehicleGroups = useMemo(() => {
+        return filteredVehicles.reduce(
+            (groups, vehicle) => {
+                if (vehicle.status === "sold") {
+                    groups.soldVehicles.push(vehicle);
+                } else if (
+                    vehicle.status === "in_stock" ||
+                    vehicle.status === "reserved"
+                ) {
+                    groups.currentVehicles.push(vehicle);
+                }
+
+                return groups;
+            },
+            {
+                currentVehicles: [] as VehicleRow[],
+                soldVehicles: [] as VehicleRow[],
+            },
+        );
+    }, [filteredVehicles]);
 
     return (
         <div className="space-y-6">
@@ -154,23 +179,23 @@ export function VehicleInventory({
                 />
                 <InventoryStatCard
                     label="Aktueller Bestand"
-                    value={currentVehicles.length}
+                    value={visibleVehicleGroups.currentVehicles.length}
                     description="nicht verkaufte Fahrzeuge"
                     icon={Car}
                 />
                 <InventoryStatCard
                     label="Verkauft"
-                    value={soldVehicles.length}
+                    value={visibleVehicleGroups.soldVehicles.length}
                     description="abgeschlossene Fahrzeuge"
                     icon={CheckCircle2}
                 />
                 <InventoryStatCard
                     label="Offene Dokumente"
-                    value={missingDocumentsCount}
+                    value={inventorySummary.missingDocumentsCount}
                     description="Prüfung erforderlich"
                     icon={FileWarning}
                     href="/dashboard/documents?status=open"
-                    danger={missingDocumentsCount > 0}
+                    danger={inventorySummary.missingDocumentsCount > 0}
                 />
             </section>
 
@@ -185,7 +210,7 @@ export function VehicleInventory({
                                 <p className="mt-1 text-sm font-medium text-slate-500">
                                     Aktueller Bestandswert:{" "}
                                     <span className="font-extrabold text-slate-950">
-                    {formatCurrency(totalStockValue)}
+                    {formatCurrency(inventorySummary.totalStockValue)}
                   </span>
                                 </p>
                             </div>
@@ -216,7 +241,7 @@ export function VehicleInventory({
 
                         <TabsContent value="current" className="m-0">
                             <VehicleTable
-                                vehicles={currentVehicles}
+                                vehicles={visibleVehicleGroups.currentVehicles}
                                 tab="current"
                                 highlightedVehicleId={activeHighlightId}
                             />
@@ -224,7 +249,7 @@ export function VehicleInventory({
 
                         <TabsContent value="sold" className="m-0">
                             <VehicleTable
-                                vehicles={soldVehicles}
+                                vehicles={visibleVehicleGroups.soldVehicles}
                                 tab="sold"
                                 highlightedVehicleId={activeHighlightId}
                             />

@@ -108,28 +108,44 @@ export function SalesOverview({
         });
     }, [query, sales, paymentFilter, monthFilter]);
 
-    const monthFilteredSales = sales.filter((sale) =>
-        matchesMonthFilter(sale.sale_date, monthFilter),
-    );
+    const salesSummary = useMemo(() => {
+        const monthFilteredSales = sales.filter((sale) =>
+            matchesMonthFilter(sale.sale_date, monthFilter),
+        );
 
-    const openPayments = monthFilteredSales.filter(
-        (sale) => sale.payment_status === "open" || sale.payment_status === "partial",
-    ).length;
+        return monthFilteredSales.reduce(
+            (summary, sale) => {
+                if (
+                    sale.payment_status === "open" ||
+                    sale.payment_status === "partial"
+                ) {
+                    summary.openPayments += 1;
+                }
 
-    const incompleteDocuments = monthFilteredSales.filter(
-        (sale) => sale.missing_required_documents_count > 0,
-    ).length;
+                if (sale.missing_required_documents_count > 0) {
+                    summary.incompleteDocuments += 1;
+                }
 
-    const notSentToDatev = monthFilteredSales.filter(
-        (sale) => sale.datev_status === "not_sent",
-    ).length;
+                if (sale.datev_status === "not_sent") {
+                    summary.notSentToDatev += 1;
+                }
 
-    const totalRevenueNet = monthFilteredSales.reduce((sum, sale) => sum + sale.net_amount, 0);
+                summary.totalRevenueNet += sale.net_amount;
+                summary.totalProfitNet += getSaleProfitNet(sale);
+                summary.totalSales += 1;
 
-    const totalProfitNet = monthFilteredSales.reduce(
-        (sum, sale) => sum + getSaleProfitNet(sale),
-        0,
-    );
+                return summary;
+            },
+            {
+                incompleteDocuments: 0,
+                notSentToDatev: 0,
+                openPayments: 0,
+                totalProfitNet: 0,
+                totalRevenueNet: 0,
+                totalSales: 0,
+            },
+        );
+    }, [monthFilter, sales]);
 
     return (
         <div className="space-y-6">
@@ -153,30 +169,33 @@ export function SalesOverview({
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <SaleStatCard
                     label="Verkäufe gesamt"
-                    value={monthFilteredSales.length}
-                    description={formatCurrency(totalRevenueNet)}
+                    value={salesSummary.totalSales}
+                    description={formatCurrency(salesSummary.totalRevenueNet)}
                     icon={Receipt}
                 />
                 <SaleStatCard
                     label="Rohgewinn netto"
-                    value={formatCurrency(totalProfitNet)}
+                    value={formatCurrency(salesSummary.totalProfitNet)}
                     description="nach Einkauf & Nebenkosten"
                     icon={CheckCircle2}
                 />
                 <SaleStatCard
                     label="Offene Zahlungen"
-                    value={openPayments}
+                    value={salesSummary.openPayments}
                     description="Kassenbuch prüfen"
                     icon={Wallet}
                     href="/dashboard/sales?paymentStatus=open"
-                    danger={openPayments > 0}
+                    danger={salesSummary.openPayments > 0}
                 />
                 <SaleStatCard
                     label="Akte prüfen"
-                    value={incompleteDocuments}
-                    description={`${notSentToDatev} DATEV offen`}
+                    value={salesSummary.incompleteDocuments}
+                    description={`${salesSummary.notSentToDatev} DATEV offen`}
                     icon={Send}
-                    danger={incompleteDocuments > 0 || notSentToDatev > 0}
+                    danger={
+                        salesSummary.incompleteDocuments > 0 ||
+                        salesSummary.notSentToDatev > 0
+                    }
                 />
             </section>
 
