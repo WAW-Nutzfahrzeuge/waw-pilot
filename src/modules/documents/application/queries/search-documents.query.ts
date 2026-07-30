@@ -10,4 +10,5 @@ export type SearchDocumentsQuery = {
     needsReviewOnly?: boolean;
     limit?: number;
     offset?: number;
+    includeCount?: boolean;
 };

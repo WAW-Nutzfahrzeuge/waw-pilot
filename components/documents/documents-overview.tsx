@@ -69,6 +69,7 @@ const invoiceDocumentTypes = [
     "proforma_invoice",
     "down_payment_invoice",
 ];
+const invoiceDocumentTypeSet = new Set(invoiceDocumentTypes);
 
 const purchaseDocumentTypes = [
     "purchase_invoice",
@@ -78,6 +79,7 @@ const purchaseDocumentTypes = [
     "seller_id",
     "seller_commercial_register",
 ];
+const purchaseDocumentTypeSet = new Set(purchaseDocumentTypes);
 
 const licensePlateDocumentTypes = [
     "license_plate_document",
@@ -85,6 +87,7 @@ const licensePlateDocumentTypes = [
     "license_plate_power_of_attorney",
     "license_plate_registration",
 ];
+const licensePlateDocumentTypeSet = new Set(licensePlateDocumentTypes);
 
 const vehicleDocumentTypes = [
     "vehicle_registration",
@@ -105,6 +108,7 @@ const vehicleDocumentTypes = [
     "insurance_document",
     "tax_document",
 ];
+const vehicleDocumentTypeSet = new Set(vehicleDocumentTypes);
 
 type DocumentGroupKey =
     | "invoice"
@@ -123,6 +127,9 @@ const documentGroupOrder: DocumentGroupKey[] = [
     "cashbook",
     "other",
 ];
+const documentGroupPriority = new Map(
+    documentGroupOrder.map((group, index) => [group, index]),
+);
 
 const documentGroupLabels: Record<DocumentGroupKey, string> = {
     invoice: "Rechnungen",
@@ -251,6 +258,30 @@ function getDocumentMetaText(document: DocumentRow): string {
         .join(" · ");
 }
 
+function matchesDocumentFilter(
+    document: DocumentRow,
+    documentFilter: DocumentFilter,
+): boolean {
+    if (documentFilter === "all") return true;
+    if (documentFilter === "invoices") {
+        return invoiceDocumentTypeSet.has(document.document_type);
+    }
+    if (documentFilter === "vehicle_documents") {
+        return vehicleDocumentTypeSet.has(document.document_type);
+    }
+    if (documentFilter === "purchase_documents") {
+        return purchaseDocumentTypeSet.has(document.document_type);
+    }
+    if (documentFilter === "license_plates") {
+        return licensePlateDocumentTypeSet.has(document.document_type);
+    }
+    if (documentFilter === "cashbook") {
+        return document.document_type === "cashbook_receipt";
+    }
+
+    return document.status === "needs_review";
+}
+
 export function DocumentsOverview({
                                       documents,
                                       initialFilter = null,
@@ -279,19 +310,19 @@ export function DocumentsOverview({
                     summary.uploadedDocuments += 1;
                 }
 
-                if (invoiceDocumentTypes.includes(document.document_type)) {
+                if (invoiceDocumentTypeSet.has(document.document_type)) {
                     summary.invoiceDocuments += 1;
                 }
 
-                if (vehicleDocumentTypes.includes(document.document_type)) {
+                if (vehicleDocumentTypeSet.has(document.document_type)) {
                     summary.vehicleDocuments += 1;
                 }
 
-                if (purchaseDocumentTypes.includes(document.document_type)) {
+                if (purchaseDocumentTypeSet.has(document.document_type)) {
                     summary.purchaseDocuments += 1;
                 }
 
-                if (licensePlateDocumentTypes.includes(document.document_type)) {
+                if (licensePlateDocumentTypeSet.has(document.document_type)) {
                     summary.licensePlateDocuments += 1;
                 }
 
@@ -324,20 +355,7 @@ export function DocumentsOverview({
 
             if (!matchesVehicle) return false;
 
-            const matchesFilter =
-                documentFilter === "all" ||
-                (documentFilter === "invoices" &&
-                    invoiceDocumentTypes.includes(document.document_type)) ||
-                (documentFilter === "vehicle_documents" &&
-                    vehicleDocumentTypes.includes(document.document_type)) ||
-                (documentFilter === "purchase_documents" &&
-                    purchaseDocumentTypes.includes(document.document_type)) ||
-                (documentFilter === "license_plates" &&
-                    licensePlateDocumentTypes.includes(document.document_type)) ||
-                (documentFilter === "cashbook" &&
-                    document.document_type === "cashbook_receipt") ||
-                (documentFilter === "needs_review" &&
-                    document.status === "needs_review");
+            const matchesFilter = matchesDocumentFilter(document, documentFilter);
 
             if (!matchesFilter) return false;
 
@@ -363,8 +381,8 @@ export function DocumentsOverview({
             return searchableText.includes(normalizedQuery);
         }).sort((a, b) => {
             const groupDifference =
-                documentGroupOrder.indexOf(getDocumentGroup(a.document_type)) -
-                documentGroupOrder.indexOf(getDocumentGroup(b.document_type));
+                (documentGroupPriority.get(getDocumentGroup(a.document_type)) ?? 99) -
+                (documentGroupPriority.get(getDocumentGroup(b.document_type)) ?? 99);
 
             if (groupDifference !== 0) return groupDifference;
 
@@ -541,83 +559,11 @@ export function DocumentsOverview({
                                         </tr>
 
                                         {group.documents.map((document) => (
-                                            <tr
+                                            <DocumentTableRow
                                                 key={document.id}
-                                                className="group bg-white transition-colors hover:bg-cyan-50/30"
-                                            >
-                                                <td className="px-5 py-5">
-                                                    <div className="flex items-start gap-3">
-                                                        <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">
-                                                            <FileText className="size-5" />
-                                                        </div>
-
-                                                        <div className="min-w-0">
-                                                            <DocumentPrimaryLink
-                                                                document={document}
-                                                                reviewMode={documentFilter === "needs_review"}
-                                                                className="block max-w-sm font-extrabold leading-6 text-slate-950 hover:text-cyan-700 hover:underline"
-                                                            >
-                                                                {getDocumentDisplayName(document)}
-                                                            </DocumentPrimaryLink>
-                                                            <p className="mt-1 max-w-md text-xs font-semibold leading-5 text-slate-500">
-                                                                {getDocumentMetaText(document)}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <DocumentTypePill document={document} />
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <StatusBadge tone={getDocumentStatusTone(document.status)}>
-                                                        {getDocumentStatusLabel(document.status)}
-                                                    </StatusBadge>
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <StatusBadge tone="neutral">
-                                                        {getDocumentSourceDisplay(document)}
-                                                    </StatusBadge>
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <div className="space-y-1">
-                                                        {getDocumentReferenceLabel(document) ? (
-                                                            <p className="text-sm font-extrabold text-cyan-700">
-                                                                {getDocumentReferenceLabel(document)}
-                                                            </p>
-                                                        ) : null}
-
-                                                        {document.customer_name ? (
-                                                            <p className="text-sm font-bold text-slate-950">
-                                                                {document.customer_name}
-                                                            </p>
-                                                        ) : null}
-
-                                                        {!getDocumentReferenceLabel(document) &&
-                                                        !document.customer_name ? (
-                                                            <p className="text-sm font-semibold text-slate-400">
-                                                                —
-                                                            </p>
-                                                        ) : null}
-                                                    </div>
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <p className="text-sm font-semibold text-slate-700">
-                                                        {formatDate(document.created_at)}
-                                                    </p>
-                                                </td>
-
-                                                <td className="px-5 py-5">
-                                                    <div className="flex justify-end gap-2">
-                                                        <DocumentOpenButton document={document} />
-                                                        <DocumentDownloadButton document={document} />
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                document={document}
+                                                reviewMode={documentFilter === "needs_review"}
+                                            />
                                         ))}
                                     </Fragment>
                                 ))}
@@ -655,13 +601,102 @@ function DocumentTypePill({ document }: { document: DocumentRow }) {
     );
 }
 
+function DocumentTableRow({
+    document,
+    reviewMode,
+}: {
+    document: DocumentRow;
+    reviewMode: boolean;
+}) {
+    const displayName = getDocumentDisplayName(document);
+    const metaText = getDocumentMetaText(document);
+    const sourceDisplay = getDocumentSourceDisplay(document);
+    const referenceLabel = getDocumentReferenceLabel(document);
+
+    return (
+        <tr className="group bg-white transition-colors hover:bg-cyan-50/30">
+            <td className="px-5 py-5">
+                <div className="flex items-start gap-3">
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">
+                        <FileText className="size-5" />
+                    </div>
+
+                    <div className="min-w-0">
+                        <DocumentPrimaryLink
+                            document={document}
+                            reviewMode={reviewMode}
+                            className="block max-w-sm font-extrabold leading-6 text-slate-950 hover:text-cyan-700 hover:underline"
+                        >
+                            {displayName}
+                        </DocumentPrimaryLink>
+                        <p className="mt-1 max-w-md text-xs font-semibold leading-5 text-slate-500">
+                            {metaText}
+                        </p>
+                    </div>
+                </div>
+            </td>
+
+            <td className="px-5 py-5">
+                <DocumentTypePill document={document} />
+            </td>
+
+            <td className="px-5 py-5">
+                <StatusBadge tone={getDocumentStatusTone(document.status)}>
+                    {getDocumentStatusLabel(document.status)}
+                </StatusBadge>
+            </td>
+
+            <td className="px-5 py-5">
+                <StatusBadge tone="neutral">
+                    {sourceDisplay}
+                </StatusBadge>
+            </td>
+
+            <td className="px-5 py-5">
+                <div className="space-y-1">
+                    {referenceLabel ? (
+                        <p className="text-sm font-extrabold text-cyan-700">
+                            {referenceLabel}
+                        </p>
+                    ) : null}
+
+                    {document.customer_name ? (
+                        <p className="text-sm font-bold text-slate-950">
+                            {document.customer_name}
+                        </p>
+                    ) : null}
+
+                    {!referenceLabel && !document.customer_name ? (
+                        <p className="text-sm font-semibold text-slate-400">
+                            —
+                        </p>
+                    ) : null}
+                </div>
+            </td>
+
+            <td className="px-5 py-5">
+                <p className="text-sm font-semibold text-slate-700">
+                    {formatDate(document.created_at)}
+                </p>
+            </td>
+
+            <td className="px-5 py-5">
+                <div className="flex justify-end gap-2">
+                    <DocumentOpenButton document={document} />
+                    <DocumentDownloadButton document={document} />
+                </div>
+            </td>
+        </tr>
+    );
+}
+
 function getDocumentGroup(
     documentType: string,
 ): DocumentGroupKey {
-    if (invoiceDocumentTypes.includes(documentType)) return "invoice";
-    if (vehicleDocumentTypes.includes(documentType)) return "vehicle";
-    if (purchaseDocumentTypes.includes(documentType)) return "purchase";
-    if (licensePlateDocumentTypes.includes(documentType)) return "license_plate";
+    if (invoiceDocumentTypeSet.has(documentType)) return "invoice";
+    if (vehicleDocumentTypeSet.has(documentType)) return "vehicle";
+    if (purchaseDocumentTypeSet.has(documentType)) return "purchase";
+    if (licensePlateDocumentTypeSet.has(documentType)) return "license_plate";
     if (documentType === "cashbook_receipt") return "cashbook";
 
     return "other";
@@ -697,6 +732,7 @@ function DocumentMobileCard({
     reviewMode: boolean;
 }) {
     const reviewHref = reviewMode ? getReviewDocumentHref(document) : null;
+    const referenceLabel = getDocumentReferenceLabel(document);
     const content = (
         <>
             <div className="flex items-start justify-between gap-3">
@@ -716,13 +752,13 @@ function DocumentMobileCard({
                 </StatusBadge>
             </div>
 
-            {getDocumentReferenceLabel(document) ? (
+            {referenceLabel ? (
                 <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-3">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Bezug
                     </p>
                     <p className="mt-1 text-sm font-extrabold text-cyan-700">
-                        {getDocumentReferenceLabel(document)}
+                        {referenceLabel}
                     </p>
                 </div>
             ) : null}

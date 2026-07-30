@@ -251,8 +251,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             .from("invoices")
             .select("sale_id, invoice_number, invoice_type, created_at")
             .eq("company_id", companyId)
-            .in("sale_id", saleIds)
-            .order("created_at", { ascending: true });
+            .in("sale_id", saleIds);
 
         if (invoicesError) {
             throw new Error(
@@ -260,22 +259,24 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             );
         }
 
-        const sortedInvoices = ((invoicesData ?? []) as InvoiceQueryRow[]).sort(
-            (a, b) => {
-                const priorityDifference =
-                    getInvoicePriority(a.invoice_type) -
-                    getInvoicePriority(b.invoice_type);
-
-                if (priorityDifference !== 0) return priorityDifference;
-
-                return a.created_at.localeCompare(b.created_at);
-            },
-        );
-
-        for (const invoice of sortedInvoices) {
+        for (const invoice of (invoicesData ?? []) as InvoiceQueryRow[]) {
             if (!invoice.sale_id) continue;
 
-            if (!invoicesBySaleId.has(invoice.sale_id)) {
+            const existingInvoice = invoicesBySaleId.get(invoice.sale_id);
+            if (!existingInvoice) {
+                invoicesBySaleId.set(invoice.sale_id, invoice);
+                continue;
+            }
+
+            const priorityDifference =
+                getInvoicePriority(invoice.invoice_type) -
+                getInvoicePriority(existingInvoice.invoice_type);
+
+            if (
+                priorityDifference < 0 ||
+                (priorityDifference === 0 &&
+                    invoice.created_at.localeCompare(existingInvoice.created_at) < 0)
+            ) {
                 invoicesBySaleId.set(invoice.sale_id, invoice);
             }
         }

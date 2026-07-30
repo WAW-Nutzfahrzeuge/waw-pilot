@@ -179,9 +179,10 @@ export class SupabaseDocumentRepository implements DocumentRepository {
     constructor(private readonly supabase: SupabaseClient) {}
 
     async search(query: SearchDocumentsQuery) {
+        const includeCount = query.includeCount ?? true;
         let request = this.supabase
             .from("documents")
-            .select(documentSelect, { count: "exact" })
+            .select(documentSelect, includeCount ? { count: "exact" } : undefined)
             .eq("company_id", query.companyId)
             .neq("status", "missing")
             .order("created_at", { ascending: false });
@@ -242,7 +243,7 @@ export class SupabaseDocumentRepository implements DocumentRepository {
 
         return {
             documents: rows.map(mapSupabaseDocumentRowToListItem),
-            totalCount: count ?? 0,
+            totalCount: count ?? rows.length,
         };
     }
 
@@ -363,9 +364,10 @@ export class SupabaseDocumentRepository implements DocumentRepository {
             };
         }
 
+        const includeCount = query.includeCount ?? true;
         let request = this.supabase
             .from("documents")
-            .select(legacyDocumentSelect, { count: "exact" })
+            .select(legacyDocumentSelect, includeCount ? { count: "exact" } : undefined)
             .eq("company_id", query.companyId)
             .neq("status", "missing")
             .order("created_at", { ascending: false });
@@ -413,7 +415,7 @@ export class SupabaseDocumentRepository implements DocumentRepository {
 
         return {
             documents: rows.map(mapSupabaseDocumentRowToListItem),
-            totalCount: count ?? 0,
+            totalCount: count ?? rows.length,
         };
     }
 

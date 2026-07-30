@@ -37,6 +37,7 @@ export async function getDocuments(): Promise<DocumentRow[]> {
     const result = await searchDocuments.execute({
         companyId,
         limit: 500,
+        includeCount: false,
     });
 
     return result.documents.map(mapDocumentListItemToLegacyRow);
