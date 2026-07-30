@@ -159,30 +159,17 @@ function getDefinitionForSaleDocuments(): GeneratedDocumentDefinition[] {
 }
 
 function getGeneratedDocument(
-    documents: DocumentRow[],
+    documentsByType: Map<string, { generated: DocumentRow | null; signed: DocumentRow | null }>,
     documentType: string,
 ): DocumentRow | null {
-    return (
-        documents.find(
-            (document) =>
-                document.document_type === documentType &&
-                document.source === "generated",
-        ) ?? null
-    );
+    return documentsByType.get(documentType)?.generated ?? null;
 }
 
 function getSignedDocument(
-    documents: DocumentRow[],
+    documentsByType: Map<string, { generated: DocumentRow | null; signed: DocumentRow | null }>,
     documentType: string,
 ): DocumentRow | null {
-    return (
-        documents.find(
-            (document) =>
-                document.document_type === documentType &&
-                document.source === "uploaded" &&
-                document.status === "available",
-        ) ?? null
-    );
+    return documentsByType.get(documentType)?.signed ?? null;
 }
 
 function mapDocumentRow(document: DocumentRow | null) {
@@ -231,6 +218,32 @@ export async function getSaleGeneratedDocumentChecks(
     }
 
     const documents = (documentsResult.data ?? []) as DocumentRow[];
+    const documentsByType = new Map<
+        string,
+        { generated: DocumentRow | null; signed: DocumentRow | null }
+    >();
+
+    for (const document of documents) {
+        const entry = documentsByType.get(document.document_type) ?? {
+            generated: null,
+            signed: null,
+        };
+
+        if (document.source === "generated" && !entry.generated) {
+            entry.generated = document;
+        }
+
+        if (
+            document.source === "uploaded" &&
+            document.status === "available" &&
+            !entry.signed
+        ) {
+            entry.signed = document;
+        }
+
+        documentsByType.set(document.document_type, entry);
+    }
+
     const definitions = getDefinitionForSaleDocuments();
     const saleType = getSaleType(documentData.sale?.saleType);
     const visibleDefinitions = definitions.filter(
@@ -240,12 +253,12 @@ export async function getSaleGeneratedDocumentChecks(
 
     return visibleDefinitions.map((definition) => {
         const generatedDocument = getGeneratedDocument(
-            documents,
+            documentsByType,
             definition.documentType,
         );
 
         const signedDocument = getSignedDocument(
-            documents,
+            documentsByType,
             definition.documentType,
         );
 

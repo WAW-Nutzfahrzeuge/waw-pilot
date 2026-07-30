@@ -870,32 +870,41 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         isCompanyCustomer: sale.customers.type === "company",
     });
 
-    const requiredDocumentStatuses = requiredDocuments.map((requiredDocument) => {
+    const availableDocumentsByType = new Map<string, SaleDetailDocument>();
+    for (const document of documents) {
+        if (document.status !== "available") continue;
+        if (!availableDocumentsByType.has(document.document_type)) {
+            availableDocumentsByType.set(document.document_type, document);
+        }
+    }
+
+    const requiredDocumentStatuses: RequiredDocumentStatus[] = [];
+    const missingRequiredLabels: string[] = [];
+    let availableRequiredDocumentsCount = 0;
+
+    for (const requiredDocument of requiredDocuments) {
         const acceptedDocumentTypes =
             requiredDocument.acceptedDocumentTypes ?? [
                 requiredDocument.documentType,
             ];
 
         const matchingDocument =
-            documents.find(
-                (document) =>
-                    acceptedDocumentTypes.includes(document.document_type) &&
-                    document.status === "available",
-            ) ?? null;
+            acceptedDocumentTypes
+                .map((documentType) => availableDocumentsByType.get(documentType))
+                .find(Boolean) ?? null;
 
-        return {
+        requiredDocumentStatuses.push({
             ...requiredDocument,
             isAvailable: Boolean(matchingDocument),
             document: matchingDocument,
-        };
-    });
+        });
 
-    const availableRequiredDocumentsCount = requiredDocumentStatuses.filter(
-        (document) => document.isAvailable,
-    ).length;
-    const missingRequiredLabels = requiredDocumentStatuses
-        .filter((document) => !document.isAvailable)
-        .map((document) => document.label);
+        if (matchingDocument) {
+            availableRequiredDocumentsCount += 1;
+        } else {
+            missingRequiredLabels.push(requiredDocument.label);
+        }
+    }
 
     const taxConfiguration = getSaleTaxConfiguration({
         buyerType: sale.customers.type,
@@ -921,31 +930,43 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
     const correctionCalculation = new CorrectionCalculationService();
     const standardInvoice =
         invoices.find((invoice) => invoice.invoice_type === "standard") ?? null;
-    const correctionInvoices = standardInvoice
-        ? invoices.filter(
-              (invoice) =>
-                  (invoice.invoice_type === "cancellation_invoice" ||
-                      invoice.invoice_type === "credit_note") &&
-                  invoice.correction_status !== "VOIDED" &&
-                  (invoice.root_invoice_id === standardInvoice.id ||
-                      invoice.correction_of_invoice_id === standardInvoice.id),
-          )
-        : [];
-    const existingCorrectionGrossAmount = correctionInvoices.reduce(
-        (sum, invoice) => sum + Math.abs(invoice.gross_amount),
-        0,
-    );
+    const correctionInvoices: SaleDetailInvoice[] = [];
+    let existingCorrectionGrossAmount = 0;
+
+    if (standardInvoice) {
+        for (const invoice of invoices) {
+            const isRelevantCorrection =
+                (invoice.invoice_type === "cancellation_invoice" ||
+                    invoice.invoice_type === "credit_note") &&
+                invoice.correction_status !== "VOIDED" &&
+                (invoice.root_invoice_id === standardInvoice.id ||
+                    invoice.correction_of_invoice_id === standardInvoice.id);
+
+            if (!isRelevantCorrection) continue;
+
+            correctionInvoices.push(invoice);
+            existingCorrectionGrossAmount += Math.abs(invoice.gross_amount);
+        }
+    }
+
     const effectiveInvoiceAmount = Math.max(
         grossAmount - existingCorrectionGrossAmount,
         0,
     );
-    const refundedAmount = refunds
-        .filter((refund) => !refund.is_voided)
-        .reduce((sum, refund) => sum + refund.amount, 0);
-    const refundInputs = refunds.map((refund) => ({
-        amount: refund.amount,
-        isVoided: refund.is_voided,
-    }));
+    const refundInputs: { amount: number; isVoided: boolean }[] = [];
+    let refundedAmount = 0;
+
+    for (const refund of refunds) {
+        if (!refund.is_voided) {
+            refundedAmount += refund.amount;
+        }
+
+        refundInputs.push({
+            amount: refund.amount,
+            isVoided: refund.is_voided,
+        });
+    }
+
     const outstandingRefundAmount =
         correctionCalculation.calculateOutstandingRefundAmount({
             paidAmount,
