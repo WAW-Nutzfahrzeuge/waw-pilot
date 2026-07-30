@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
+import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import {
     getInvoiceTypeDocumentType,
     getInvoiceTypeLabel,
@@ -24,7 +25,6 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import {
     buildCanonicalInvoiceData,
     ZugferdDataValidationError,
@@ -125,15 +125,6 @@ function revalidateInvoicePaymentPaths(saleId: string) {
         "/dashboard/documents",
         "/dashboard/activities",
     ]);
-}
-
-async function getCurrentAuthUserId(): Promise<string | null> {
-    const authSupabase = await createAuthServerSupabaseClient();
-    const {
-        data: { user },
-    } = await authSupabase.auth.getUser();
-
-    return user?.id ?? null;
 }
 
 type ZugferdInvoiceEmailQueryRow = {
@@ -827,7 +818,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
 
     try {
         const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getCurrentAuthUserId();
+        const actorId = await getOptionalCurrentAuthUserId();
         const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({
@@ -1247,7 +1238,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
     try {
         const fileBytes = Buffer.from(await fileData.arrayBuffer());
         const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getCurrentAuthUserId();
+        const actorId = await getOptionalCurrentAuthUserId();
         const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({

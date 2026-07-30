@@ -1,7 +1,7 @@
 import "server-only";
 
+import { getOptionalCurrentUserContext } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type LogActivityParams = {
@@ -22,36 +22,17 @@ export async function logActivity({
                                       entityId,
                                   }: LogActivityParams): Promise<void> {
     try {
-        const authSupabase = await createAuthServerSupabaseClient();
         const dbSupabase = createServerSupabaseClient();
         const companyId = getCurrentCompanyId();
-
-        const {
-            data: { user },
-        } = await authSupabase.auth.getUser();
-
-        const authUserId = user?.id ?? null;
-        const fallbackUserName = getFallbackUserName(user?.email);
-
-        let userName = fallbackUserName;
-
-        if (authUserId) {
-            const { data: profile } = await dbSupabase
-                .from("profiles")
-                .select("first_name, last_name, email")
-                .eq("auth_user_id", authUserId)
-                .eq("company_id", companyId)
-                .maybeSingle();
-
-            if (profile) {
-                const fullName = [profile.first_name, profile.last_name]
-                    .filter(Boolean)
-                    .join(" ")
-                    .trim();
-
-                userName = fullName.length > 0 ? fullName : profile.email;
-            }
-        }
+        const userContext = await getOptionalCurrentUserContext();
+        const authUserId = userContext?.authUserId ?? null;
+        const fallbackUserName = getFallbackUserName(userContext?.email);
+        const profile = userContext?.profile;
+        const fullName = [profile?.firstName, profile?.lastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim();
+        const userName = fullName || profile?.email || fallbackUserName;
 
         const { error } = await dbSupabase.from("activity_logs").insert({
             company_id: companyId,

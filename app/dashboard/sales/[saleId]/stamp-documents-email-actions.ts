@@ -2,6 +2,7 @@
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
 
+import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     normalizeEmailLanguage,
@@ -15,7 +16,6 @@ import {
     getStampDocumentType,
 } from "@/lib/sales/stamp-documents";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createSendEmailUseCase } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
 export type SendStampDocumentsEmailState = {
@@ -102,15 +102,6 @@ function toHtml(text: string): string {
 
 function isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-async function getCurrentAuthUserId(): Promise<string | null> {
-    const authSupabase = await createAuthServerSupabaseClient();
-    const {
-        data: { user },
-    } = await authSupabase.auth.getUser();
-
-    return user?.id ?? null;
 }
 
 export async function sendStampDocumentsEmailAction(
@@ -247,7 +238,7 @@ export async function sendStampDocumentsEmailAction(
 
     try {
         const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getCurrentAuthUserId();
+        const actorId = await getOptionalCurrentAuthUserId();
         const sendEmail = await createSendEmailUseCase();
 
         await sendEmail.execute({

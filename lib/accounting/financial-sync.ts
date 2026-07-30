@@ -1,5 +1,7 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
+
 type FinancialSourceType =
     | "sale_payment"
     | "purchase_payment"
@@ -32,8 +34,11 @@ type FinancialEntryPayload = {
     void_reason?: string | null;
 };
 
-async function getCategoryId(companyId: string, categoryCode: string): Promise<string | null> {
-    const supabase = createServerSupabaseClient();
+async function getCategoryId(
+    supabase: SupabaseServerClient,
+    companyId: string,
+    categoryCode: string,
+): Promise<string | null> {
     const { data } = await supabase
         .from("financial_categories")
         .select("id")
@@ -46,8 +51,10 @@ async function getCategoryId(companyId: string, categoryCode: string): Promise<s
     return (data?.id as string | undefined) ?? null;
 }
 
-async function createFinancialReference(companyId: string): Promise<string> {
-    const supabase = createServerSupabaseClient();
+async function createFinancialReference(
+    supabase: SupabaseServerClient,
+    companyId: string,
+): Promise<string> {
     const { data, error } = await supabase.rpc("next_financial_entry_reference", {
         target_company_id: companyId,
     });
@@ -59,17 +66,23 @@ async function createFinancialReference(companyId: string): Promise<string> {
     return data;
 }
 
-async function upsertFinancialEntry(companyId: string, payload: FinancialEntryPayload) {
-    const supabase = createServerSupabaseClient();
-    const categoryId = await getCategoryId(companyId, payload.category_code);
-    const { data: existingEntry } = await supabase
-        .from("financial_entries")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("source_type", payload.source_type)
-        .eq("source_id", payload.source_id)
-        .eq("entry_type", payload.entry_type)
-        .maybeSingle();
+async function upsertFinancialEntry(
+    supabase: SupabaseServerClient,
+    companyId: string,
+    payload: FinancialEntryPayload,
+) {
+    const [categoryId, existingEntryResult] = await Promise.all([
+        getCategoryId(supabase, companyId, payload.category_code),
+        supabase
+            .from("financial_entries")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("source_type", payload.source_type)
+            .eq("source_id", payload.source_id)
+            .eq("entry_type", payload.entry_type)
+            .maybeSingle(),
+    ]);
+    const existingEntry = existingEntryResult.data;
 
     const values = {
         ...payload,
@@ -94,7 +107,7 @@ async function upsertFinancialEntry(companyId: string, payload: FinancialEntryPa
         return existingEntry.id as string;
     }
 
-    const entryReference = await createFinancialReference(companyId);
+    const entryReference = await createFinancialReference(supabase, companyId);
     const { data, error } = await supabase
         .from("financial_entries")
         .insert({
@@ -134,30 +147,34 @@ export async function syncSalePaymentFinancialEntry({
         throw new Error("Zahlung konnte nicht für das Finanzjournal geladen werden.");
     }
 
-    const { data: sale, error: saleError } = await supabase
-        .from("sales")
-        .select("id, buyer_customer_id, vehicle_id")
-        .eq("company_id", companyId)
-        .eq("id", payment.sale_id)
-        .single();
+    const [saleResult, invoiceResult] = await Promise.all([
+        supabase
+            .from("sales")
+            .select("id, buyer_customer_id, vehicle_id")
+            .eq("company_id", companyId)
+            .eq("id", payment.sale_id)
+            .single(),
+        supabase
+            .from("invoices")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("sale_id", payment.sale_id)
+            .neq("invoice_type", "proforma")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ]);
+    const sale = saleResult.data;
+    const saleError = saleResult.error;
+    const invoice = invoiceResult.data;
 
     if (saleError || !sale) {
         throw new Error("Verkauf zur Zahlung konnte nicht geladen werden.");
     }
 
-    const { data: invoice } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("sale_id", payment.sale_id)
-        .neq("invoice_type", "proforma")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
     const isVoided = Boolean(payment.is_voided);
 
-    return upsertFinancialEntry(companyId, {
+    return upsertFinancialEntry(supabase, companyId, {
         source_type: "sale_payment",
         source_id: payment.id as string,
         source_reference: payment.payment_reference as string,
@@ -204,30 +221,34 @@ export async function syncPurchasePaymentFinancialEntry({
         throw new Error("Ankaufzahlung konnte nicht für das Finanzjournal geladen werden.");
     }
 
-    const { data: purchase, error: purchaseError } = await supabase
-        .from("purchase_cases")
-        .select("id, vehicle_id, seller_customer_id, purchase_number")
-        .eq("company_id", companyId)
-        .eq("id", payment.purchase_id)
-        .single();
+    const [purchaseResult, documentResult] = await Promise.all([
+        supabase
+            .from("purchase_cases")
+            .select("id, vehicle_id, seller_customer_id, purchase_number")
+            .eq("company_id", companyId)
+            .eq("id", payment.purchase_id)
+            .single(),
+        supabase
+            .from("documents")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("purchase_case_id", payment.purchase_id)
+            .eq("document_type", "purchase_invoice")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ]);
+    const purchase = purchaseResult.data;
+    const purchaseError = purchaseResult.error;
+    const document = documentResult.data;
 
     if (purchaseError || !purchase) {
         throw new Error("Ankauf zur Zahlung konnte nicht geladen werden.");
     }
 
-    const { data: document } = await supabase
-        .from("documents")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("purchase_case_id", payment.purchase_id)
-        .eq("document_type", "purchase_invoice")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
     const isVoided = Boolean(payment.is_voided);
 
-    return upsertFinancialEntry(companyId, {
+    return upsertFinancialEntry(supabase, companyId, {
         source_type: "purchase_payment",
         source_id: payment.id as string,
         source_reference: payment.payment_reference as string,
@@ -302,7 +323,7 @@ export async function syncCashbookEntryFinancialEntry({
           ? "other_income"
           : "other_expense";
 
-    return upsertFinancialEntry(companyId, {
+    return upsertFinancialEntry(supabase, companyId, {
         source_type: "cashbook_entry",
         source_id: entry.id as string,
         source_reference: entry.id as string,
@@ -354,7 +375,7 @@ export async function syncCorrectionInvoiceFinancialEntry({
         throw new Error("Nur Korrekturbelege können als Korrektur synchronisiert werden.");
     }
 
-    return upsertFinancialEntry(companyId, {
+    return upsertFinancialEntry(supabase, companyId, {
         source_type: "invoice_correction",
         source_id: invoice.id as string,
         source_reference: invoice.invoice_number as string,
@@ -406,7 +427,7 @@ export async function syncSaleRefundFinancialEntry({
         .maybeSingle();
     const isVoided = Boolean(refund.is_voided);
 
-    return upsertFinancialEntry(companyId, {
+    return upsertFinancialEntry(supabase, companyId, {
         source_type: "sale_refund",
         source_id: refund.id as string,
         source_reference: refund.refund_reference as string,

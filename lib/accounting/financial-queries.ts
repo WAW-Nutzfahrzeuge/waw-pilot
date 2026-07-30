@@ -248,21 +248,29 @@ export async function getCashRegisterSummary(
         .maybeSingle();
 
     const openingBalance = Number(cashRegister?.opening_balance ?? 0);
-    const activeCashEntries = entries.filter(
-        (entry) => entry.is_cash_relevant && entry.status === "active",
-    );
-    const income = activeCashEntries
-        .filter((entry) => entry.direction === "in")
-        .reduce((sum, entry) => sum + entry.amount, 0);
-    const expenses = activeCashEntries
-        .filter((entry) => entry.direction === "out")
-        .reduce((sum, entry) => sum + entry.amount, 0);
+    let income = 0;
+    let expenses = 0;
+    let movementCount = 0;
+
+    for (const entry of entries) {
+        if (!entry.is_cash_relevant || entry.status !== "active") {
+            continue;
+        }
+
+        movementCount += 1;
+
+        if (entry.direction === "in") {
+            income += entry.amount;
+        } else {
+            expenses += entry.amount;
+        }
+    }
 
     return {
         openingBalance,
         income,
         expenses,
         endingBalance: openingBalance + income - expenses,
-        movementCount: activeCashEntries.length,
+        movementCount,
     };
 }

@@ -4,9 +4,9 @@ import { redirect } from "next/navigation";
 
 import { syncPurchasePaymentFinancialEntry } from "@/lib/accounting/financial-sync";
 import { revalidatePaths } from "@/lib/actions/revalidation";
+import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function getStringValue(formData: FormData, key: string): string | null {
@@ -24,15 +24,6 @@ function getPaymentMethodLabel(paymentMethod: string): string {
     if (paymentMethod === "bank") return "Bank";
 
     return paymentMethod;
-}
-
-async function getCurrentAuthUserId(): Promise<string | null> {
-    const authSupabase = await createAuthServerSupabaseClient();
-    const {
-        data: { user },
-    } = await authSupabase.auth.getUser();
-
-    return user?.id ?? null;
 }
 
 async function createPurchasePaymentReference(companyId: string): Promise<string> {
@@ -62,7 +53,7 @@ function revalidatePurchasePaymentPaths(purchaseId: string) {
 export async function markPurchasePaidAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
-    const authUserId = await getCurrentAuthUserId();
+    const authUserId = await getOptionalCurrentAuthUserId();
 
     const purchaseId = getStringValue(formData, "purchase_id");
     const paymentMethod = getStringValue(formData, "payment_method") ?? "bank";

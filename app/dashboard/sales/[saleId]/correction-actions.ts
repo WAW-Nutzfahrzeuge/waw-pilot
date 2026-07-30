@@ -4,19 +4,10 @@ import { redirect } from "next/navigation";
 
 import { getMoneyFormValue, getStringFormValue } from "@/lib/actions/form-data";
 import { revalidatePaths } from "@/lib/actions/revalidation";
+import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
 import { isPaymentMethod } from "@/lib/payments/payment-methods";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createInvoiceCorrectionUseCases } from "@/src/modules/invoice-corrections/infrastructure/factories/invoice-correction-use-case.factory";
-
-async function getCurrentAuthUserId(): Promise<string | null> {
-    const authSupabase = await createAuthServerSupabaseClient();
-    const {
-        data: { user },
-    } = await authSupabase.auth.getUser();
-
-    return user?.id ?? null;
-}
 
 function getCorrectionRedirect(saleId: string, params: Record<string, string>) {
     const searchParams = new URLSearchParams(params);
@@ -37,7 +28,7 @@ function revalidateSaleCorrectionPaths(saleId: string) {
 
 export async function createCancellationInvoiceAction(formData: FormData) {
     const companyId = getCurrentCompanyId();
-    const authUserId = await getCurrentAuthUserId();
+    const authUserId = await getOptionalCurrentAuthUserId();
     const saleId = getStringFormValue(formData, "sale_id");
     const invoiceId = getStringFormValue(formData, "invoice_id");
     const reasonCode = getStringFormValue(formData, "reason_code");
@@ -76,7 +67,7 @@ export async function createCancellationInvoiceAction(formData: FormData) {
 
 export async function registerSaleRefundAction(formData: FormData) {
     const companyId = getCurrentCompanyId();
-    const authUserId = await getCurrentAuthUserId();
+    const authUserId = await getOptionalCurrentAuthUserId();
     const saleId = getStringFormValue(formData, "sale_id");
     const invoiceId = getStringFormValue(formData, "invoice_id");
     const correctionInvoiceId = getStringFormValue(formData, "correction_invoice_id");

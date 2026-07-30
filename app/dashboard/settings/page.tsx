@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { CompanySettingsForm } from "@/components/settings/company-settings-form";
+import { getCurrentUserContext } from "@/lib/auth/current-user";
 import { getCompanySettings } from "@/lib/settings/company-settings-queries";
-import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 
 type SettingsPageProps = {
     searchParams: Promise<{
@@ -17,18 +17,16 @@ type SettingsPageProps = {
 };
 
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
-    const supabase = await createAuthServerSupabaseClient();
-
-    const [company, resolvedSearchParams, userResponse] = await Promise.all([
+    const [company, resolvedSearchParams, userContext] = await Promise.all([
         getCompanySettings(),
         searchParams,
-        supabase.auth.getUser(),
+        getCurrentUserContext(),
     ]);
 
     return (
         <CompanySettingsForm
             company={company}
-            userEmail={userResponse.data.user?.email ?? ""}
+            userEmail={userContext.email ?? ""}
             companySaved={resolvedSearchParams.companySaved === "1"}
             signatureUploaded={resolvedSearchParams.signatureUploaded === "1"}
             stampUploaded={resolvedSearchParams.stampUploaded === "1"}
