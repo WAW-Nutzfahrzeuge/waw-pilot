@@ -68,6 +68,31 @@ type PurchaseCaseQueryRow = {
     } | null;
 };
 
+type PurchaseDashboardSummaryRow = {
+    status: PurchaseCaseStatus;
+    payment_status: PurchaseCasePaymentStatus;
+    document_check_status: PurchaseCaseDocumentStatus;
+};
+
+export type PurchaseDashboardSummary = {
+    purchaseCasesCount: number;
+    openPurchasePaymentsCount: number;
+    incompletePurchaseDocumentsCount: number;
+    completedPurchaseCasesCount: number;
+};
+
+export type PurchaseCasesToCheckSummary = {
+    count: number;
+    purchaseCases: {
+        id: string;
+        purchase_number: string | null;
+        seller_name: string | null;
+        vehicle_name: string | null;
+        purchase_date: string;
+        document_check_status: PurchaseCaseDocumentStatus;
+    }[];
+};
+
 function getCustomerName(customer: PurchaseCaseQueryRow["customers"]): string | null {
     if (!customer) return null;
 
@@ -158,4 +183,94 @@ export async function getPurchaseCases(): Promise<PurchaseCaseRow[]> {
             vin: vehicle?.vin ?? null,
         };
     });
+}
+
+export async function getPurchaseDashboardSummary(): Promise<PurchaseDashboardSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("purchase_cases")
+        .select("status, payment_status, document_check_status")
+        .eq("company_id", companyId);
+
+    if (error) {
+        throw new Error(`Ankaufs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
+    }
+
+    let openPurchasePaymentsCount = 0;
+    let incompletePurchaseDocumentsCount = 0;
+    let completedPurchaseCasesCount = 0;
+
+    for (const purchase of (data ?? []) as PurchaseDashboardSummaryRow[]) {
+        if (purchase.payment_status !== "paid") {
+            openPurchasePaymentsCount += 1;
+        }
+
+        if (purchase.document_check_status !== "complete") {
+            incompletePurchaseDocumentsCount += 1;
+        }
+
+        if (purchase.status === "completed") {
+            completedPurchaseCasesCount += 1;
+        }
+    }
+
+    return {
+        purchaseCasesCount: data?.length ?? 0,
+        openPurchasePaymentsCount,
+        incompletePurchaseDocumentsCount,
+        completedPurchaseCasesCount,
+    };
+}
+
+export async function getPurchaseCasesToCheckSummary(): Promise<PurchaseCasesToCheckSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("purchase_cases")
+        .select(
+            `
+      id,
+      purchase_number,
+      purchase_date,
+      document_check_status,
+      customers:seller_customer_id (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      vehicles (
+        internal_number,
+        manufacturer,
+        model,
+        vin
+      )
+    `,
+        )
+        .eq("company_id", companyId)
+        .neq("document_check_status", "complete")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        throw new Error(`Prüfungsrelevante Ankäufe konnten nicht geladen werden: ${error.message}`);
+    }
+
+    return {
+        count: data?.length ?? 0,
+        purchaseCases: ((data ?? []) as unknown as PurchaseCaseQueryRow[])
+            .slice(0, 8)
+            .map((purchase) => ({
+                id: purchase.id,
+                purchase_number: purchase.purchase_number,
+                seller_name: getCustomerName(purchase.customers),
+                vehicle_name: purchase.vehicles
+                    ? `${purchase.vehicles.manufacturer} ${purchase.vehicles.model}`
+                    : null,
+                purchase_date: purchase.purchase_date,
+                document_check_status: purchase.document_check_status,
+            })),
+    };
 }

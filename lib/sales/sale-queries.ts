@@ -13,6 +13,7 @@ import {
 } from "@/utils/payment-utils";
 import type { PaymentMethod } from "@/lib/payments/payment-methods";
 import { getSaleDocumentStatus } from "@/utils/sale-document-status";
+import { matchesMonthFilter, type MonthFilterValue } from "@/utils/month-filter";
 
 export type SaleType = "inland" | "eu" | "export_third_country";
 export type SaleStatus = "draft" | "active" | "completed" | "cancelled";
@@ -119,6 +120,75 @@ type SaleQueryRow = {
     sale_payments: SupabaseRelation<PaymentRelation>;
 };
 
+type SaleSummaryQueryRow = {
+    id: string;
+    sale_date: string;
+    net_amount: number | string;
+    gross_amount: number | string;
+    vehicles: {
+        manufacturer: string;
+        model: string;
+        purchase_price_net: number | string;
+        additional_costs_net: number | string;
+    } | null;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+    } | null;
+    invoices: SupabaseRelation<InvoiceRelation>;
+    sale_payments: SupabaseRelation<Pick<PaymentRelation, "amount" | "is_voided">>;
+};
+
+type SaleCheckQueryRow = {
+    id: string;
+    sale_date: string;
+    sale_type: SaleType | null;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+        country: string;
+        tax_number: string | null;
+        vat_id: string | null;
+    } | null;
+    vehicles: {
+        manufacturer: string;
+        model: string;
+    } | null;
+    invoices: SupabaseRelation<InvoiceRelation>;
+    documents: SupabaseRelation<DocumentRelation>;
+};
+
+export type SalesDashboardSummary = {
+    salesCount: number;
+    openInvoicesCount: number;
+    totalRevenueNet: number;
+    totalProfitNet: number;
+    recentSales: {
+        id: string;
+        invoiceNumber: string | null;
+        customerName: string;
+        vehicleName: string;
+        amount: number;
+        saleDate: string;
+    }[];
+};
+
+export type SalesToCheckSummary = {
+    count: number;
+    sales: {
+        id: string;
+        customer_name: string;
+        vehicle_name: string;
+        invoice_number: string | null;
+        sale_date: string;
+        document_check_status: DocumentCheckStatus;
+    }[];
+};
+
 function getSingleRelation<T>(relation: SupabaseRelation<T>): T | null {
     if (!relation) return null;
 
@@ -152,6 +222,223 @@ function getCustomerName(customer: SaleQueryRow["customers"]): string {
         .trim();
 
     return privateName.length > 0 ? privateName : "Unbekannte Privatperson";
+}
+
+function getSaleCustomerName(
+    customer: SaleQueryRow["customers"] | SaleSummaryQueryRow["customers"],
+): string {
+    if (!customer) return "Unbekannter Kunde";
+
+    if (customer.type === "company") {
+        return customer.company_name ?? "Unbekannte Firma";
+    }
+
+    const privateName = [customer.first_name, customer.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    return privateName.length > 0 ? privateName : "Unbekannte Privatperson";
+}
+
+function getSaleCheckStatus(row: SaleCheckQueryRow): DocumentCheckStatus {
+    const saleType = row.sale_type ?? "inland";
+    const requiredDocuments = getRequiredDocumentsForSale({
+        saleType,
+        isCompanyCustomer: row.customers?.type === "company",
+    });
+    const documentCheck = evaluateRequiredDocuments({
+        requiredDocuments,
+        documents: getManyRelation(row.documents),
+    });
+    const taxConfiguration = getSaleTaxConfiguration({
+        buyerType: row.customers?.type,
+        deliveryType: saleType,
+        billingCountry: row.customers?.country,
+    });
+    const missingRequiredDataCount = [
+        taxConfiguration.showTaxNumber && !row.customers?.tax_number,
+        taxConfiguration.showVatId && !row.customers?.vat_id,
+    ].filter(Boolean).length;
+    const documentStatus = getSaleDocumentStatus({
+        missingRequiredDocuments: documentCheck.missingCount,
+        missingRequiredData: missingRequiredDataCount,
+    });
+
+    return documentStatus === "complete" ? "complete" : "missing";
+}
+
+export async function getSalesDashboardSummary(
+    monthFilter: MonthFilterValue,
+): Promise<SalesDashboardSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("sales")
+        .select(
+            `
+      id,
+      sale_date,
+      net_amount,
+      gross_amount,
+      vehicles (
+        manufacturer,
+        model,
+        purchase_price_net,
+        additional_costs_net
+      ),
+      customers:buyer_customer_id (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      invoices (
+        id,
+        invoice_number,
+        invoice_type
+      ),
+      sale_payments (
+        amount,
+        is_voided
+      )
+    `,
+        )
+        .eq("company_id", companyId)
+        .order("sale_date", { ascending: false });
+
+    if (error) {
+        throw new Error(`Verkaufs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
+    }
+
+    let salesCount = 0;
+    let openInvoicesCount = 0;
+    let totalRevenueNet = 0;
+    let totalProfitNet = 0;
+    const recentSales: SalesDashboardSummary["recentSales"] = [];
+
+    for (const sale of (data ?? []) as unknown as SaleSummaryQueryRow[]) {
+        if (!matchesMonthFilter(sale.sale_date, monthFilter)) continue;
+
+        const grossAmount = Number(sale.gross_amount);
+        const payments = getManyRelation(sale.sale_payments).map((payment) => ({
+            amount: Number(payment.amount),
+            is_voided: payment.is_voided,
+        }));
+        const paymentStatus = calculatePaymentStatus(grossAmount, payments);
+        const vehicle = sale.vehicles;
+        const invoices = getManyRelation(sale.invoices);
+        const invoice = getSingleRelation(sale.invoices);
+        const purchasePriceNet = Number(vehicle?.purchase_price_net ?? 0);
+        const additionalCostsNet = Number(vehicle?.additional_costs_net ?? 0);
+        const netAmount = Number(sale.net_amount);
+
+        salesCount += 1;
+        totalRevenueNet += netAmount;
+        totalProfitNet += netAmount - purchasePriceNet - additionalCostsNet;
+
+        if (paymentStatus !== "paid") {
+            openInvoicesCount += 1;
+        }
+
+        if (recentSales.length < 4) {
+            const primaryInvoice =
+                invoices.find((item) => item.invoice_type === "standard") ?? invoice;
+
+            recentSales.push({
+                id: sale.id,
+                invoiceNumber: primaryInvoice?.invoice_number ?? null,
+                customerName: getSaleCustomerName(sale.customers),
+                vehicleName: vehicle
+                    ? `${vehicle.manufacturer} ${vehicle.model}`
+                    : "Unbekanntes Fahrzeug",
+                amount: netAmount,
+                saleDate: sale.sale_date,
+            });
+        }
+    }
+
+    return {
+        salesCount,
+        openInvoicesCount,
+        totalRevenueNet,
+        totalProfitNet,
+        recentSales,
+    };
+}
+
+export async function getSalesToCheckSummary(): Promise<SalesToCheckSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("sales")
+        .select(
+            `
+      id,
+      sale_date,
+      sale_type,
+      customers:buyer_customer_id (
+        type,
+        company_name,
+        first_name,
+        last_name,
+        country,
+        tax_number,
+        vat_id
+      ),
+      vehicles (
+        manufacturer,
+        model
+      ),
+      invoices (
+        id,
+        invoice_number,
+        invoice_type
+      ),
+      documents (
+        document_type,
+        status
+      )
+    `,
+        )
+        .eq("company_id", companyId)
+        .order("sale_date", { ascending: false });
+
+    if (error) {
+        throw new Error(`Prüfungsrelevante Verkäufe konnten nicht geladen werden: ${error.message}`);
+    }
+
+    let count = 0;
+    const sales: SalesToCheckSummary["sales"] = [];
+
+    for (const sale of (data ?? []) as unknown as SaleCheckQueryRow[]) {
+        const documentCheckStatus = getSaleCheckStatus(sale);
+        if (documentCheckStatus === "complete") continue;
+
+        count += 1;
+        if (sales.length >= 8) continue;
+
+        const vehicle = sale.vehicles;
+        const invoices = getManyRelation(sale.invoices);
+        const invoice =
+            invoices.find((item) => item.invoice_type === "standard") ??
+            getSingleRelation(sale.invoices);
+
+        sales.push({
+            id: sale.id,
+            customer_name: getSaleCustomerName(sale.customers),
+            vehicle_name: vehicle
+                ? `${vehicle.manufacturer} ${vehicle.model}`
+                : "Unbekanntes Fahrzeug",
+            invoice_number: invoice?.invoice_number ?? null,
+            sale_date: sale.sale_date,
+            document_check_status: documentCheckStatus,
+        });
+    }
+
+    return { count, sales };
 }
 
 export async function getSales(): Promise<SaleRow[]> {

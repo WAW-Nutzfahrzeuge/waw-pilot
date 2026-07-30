@@ -1,7 +1,7 @@
 import { getDocumentsToCheckSummary } from "@/lib/documents/document-queries";
 import { getLicensePlateCases } from "@/lib/license-plates/license-plate-queries";
-import { getSales } from "@/lib/sales/sale-queries";
-import { getPurchaseCases } from "@/lib/purchases/purchase-queries";
+import { getSalesToCheckSummary } from "@/lib/sales/sale-queries";
+import { getPurchaseCasesToCheckSummary } from "@/lib/purchases/purchase-queries";
 
 export type ChecksData = {
     documentsToCheckCount: number;
@@ -50,12 +50,12 @@ export type ChecksData = {
 };
 
 export async function getChecksData(): Promise<ChecksData> {
-    const [documentCheckSummary, licensePlateCases, sales, purchaseCases] =
+    const [documentCheckSummary, licensePlateCases, salesCheckSummary, purchaseCheckSummary] =
         await Promise.all([
             getDocumentsToCheckSummary(),
             getLicensePlateCases(),
-            getSales(),
-            getPurchaseCases(),
+            getSalesToCheckSummary(),
+            getPurchaseCasesToCheckSummary(),
         ]);
 
     const documentsToCheck: ChecksData["documentsToCheck"] =
@@ -90,53 +90,15 @@ export async function getChecksData(): Promise<ChecksData> {
         });
     }
 
-    const salesToCheck: ChecksData["salesToCheck"] = [];
-    let salesToCheckCount = 0;
-
-    for (const sale of sales) {
-        if (sale.document_check_status === "complete") continue;
-
-        salesToCheckCount += 1;
-        if (salesToCheck.length >= 8) continue;
-
-        salesToCheck.push({
-            id: sale.id,
-            customer_name: sale.customer_name,
-            vehicle_name: sale.vehicle_name,
-            invoice_number: sale.invoice_number,
-            sale_date: sale.sale_date,
-            document_check_status: sale.document_check_status,
-        });
-    }
-
-    const purchaseCasesToCheck: ChecksData["purchaseCasesToCheck"] = [];
-    let purchaseCasesToCheckCount = 0;
-
-    for (const purchase of purchaseCases) {
-        if (purchase.document_check_status === "complete") continue;
-
-        purchaseCasesToCheckCount += 1;
-        if (purchaseCasesToCheck.length >= 8) continue;
-
-        purchaseCasesToCheck.push({
-            id: purchase.id,
-            purchase_number: purchase.purchase_number,
-            seller_name: purchase.seller_name,
-            vehicle_name: purchase.vehicle_name,
-            purchase_date: purchase.purchase_date,
-            document_check_status: purchase.document_check_status,
-        });
-    }
-
     return {
         documentsToCheckCount: documentCheckSummary.count,
         openLicensePlateCasesCount,
-        salesToCheckCount,
-        purchaseCasesToCheckCount,
+        salesToCheckCount: salesCheckSummary.count,
+        purchaseCasesToCheckCount: purchaseCheckSummary.count,
 
-        purchaseCasesToCheck,
+        purchaseCasesToCheck: purchaseCheckSummary.purchaseCases,
         documentsToCheck,
         openLicensePlateCases,
-        salesToCheck,
+        salesToCheck: salesCheckSummary.sales,
     };
 }

@@ -8,10 +8,9 @@ import {
     getLicensePlateStatusLabel,
     getLicensePlateTypeLabel,
 } from "@/lib/license-plates/license-plate-helpers";
-import { getSales } from "@/lib/sales/sale-queries";
-import { getSaleProfitNet } from "@/lib/sales/sale-helpers";
+import { getSalesDashboardSummary } from "@/lib/sales/sale-queries";
 import { getVehicleDashboardSummary } from "@/lib/vehicles/vehicle-queries";
-import { getPurchaseCases } from "@/lib/purchases/purchase-queries";
+import { getPurchaseDashboardSummary } from "@/lib/purchases/purchase-queries";
 import { matchesMonthFilter, normalizeMonthFilter } from "@/utils/month-filter";
 
 export type DashboardData = {
@@ -79,43 +78,22 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     const [
         customersCount,
         vehicleSummary,
-        sales,
+        salesSummary,
         invoiceSummary,
         documentSummary,
         cashbookEntries,
         licensePlateCases,
-        purchaseCases,
+        purchaseSummary,
     ] = await Promise.all([
         getCustomersCount(),
         getVehicleDashboardSummary(),
-        getSales(),
+        getSalesDashboardSummary(monthFilter),
         getInvoiceDashboardSummary(monthFilter),
         getDocumentDashboardSummary(),
         getCashbookEntries(),
         getLicensePlateCases(),
-        getPurchaseCases(),
+        getPurchaseDashboardSummary(),
     ]);
-
-    const recentFilteredSales: typeof sales = [];
-    let salesCount = 0;
-    let openInvoicesCount = 0;
-    let totalRevenueNet = 0;
-    let totalProfitNet = 0;
-
-    for (const sale of sales) {
-        if (!matchesMonthFilter(sale.sale_date, monthFilter)) continue;
-
-        if (recentFilteredSales.length < 4) {
-            recentFilteredSales.push(sale);
-        }
-
-        salesCount += 1;
-        if (sale.payment_status !== "paid") {
-            openInvoicesCount += 1;
-        }
-        totalRevenueNet += sale.net_amount;
-        totalProfitNet += getSaleProfitNet(sale);
-    }
 
     const filteredCashbookEntries: typeof cashbookEntries = [];
     for (const entry of cashbookEntries) {
@@ -145,29 +123,11 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         }
     }
 
-    let openPurchasePaymentsCount = 0;
-    let incompletePurchaseDocumentsCount = 0;
-    let completedPurchaseCasesCount = 0;
-
-    for (const purchase of purchaseCases) {
-        if (purchase.payment_status !== "paid") {
-            openPurchasePaymentsCount += 1;
-        }
-
-        if (purchase.document_check_status !== "complete") {
-            incompletePurchaseDocumentsCount += 1;
-        }
-
-        if (purchase.status === "completed") {
-            completedPurchaseCasesCount += 1;
-        }
-    }
-
     const openActions: DashboardData["openActions"] = [];
 
-    if (openInvoicesCount > 0) {
+    if (salesSummary.openInvoicesCount > 0) {
         openActions.push({
-            label: `${openInvoicesCount} offene Zahlung(en)`,
+            label: `${salesSummary.openInvoicesCount} offene Zahlung(en)`,
             description: "Offene Verkaufszahlungen prüfen oder Kassenbuch aktualisieren.",
             href: "/dashboard/sales?paymentStatus=open",
             tone: "warning",
@@ -183,18 +143,18 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         });
     }
 
-    if (openPurchasePaymentsCount > 0) {
+    if (purchaseSummary.openPurchasePaymentsCount > 0) {
         openActions.push({
-            label: `${openPurchasePaymentsCount} offene Ankaufszahlung(en)`,
+            label: `${purchaseSummary.openPurchasePaymentsCount} offene Ankaufszahlung(en)`,
             description: "Zahlungsstatus der Ankaufsakten prüfen.",
             href: "/dashboard/ankauf",
             tone: "warning",
         });
     }
 
-    if (incompletePurchaseDocumentsCount > 0) {
+    if (purchaseSummary.incompletePurchaseDocumentsCount > 0) {
         openActions.push({
-            label: `${incompletePurchaseDocumentsCount} Ankaufsakte(n) mit fehlenden Dokumenten`,
+            label: `${purchaseSummary.incompletePurchaseDocumentsCount} Ankaufsakte(n) mit fehlenden Dokumenten`,
             description: "Einkaufsrechnung, Ankaufsvertrag oder Verkäufer-Ausweis ergänzen.",
             href: "/dashboard/ankauf",
             tone: "danger",
@@ -224,7 +184,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         vehiclesCount: vehicleSummary.vehiclesCount,
         currentVehiclesCount: vehicleSummary.currentVehiclesCount,
         soldVehiclesCount: vehicleSummary.soldVehiclesCount,
-        salesCount,
+        salesCount: salesSummary.salesCount,
         invoicesCount: invoiceSummary.invoicesCount,
         documentsCount: documentSummary.documentsCount,
 
@@ -233,27 +193,20 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         requestedLicensePlateCasesCount,
         completedLicensePlateCasesCount,
 
-        purchaseCasesCount: purchaseCases.length,
-        openPurchasePaymentsCount,
-        incompletePurchaseDocumentsCount,
-        completedPurchaseCasesCount,
+        purchaseCasesCount: purchaseSummary.purchaseCasesCount,
+        openPurchasePaymentsCount: purchaseSummary.openPurchasePaymentsCount,
+        incompletePurchaseDocumentsCount: purchaseSummary.incompletePurchaseDocumentsCount,
+        completedPurchaseCasesCount: purchaseSummary.completedPurchaseCasesCount,
 
-        openInvoicesCount,
+        openInvoicesCount: salesSummary.openInvoicesCount,
         incompleteDocumentsCount: documentSummary.incompleteDocumentsCount,
-        totalRevenueNet,
-        totalProfitNet,
+        totalRevenueNet: salesSummary.totalRevenueNet,
+        totalProfitNet: salesSummary.totalProfitNet,
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
         recentVehicles: vehicleSummary.recentVehicles,
 
-        recentSales: recentFilteredSales.map((sale) => ({
-            id: sale.id,
-            invoiceNumber: sale.invoice_number,
-            customerName: sale.customer_name,
-            vehicleName: sale.vehicle_name,
-            amount: sale.net_amount,
-            saleDate: sale.sale_date,
-        })),
+        recentSales: salesSummary.recentSales,
 
         recentLicensePlateCases: licensePlateCases.slice(0, 4).map((item) => ({
             id: item.id,

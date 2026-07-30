@@ -17,7 +17,7 @@ function redirectWithSupabaseCookies(url: URL, response: NextResponse) {
     return redirectResponse;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     let response = NextResponse.next({
         request,
     });
