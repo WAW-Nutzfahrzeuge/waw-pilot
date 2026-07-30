@@ -33,6 +33,11 @@ import {
 import type { VehicleRow } from "@/lib/vehicles/vehicle-queries";
 import { getVehicleDisplayName } from "@/lib/vehicles/vehicle-helpers";
 import { formatCurrency } from "@/lib/format/currency";
+import {
+    captureFormSnapshot,
+    restoreFormSnapshot,
+    type FormSnapshot,
+} from "@/lib/forms/form-snapshot";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import {
     getSaleTaxConfiguration,
@@ -59,7 +64,6 @@ const initialState = {
 type BuyerMode = "existing" | "new";
 type VehicleMode = "existing" | "new";
 type NewCustomerType = "company" | "private";
-type FormFieldSnapshot = Record<string, string | boolean>;
 type SaleType = "inland" | "eu" | "export_third_country";
 
 type SaleFormProps = {
@@ -85,73 +89,6 @@ function roundMoney(value: number): number {
     return Math.round(value * 100) / 100;
 }
 
-function captureFormSnapshot(form: HTMLFormElement): FormFieldSnapshot {
-    const snapshot: FormFieldSnapshot = {};
-
-    Array.from(form.elements).forEach((element) => {
-        if (
-            !(
-                element instanceof HTMLInputElement ||
-                element instanceof HTMLSelectElement ||
-                element instanceof HTMLTextAreaElement
-            ) ||
-            !element.name
-        ) {
-            return;
-        }
-
-        if (element instanceof HTMLInputElement && element.type === "radio") {
-            if (element.checked) snapshot[element.name] = element.value;
-            return;
-        }
-
-        if (element instanceof HTMLInputElement && element.type === "checkbox") {
-            snapshot[element.name] = element.checked;
-            return;
-        }
-
-        snapshot[element.name] = element.value;
-    });
-
-    return snapshot;
-}
-
-function restoreFormSnapshot(
-    form: HTMLFormElement,
-    snapshot: FormFieldSnapshot,
-): void {
-    Array.from(form.elements).forEach((element) => {
-        if (
-            !(
-                element instanceof HTMLInputElement ||
-                element instanceof HTMLSelectElement ||
-                element instanceof HTMLTextAreaElement
-            ) ||
-            !element.name
-        ) {
-            return;
-        }
-
-        const value = snapshot[element.name];
-
-        if (typeof value === "undefined") return;
-
-        if (element instanceof HTMLInputElement && element.type === "radio") {
-            element.checked = value === element.value;
-            return;
-        }
-
-        if (element instanceof HTMLInputElement && element.type === "checkbox") {
-            element.checked = value === true;
-            return;
-        }
-
-        if (typeof value === "string") {
-            element.value = value;
-        }
-    });
-}
-
 export function SaleForm({
                              customers,
                              vehicles,
@@ -164,7 +101,7 @@ export function SaleForm({
     );
     const errorMessageRef = useRef<HTMLDivElement | null>(null);
     const formRef = useRef<HTMLFormElement | null>(null);
-    const lastSubmittedFormSnapshotRef = useRef<FormFieldSnapshot | null>(null);
+    const lastSubmittedFormSnapshotRef = useRef<FormSnapshot | null>(null);
 
     const [buyerMode, setBuyerMode] = useState<BuyerMode>(
         defaultCustomerId || customers.length > 0 ? "existing" : "new",

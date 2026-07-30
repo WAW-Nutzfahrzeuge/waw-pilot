@@ -175,6 +175,22 @@ async function storeVehicleDocument({
     return { success: true };
 }
 
+async function cleanupFailedVehicleCreation({
+    supabase,
+    companyId,
+    vehicleId,
+}: {
+    supabase: ReturnType<typeof createServerSupabaseClient>;
+    companyId: string;
+    vehicleId: string;
+}) {
+    await supabase
+        .from("vehicles")
+        .delete()
+        .eq("id", vehicleId)
+        .eq("company_id", companyId);
+}
+
 export async function createVehicleAction(
     _previousState: CreateVehicleState,
     formData: FormData,
@@ -303,9 +319,15 @@ export async function createVehicleAction(
             .single();
 
         if (purchaseError || !purchase) {
+            await cleanupFailedVehicleCreation({
+                supabase,
+                companyId,
+                vehicleId,
+            });
+
             return {
                 success: false,
-                message: `Fahrzeug wurde gespeichert, aber der Ankauf konnte nicht gespeichert werden: ${
+                message: `Fahrzeug konnte nicht vollständig gespeichert werden, weil der Ankauf nicht gespeichert werden konnte: ${
                     purchaseError?.message ?? "Keine Ankauf-ID erhalten"
                 }`,
             };

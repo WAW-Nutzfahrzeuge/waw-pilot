@@ -85,6 +85,22 @@ export async function uploadCustomerBzstEvidenceDocuments({
     formData,
 }: UploadCustomerBzstEvidenceParams): Promise<{ success: true } | { success: false; message: string }> {
     const submittedFiles = getSubmittedEvidenceFiles(formData);
+    const uploadedFilePaths: string[] = [];
+    const createdDocumentIds: string[] = [];
+
+    async function cleanupUploadedEvidence() {
+        if (createdDocumentIds.length > 0) {
+            await supabase
+                .from("documents")
+                .delete()
+                .eq("company_id", companyId)
+                .in("id", createdDocumentIds);
+        }
+
+        if (uploadedFilePaths.length > 0) {
+            await supabase.storage.from("documents").remove(uploadedFilePaths);
+        }
+    }
 
     for (const { file, documentType, label } of submittedFiles) {
         const originalFileName = sanitizeFileName(file.name) || `${label}.png`;
@@ -99,36 +115,46 @@ export async function uploadCustomerBzstEvidenceDocuments({
             });
 
         if (uploadError) {
+            await cleanupUploadedEvidence();
+
             return {
                 success: false,
                 message: `${label}: ${getDocumentUploadFailedMessage(uploadError)}`,
             };
         }
 
-        const { error: documentError } = await supabase.from("documents").insert({
-            company_id: companyId,
-            document_type: documentType,
-            source: "uploaded",
-            status: "available",
-            file_name: originalFileName,
-            file_path: filePath,
-            mime_type: file.type || null,
-            file_size: file.size,
-            customer_id: customerId,
-            vehicle_id: null,
-            sale_id: null,
-            invoice_id: null,
-            generated_by_system: false,
-        });
+        uploadedFilePaths.push(filePath);
 
-        if (documentError) {
-            await supabase.storage.from("documents").remove([filePath]);
+        const { data: document, error: documentError } = await supabase
+            .from("documents")
+            .insert({
+                company_id: companyId,
+                document_type: documentType,
+                source: "uploaded",
+                status: "available",
+                file_name: originalFileName,
+                file_path: filePath,
+                mime_type: file.type || null,
+                file_size: file.size,
+                customer_id: customerId,
+                vehicle_id: null,
+                sale_id: null,
+                invoice_id: null,
+                generated_by_system: false,
+            })
+            .select("id")
+            .single();
+
+        if (documentError || !document) {
+            await cleanupUploadedEvidence();
 
             return {
                 success: false,
                 message: `${label} konnte nicht beim Kunden gespeichert werden.`,
             };
         }
+
+        createdDocumentIds.push(document.id as string);
     }
 
     return { success: true };

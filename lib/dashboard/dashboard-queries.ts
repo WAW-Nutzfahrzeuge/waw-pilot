@@ -96,149 +96,146 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getPurchaseCases(),
     ]);
 
-    const dashboardVehicleSummary = vehicles.reduce(
-        (summary, vehicle) => ({
-            currentVehiclesCount:
-                summary.currentVehiclesCount +
-                (vehicle.status === "in_stock" || vehicle.status === "reserved" ? 1 : 0),
-            soldVehiclesCount:
-                summary.soldVehiclesCount + (vehicle.status === "sold" ? 1 : 0),
-            vehiclesWithOpenDocumentsCount:
-                summary.vehiclesWithOpenDocumentsCount +
-                (vehicle.document_status !== "complete" ? 1 : 0),
-        }),
-        {
-            currentVehiclesCount: 0,
-            soldVehiclesCount: 0,
-            vehiclesWithOpenDocumentsCount: 0,
-        },
-    );
+    let currentVehiclesCount = 0;
+    let soldVehiclesCount = 0;
+    let vehiclesWithOpenDocumentsCount = 0;
 
-    const dashboardSalesSummary = sales.reduce(
-        (summary, sale) => {
-            if (!matchesMonthFilter(sale.sale_date, monthFilter)) {
-                return summary;
-            }
+    for (const vehicle of vehicles) {
+        if (vehicle.status === "in_stock" || vehicle.status === "reserved") {
+            currentVehiclesCount += 1;
+        }
 
-            const filteredSales = summary.filteredSales.length < 4
-                ? [...summary.filteredSales, sale]
-                : summary.filteredSales;
+        if (vehicle.status === "sold") {
+            soldVehiclesCount += 1;
+        }
 
-            return {
-                filteredSales,
-                salesCount: summary.salesCount + 1,
-                openInvoicesCount:
-                    summary.openInvoicesCount + (sale.payment_status !== "paid" ? 1 : 0),
-                totalRevenueNet: summary.totalRevenueNet + sale.net_amount,
-                totalProfitNet: summary.totalProfitNet + getSaleProfitNet(sale),
-            };
-        },
-        {
-            filteredSales: [] as typeof sales,
-            salesCount: 0,
-            openInvoicesCount: 0,
-            totalRevenueNet: 0,
-            totalProfitNet: 0,
-        },
-    );
+        if (vehicle.document_status !== "complete") {
+            vehiclesWithOpenDocumentsCount += 1;
+        }
+    }
 
-    const filteredInvoicesCount = invoices.reduce(
-        (count, invoice) =>
-            count + (matchesMonthFilter(invoice.invoice_date, monthFilter) ? 1 : 0),
-        0,
-    );
+    const recentFilteredSales: typeof sales = [];
+    let salesCount = 0;
+    let openInvoicesCount = 0;
+    let totalRevenueNet = 0;
+    let totalProfitNet = 0;
 
-    const filteredCashbookEntries = cashbookEntries.filter((entry) =>
-        matchesMonthFilter(entry.booking_date, monthFilter),
-    );
+    for (const sale of sales) {
+        if (!matchesMonthFilter(sale.sale_date, monthFilter)) continue;
 
-    const incompleteDocumentsCount = documents.reduce(
-        (count, document) => count + (document.status !== "available" ? 1 : 0),
-        0,
-    );
+        if (recentFilteredSales.length < 4) {
+            recentFilteredSales.push(sale);
+        }
 
-    const licensePlateSummary = licensePlateCases.reduce(
-        (summary, item) => ({
-            openLicensePlateCasesCount:
-                summary.openLicensePlateCasesCount + (item.status === "open" ? 1 : 0),
-            requestedLicensePlateCasesCount:
-                summary.requestedLicensePlateCasesCount +
-                (item.status === "requested" ? 1 : 0),
-            completedLicensePlateCasesCount:
-                summary.completedLicensePlateCasesCount +
-                (item.status === "completed" ? 1 : 0),
-            activeLicensePlateCasesCount:
-                summary.activeLicensePlateCasesCount +
-                (item.status === "open" || item.status === "requested" ? 1 : 0),
-        }),
-        {
-            openLicensePlateCasesCount: 0,
-            requestedLicensePlateCasesCount: 0,
-            completedLicensePlateCasesCount: 0,
-            activeLicensePlateCasesCount: 0,
-        },
-    );
+        salesCount += 1;
+        if (sale.payment_status !== "paid") {
+            openInvoicesCount += 1;
+        }
+        totalRevenueNet += sale.net_amount;
+        totalProfitNet += getSaleProfitNet(sale);
+    }
 
-    const purchaseSummary = purchaseCases.reduce(
-        (summary, purchase) => ({
-            openPurchasePaymentsCount:
-                summary.openPurchasePaymentsCount +
-                (purchase.payment_status !== "paid" ? 1 : 0),
-            incompletePurchaseDocumentsCount:
-                summary.incompletePurchaseDocumentsCount +
-                (purchase.document_check_status !== "complete" ? 1 : 0),
-            completedPurchaseCasesCount:
-                summary.completedPurchaseCasesCount +
-                (purchase.status === "completed" ? 1 : 0),
-        }),
-        {
-            openPurchasePaymentsCount: 0,
-            incompletePurchaseDocumentsCount: 0,
-            completedPurchaseCasesCount: 0,
-        },
-    );
+    let filteredInvoicesCount = 0;
+    for (const invoice of invoices) {
+        if (matchesMonthFilter(invoice.invoice_date, monthFilter)) {
+            filteredInvoicesCount += 1;
+        }
+    }
+
+    const filteredCashbookEntries: typeof cashbookEntries = [];
+    for (const entry of cashbookEntries) {
+        if (matchesMonthFilter(entry.booking_date, monthFilter)) {
+            filteredCashbookEntries.push(entry);
+        }
+    }
+
+    let incompleteDocumentsCount = 0;
+    for (const document of documents) {
+        if (document.status !== "available") {
+            incompleteDocumentsCount += 1;
+        }
+    }
+
+    let openLicensePlateCasesCount = 0;
+    let requestedLicensePlateCasesCount = 0;
+    let completedLicensePlateCasesCount = 0;
+    let activeLicensePlateCasesCount = 0;
+
+    for (const item of licensePlateCases) {
+        if (item.status === "open") {
+            openLicensePlateCasesCount += 1;
+            activeLicensePlateCasesCount += 1;
+        }
+
+        if (item.status === "requested") {
+            requestedLicensePlateCasesCount += 1;
+            activeLicensePlateCasesCount += 1;
+        }
+
+        if (item.status === "completed") {
+            completedLicensePlateCasesCount += 1;
+        }
+    }
+
+    let openPurchasePaymentsCount = 0;
+    let incompletePurchaseDocumentsCount = 0;
+    let completedPurchaseCasesCount = 0;
+
+    for (const purchase of purchaseCases) {
+        if (purchase.payment_status !== "paid") {
+            openPurchasePaymentsCount += 1;
+        }
+
+        if (purchase.document_check_status !== "complete") {
+            incompletePurchaseDocumentsCount += 1;
+        }
+
+        if (purchase.status === "completed") {
+            completedPurchaseCasesCount += 1;
+        }
+    }
 
     const openActions: DashboardData["openActions"] = [];
 
-    if (dashboardSalesSummary.openInvoicesCount > 0) {
+    if (openInvoicesCount > 0) {
         openActions.push({
-            label: `${dashboardSalesSummary.openInvoicesCount} offene Zahlung(en)`,
+            label: `${openInvoicesCount} offene Zahlung(en)`,
             description: "Offene Verkaufszahlungen prüfen oder Kassenbuch aktualisieren.",
             href: "/dashboard/sales?paymentStatus=open",
             tone: "warning",
         });
     }
 
-    if (licensePlateSummary.activeLicensePlateCasesCount > 0) {
+    if (activeLicensePlateCasesCount > 0) {
         openActions.push({
-            label: `${licensePlateSummary.activeLicensePlateCasesCount} offene Kennzeichen-Vorgänge`,
+            label: `${activeLicensePlateCasesCount} offene Kennzeichen-Vorgänge`,
             description: "Kurzzeit-, Export- oder Zollkennzeichen weiterbearbeiten.",
             href: "/dashboard/plates",
             tone: "warning",
         });
     }
 
-    if (purchaseSummary.openPurchasePaymentsCount > 0) {
+    if (openPurchasePaymentsCount > 0) {
         openActions.push({
-            label: `${purchaseSummary.openPurchasePaymentsCount} offene Ankaufszahlung(en)`,
+            label: `${openPurchasePaymentsCount} offene Ankaufszahlung(en)`,
             description: "Zahlungsstatus der Ankaufsakten prüfen.",
             href: "/dashboard/ankauf",
             tone: "warning",
         });
     }
 
-    if (purchaseSummary.incompletePurchaseDocumentsCount > 0) {
+    if (incompletePurchaseDocumentsCount > 0) {
         openActions.push({
-            label: `${purchaseSummary.incompletePurchaseDocumentsCount} Ankaufsakte(n) mit fehlenden Dokumenten`,
+            label: `${incompletePurchaseDocumentsCount} Ankaufsakte(n) mit fehlenden Dokumenten`,
             description: "Einkaufsrechnung, Ankaufsvertrag oder Verkäufer-Ausweis ergänzen.",
             href: "/dashboard/ankauf",
             tone: "danger",
         });
     }
 
-    if (dashboardVehicleSummary.vehiclesWithOpenDocumentsCount > 0) {
+    if (vehiclesWithOpenDocumentsCount > 0) {
         openActions.push({
-            label: `${dashboardVehicleSummary.vehiclesWithOpenDocumentsCount} Fahrzeugakte(n) prüfen`,
+            label: `${vehiclesWithOpenDocumentsCount} Fahrzeugakte(n) prüfen`,
             description: "Pflichtdokumente im Fahrzeugbestand ergänzen.",
             href: "/dashboard/vehicles",
             tone: "danger",
@@ -257,26 +254,26 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     return {
         customersCount: customers.length,
         vehiclesCount: vehicles.length,
-        currentVehiclesCount: dashboardVehicleSummary.currentVehiclesCount,
-        soldVehiclesCount: dashboardVehicleSummary.soldVehiclesCount,
-        salesCount: dashboardSalesSummary.salesCount,
+        currentVehiclesCount,
+        soldVehiclesCount,
+        salesCount,
         invoicesCount: filteredInvoicesCount,
         documentsCount: documents.length,
 
         licensePlateCasesCount: licensePlateCases.length,
-        openLicensePlateCasesCount: licensePlateSummary.openLicensePlateCasesCount,
-        requestedLicensePlateCasesCount: licensePlateSummary.requestedLicensePlateCasesCount,
-        completedLicensePlateCasesCount: licensePlateSummary.completedLicensePlateCasesCount,
+        openLicensePlateCasesCount,
+        requestedLicensePlateCasesCount,
+        completedLicensePlateCasesCount,
 
         purchaseCasesCount: purchaseCases.length,
-        openPurchasePaymentsCount: purchaseSummary.openPurchasePaymentsCount,
-        incompletePurchaseDocumentsCount: purchaseSummary.incompletePurchaseDocumentsCount,
-        completedPurchaseCasesCount: purchaseSummary.completedPurchaseCasesCount,
+        openPurchasePaymentsCount,
+        incompletePurchaseDocumentsCount,
+        completedPurchaseCasesCount,
 
-        openInvoicesCount: dashboardSalesSummary.openInvoicesCount,
+        openInvoicesCount,
         incompleteDocumentsCount,
-        totalRevenueNet: dashboardSalesSummary.totalRevenueNet,
-        totalProfitNet: dashboardSalesSummary.totalProfitNet,
+        totalRevenueNet,
+        totalProfitNet,
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
         recentVehicles: vehicles.slice(0, 4).map((vehicle) => ({
@@ -287,7 +284,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
             createdAt: vehicle.created_at,
         })),
 
-        recentSales: dashboardSalesSummary.filteredSales.map((sale) => ({
+        recentSales: recentFilteredSales.map((sale) => ({
             id: sale.id,
             invoiceNumber: sale.invoice_number,
             customerName: sale.customer_name,

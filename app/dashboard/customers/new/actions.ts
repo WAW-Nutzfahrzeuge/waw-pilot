@@ -176,9 +176,15 @@ export async function createCustomerAction(
         });
 
         if (!evidenceUpload.success) {
+            await supabase
+                .from("customers")
+                .delete()
+                .eq("id", customer.id as string)
+                .eq("company_id", companyId);
+
             return {
                 success: false,
-                message: `Kunde wurde angelegt, aber ${evidenceUpload.message}`,
+                message: `Kunde konnte nicht vollständig angelegt werden: ${evidenceUpload.message}`,
             };
         }
     }
