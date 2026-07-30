@@ -58,74 +58,132 @@ export async function getChecksData(): Promise<ChecksData> {
             getPurchaseCases(),
         ]);
 
-    const documentsToCheck = documents
-        .filter((document) => document.status !== "available")
-        .slice(0, 10)
-        .map((document) => ({
-            id: document.id,
-            document_type: document.document_type,
-            file_name: document.file_name,
-            status: document.status,
-            customer_name: document.customer_name,
-            vehicle_name: document.vehicle_name,
-            invoice_number: document.invoice_number,
-            created_at: document.created_at,
-        }));
+    const documentCheckSummary = documents.reduce(
+        (summary, document) => {
+            if (document.status === "available") return summary;
 
-    const openLicensePlateCases = licensePlateCases
-        .filter((item) => item.status === "open" || item.status === "requested")
-        .slice(0, 8)
-        .map((item) => ({
-            id: item.id,
-            plate_type: item.plate_type,
-            status: item.status,
-            customer_name: item.customer_name,
-            vehicle_name: item.vehicle_name,
-            license_plate_number: item.license_plate_number,
-            valid_until: item.valid_until,
-        }));
+            return {
+                count: summary.count + 1,
+                items:
+                    summary.items.length < 10
+                        ? [
+                            ...summary.items,
+                            {
+                                id: document.id,
+                                document_type: document.document_type,
+                                file_name: document.file_name,
+                                status: document.status,
+                                customer_name: document.customer_name,
+                                vehicle_name: document.vehicle_name,
+                                invoice_number: document.invoice_number,
+                                created_at: document.created_at,
+                            },
+                        ]
+                        : summary.items,
+            };
+        },
+        {
+            count: 0,
+            items: [] as ChecksData["documentsToCheck"],
+        },
+    );
 
-    const salesToCheck = sales
-        .filter((sale) => sale.document_check_status !== "complete")
-        .slice(0, 8)
-        .map((sale) => ({
-            id: sale.id,
-            customer_name: sale.customer_name,
-            vehicle_name: sale.vehicle_name,
-            invoice_number: sale.invoice_number,
-            sale_date: sale.sale_date,
-            document_check_status: sale.document_check_status,
-        }));
+    const licensePlateCheckSummary = licensePlateCases.reduce(
+        (summary, item) => {
+            if (item.status !== "open" && item.status !== "requested") {
+                return summary;
+            }
 
-    const purchaseCasesToCheck = purchaseCases
-        .filter((purchase) => purchase.document_check_status !== "complete")
-        .slice(0, 8)
-        .map((purchase) => ({
-            id: purchase.id,
-            purchase_number: purchase.purchase_number,
-            seller_name: purchase.seller_name,
-            vehicle_name: purchase.vehicle_name,
-            purchase_date: purchase.purchase_date,
-            document_check_status: purchase.document_check_status,
-        }));
+            return {
+                count: summary.count + 1,
+                items:
+                    summary.items.length < 8
+                        ? [
+                            ...summary.items,
+                            {
+                                id: item.id,
+                                plate_type: item.plate_type,
+                                status: item.status,
+                                customer_name: item.customer_name,
+                                vehicle_name: item.vehicle_name,
+                                license_plate_number: item.license_plate_number,
+                                valid_until: item.valid_until,
+                            },
+                        ]
+                        : summary.items,
+            };
+        },
+        {
+            count: 0,
+            items: [] as ChecksData["openLicensePlateCases"],
+        },
+    );
+
+    const saleCheckSummary = sales.reduce(
+        (summary, sale) => {
+            if (sale.document_check_status === "complete") return summary;
+
+            return {
+                count: summary.count + 1,
+                items:
+                    summary.items.length < 8
+                        ? [
+                            ...summary.items,
+                            {
+                                id: sale.id,
+                                customer_name: sale.customer_name,
+                                vehicle_name: sale.vehicle_name,
+                                invoice_number: sale.invoice_number,
+                                sale_date: sale.sale_date,
+                                document_check_status: sale.document_check_status,
+                            },
+                        ]
+                        : summary.items,
+            };
+        },
+        {
+            count: 0,
+            items: [] as ChecksData["salesToCheck"],
+        },
+    );
+
+    const purchaseCheckSummary = purchaseCases.reduce(
+        (summary, purchase) => {
+            if (purchase.document_check_status === "complete") return summary;
+
+            return {
+                count: summary.count + 1,
+                items:
+                    summary.items.length < 8
+                        ? [
+                            ...summary.items,
+                            {
+                                id: purchase.id,
+                                purchase_number: purchase.purchase_number,
+                                seller_name: purchase.seller_name,
+                                vehicle_name: purchase.vehicle_name,
+                                purchase_date: purchase.purchase_date,
+                                document_check_status: purchase.document_check_status,
+                            },
+                        ]
+                        : summary.items,
+            };
+        },
+        {
+            count: 0,
+            items: [] as ChecksData["purchaseCasesToCheck"],
+        },
+    );
 
     return {
-        documentsToCheckCount: documents.filter(
-            (document) => document.status !== "available",
-        ).length,
-        openLicensePlateCasesCount: licensePlateCases.filter(
-            (item) => item.status === "open" || item.status === "requested",
-        ).length,
-        salesToCheckCount: sales.filter(
-            (sale) => sale.document_check_status !== "complete",
-        ).length,
-        purchaseCasesToCheckCount: purchaseCases.filter(
-            (purchase) => purchase.document_check_status !== "complete",
-        ).length,
+        documentsToCheckCount: documentCheckSummary.count,
+        openLicensePlateCasesCount: licensePlateCheckSummary.count,
+        salesToCheckCount: saleCheckSummary.count,
+        purchaseCasesToCheckCount: purchaseCheckSummary.count,
 
-        purchaseCasesToCheck,
-        documentsToCheck,
-        openLicensePlateCases,
-        salesToCheck,
+        purchaseCasesToCheck: purchaseCheckSummary.items,
+        documentsToCheck: documentCheckSummary.items,
+        openLicensePlateCases: licensePlateCheckSummary.items,
+        salesToCheck: saleCheckSummary.items,
     };
 }

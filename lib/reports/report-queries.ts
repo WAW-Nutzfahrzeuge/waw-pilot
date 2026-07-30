@@ -275,61 +275,95 @@ export async function getReportsData(
             )
             : cashbookEntries;
 
-    const currentVehicles = vehicles.filter(
-        (vehicle) => vehicle.status === "in_stock" || vehicle.status === "reserved",
+    const vehicleSummary = vehicles.reduce(
+        (summary, vehicle) => {
+            const isCurrent =
+                vehicle.status === "in_stock" || vehicle.status === "reserved";
+
+            return {
+                currentVehiclesCount:
+                    summary.currentVehiclesCount + (isCurrent ? 1 : 0),
+                soldVehiclesCount:
+                    summary.soldVehiclesCount + (vehicle.status === "sold" ? 1 : 0),
+                inventoryValueNet:
+                    summary.inventoryValueNet +
+                    (isCurrent ? Number(vehicle.purchase_price_net ?? 0) : 0),
+            };
+        },
+        {
+            currentVehiclesCount: 0,
+            soldVehiclesCount: 0,
+            inventoryValueNet: 0,
+        },
     );
 
-    const soldVehicles = vehicles.filter((vehicle) => vehicle.status === "sold");
+    const salesSummary = filteredSales.reduce(
+        (summary, sale) => {
+            const profitNet = getSaleProfitNet(sale);
 
-    const totalRevenueNet = filteredSales.reduce(
-        (sum, sale) => sum + sale.net_amount,
-        0,
-    );
-
-    const totalSalesGross = filteredSales.reduce(
-        (sum, sale) => sum + sale.gross_amount,
-        0,
-    );
-
-    const totalProfitNet = filteredSales.reduce(
-        (sum, sale) => sum + getSaleProfitNet(sale),
-        0,
+            return {
+                totalRevenueNet: summary.totalRevenueNet + sale.net_amount,
+                totalSalesGross: summary.totalSalesGross + sale.gross_amount,
+                totalProfitNet: summary.totalProfitNet + profitNet,
+            };
+        },
+        {
+            totalRevenueNet: 0,
+            totalSalesGross: 0,
+            totalProfitNet: 0,
+        },
     );
 
     const averageProfitNet =
-        filteredSales.length > 0 ? totalProfitNet / filteredSales.length : 0;
+        filteredSales.length > 0
+            ? salesSummary.totalProfitNet / filteredSales.length
+            : 0;
 
-    const totalPurchaseNet = filteredPurchases.reduce(
-        (sum, purchase) => sum + purchase.net_amount,
-        0,
+    const purchaseSummary = filteredPurchases.reduce(
+        (summary, purchase) => {
+            const isOpen = purchase.payment_status !== "paid";
+            const openPurchasePayments =
+                isOpen && summary.openPurchasePayments.length < 5
+                    ? [...summary.openPurchasePayments, purchase]
+                    : summary.openPurchasePayments;
+
+            return {
+                openPurchasePayments,
+                totalPurchaseNet: summary.totalPurchaseNet + purchase.net_amount,
+                totalPurchaseGross: summary.totalPurchaseGross + purchase.gross_amount,
+                openPurchasePaymentsGross:
+                    summary.openPurchasePaymentsGross +
+                    (isOpen ? purchase.gross_amount : 0),
+            };
+        },
+        {
+            openPurchasePayments: [] as typeof filteredPurchases,
+            totalPurchaseNet: 0,
+            totalPurchaseGross: 0,
+            openPurchasePaymentsGross: 0,
+        },
     );
 
-    const totalPurchaseGross = filteredPurchases.reduce(
-        (sum, purchase) => sum + purchase.gross_amount,
-        0,
-    );
+    const invoiceSummary = filteredInvoices.reduce(
+        (summary, invoice) => {
+            const isOpen = invoice.payment_status !== "paid";
+            const openInvoices =
+                isOpen && summary.openInvoices.length < 5
+                    ? [...summary.openInvoices, invoice]
+                    : summary.openInvoices;
 
-    const openPurchasePayments = filteredPurchases.filter(
-        (purchase) => purchase.payment_status !== "paid",
-    );
-
-    const openPurchasePaymentsGross = openPurchasePayments.reduce(
-        (sum, purchase) => sum + purchase.gross_amount,
-        0,
-    );
-
-    const openInvoices = filteredInvoices.filter(
-        (invoice) => invoice.payment_status !== "paid",
-    );
-
-    const openInvoicesGross = openInvoices.reduce(
-        (sum, invoice) => sum + invoice.gross_amount,
-        0,
-    );
-
-    const inventoryValueNet = currentVehicles.reduce(
-        (sum, vehicle) => sum + Number(vehicle.purchase_price_net ?? 0),
-        0,
+            return {
+                openInvoices,
+                openInvoicesCount: summary.openInvoicesCount + (isOpen ? 1 : 0),
+                openInvoicesGross:
+                    summary.openInvoicesGross + (isOpen ? invoice.gross_amount : 0),
+            };
+        },
+        {
+            openInvoices: [] as typeof filteredInvoices,
+            openInvoicesCount: 0,
+            openInvoicesGross: 0,
+        },
     );
 
     const mappedSales = filteredSales.map((sale) => ({
@@ -348,26 +382,26 @@ export async function getReportsData(
         dateFrom,
         dateTo,
 
-        totalRevenueNet,
-        totalSalesGross,
-        totalProfitNet,
+        totalRevenueNet: salesSummary.totalRevenueNet,
+        totalSalesGross: salesSummary.totalSalesGross,
+        totalProfitNet: salesSummary.totalProfitNet,
         averageProfitNet,
 
-        totalPurchaseNet,
-        totalPurchaseGross,
-        openPurchasePaymentsGross,
+        totalPurchaseNet: purchaseSummary.totalPurchaseNet,
+        totalPurchaseGross: purchaseSummary.totalPurchaseGross,
+        openPurchasePaymentsGross: purchaseSummary.openPurchasePaymentsGross,
 
-        openInvoicesGross,
-        openInvoicesCount: openInvoices.length,
+        openInvoicesGross: invoiceSummary.openInvoicesGross,
+        openInvoicesCount: invoiceSummary.openInvoicesCount,
 
         cashbookIncome: calculateTotalIncome(filteredCashbookEntries),
         cashbookExpenses: calculateTotalExpenses(filteredCashbookEntries),
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
         vehiclesCount: vehicles.length,
-        currentVehiclesCount: currentVehicles.length,
-        soldVehiclesCount: soldVehicles.length,
-        inventoryValueNet,
+        currentVehiclesCount: vehicleSummary.currentVehiclesCount,
+        soldVehiclesCount: vehicleSummary.soldVehiclesCount,
+        inventoryValueNet: vehicleSummary.inventoryValueNet,
 
         topSalesByRevenue: [...mappedSales]
             .sort((a, b) => b.revenueNet - a.revenueNet)
@@ -390,7 +424,7 @@ export async function getReportsData(
             .sort((a, b) => b.grossAmount - a.grossAmount)
             .slice(0, 5),
 
-        openInvoices: openInvoices.slice(0, 5).map((invoice) => ({
+        openInvoices: invoiceSummary.openInvoices.map((invoice) => ({
             id: invoice.id,
             saleId: invoice.sale_id,
             invoiceNumber: invoice.invoice_number,
@@ -400,7 +434,7 @@ export async function getReportsData(
             invoiceDate: invoice.invoice_date,
         })),
 
-        openPurchases: openPurchasePayments.slice(0, 5).map((purchase) => ({
+        openPurchases: purchaseSummary.openPurchasePayments.map((purchase) => ({
             id: purchase.id,
             purchaseNumber: purchase.purchase_number,
             sellerName: purchase.seller_name,

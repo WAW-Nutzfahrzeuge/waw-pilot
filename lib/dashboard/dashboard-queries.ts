@@ -96,121 +96,158 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getPurchaseCases(),
     ]);
 
-    const currentVehicles = vehicles.filter(
-        (vehicle) => vehicle.status === "in_stock" || vehicle.status === "reserved",
+    const dashboardVehicleSummary = vehicles.reduce(
+        (summary, vehicle) => ({
+            currentVehiclesCount:
+                summary.currentVehiclesCount +
+                (vehicle.status === "in_stock" || vehicle.status === "reserved" ? 1 : 0),
+            soldVehiclesCount:
+                summary.soldVehiclesCount + (vehicle.status === "sold" ? 1 : 0),
+            vehiclesWithOpenDocumentsCount:
+                summary.vehiclesWithOpenDocumentsCount +
+                (vehicle.document_status !== "complete" ? 1 : 0),
+        }),
+        {
+            currentVehiclesCount: 0,
+            soldVehiclesCount: 0,
+            vehiclesWithOpenDocumentsCount: 0,
+        },
     );
 
-    const soldVehicles = vehicles.filter((vehicle) => vehicle.status === "sold");
+    const dashboardSalesSummary = sales.reduce(
+        (summary, sale) => {
+            if (!matchesMonthFilter(sale.sale_date, monthFilter)) {
+                return summary;
+            }
 
-    const filteredSales = sales.filter((sale) =>
-        matchesMonthFilter(sale.sale_date, monthFilter),
+            const filteredSales = summary.filteredSales.length < 4
+                ? [...summary.filteredSales, sale]
+                : summary.filteredSales;
+
+            return {
+                filteredSales,
+                salesCount: summary.salesCount + 1,
+                openInvoicesCount:
+                    summary.openInvoicesCount + (sale.payment_status !== "paid" ? 1 : 0),
+                totalRevenueNet: summary.totalRevenueNet + sale.net_amount,
+                totalProfitNet: summary.totalProfitNet + getSaleProfitNet(sale),
+            };
+        },
+        {
+            filteredSales: [] as typeof sales,
+            salesCount: 0,
+            openInvoicesCount: 0,
+            totalRevenueNet: 0,
+            totalProfitNet: 0,
+        },
     );
 
-    const filteredInvoices = invoices.filter((invoice) =>
-        matchesMonthFilter(invoice.invoice_date, monthFilter),
+    const filteredInvoicesCount = invoices.reduce(
+        (count, invoice) =>
+            count + (matchesMonthFilter(invoice.invoice_date, monthFilter) ? 1 : 0),
+        0,
     );
 
     const filteredCashbookEntries = cashbookEntries.filter((entry) =>
         matchesMonthFilter(entry.booking_date, monthFilter),
     );
 
-    const totalRevenueNet = filteredSales.reduce((sum, sale) => sum + sale.net_amount, 0);
-
-    const totalProfitNet = filteredSales.reduce(
-        (sum, sale) => sum + getSaleProfitNet(sale),
+    const incompleteDocumentsCount = documents.reduce(
+        (count, document) => count + (document.status !== "available" ? 1 : 0),
         0,
     );
 
-    const openInvoices = filteredSales.filter(
-        (sale) => sale.payment_status !== "paid",
+    const licensePlateSummary = licensePlateCases.reduce(
+        (summary, item) => ({
+            openLicensePlateCasesCount:
+                summary.openLicensePlateCasesCount + (item.status === "open" ? 1 : 0),
+            requestedLicensePlateCasesCount:
+                summary.requestedLicensePlateCasesCount +
+                (item.status === "requested" ? 1 : 0),
+            completedLicensePlateCasesCount:
+                summary.completedLicensePlateCasesCount +
+                (item.status === "completed" ? 1 : 0),
+            activeLicensePlateCasesCount:
+                summary.activeLicensePlateCasesCount +
+                (item.status === "open" || item.status === "requested" ? 1 : 0),
+        }),
+        {
+            openLicensePlateCasesCount: 0,
+            requestedLicensePlateCasesCount: 0,
+            completedLicensePlateCasesCount: 0,
+            activeLicensePlateCasesCount: 0,
+        },
     );
 
-    const incompleteDocuments = documents.filter(
-        (document) => document.status !== "available",
-    );
-
-    const vehiclesWithOpenDocuments = vehicles.filter(
-        (vehicle) => vehicle.document_status !== "complete",
-    );
-
-    const openLicensePlateCases = licensePlateCases.filter(
-        (item) => item.status === "open",
-    );
-
-    const requestedLicensePlateCases = licensePlateCases.filter(
-        (item) => item.status === "requested",
-    );
-
-    const completedLicensePlateCases = licensePlateCases.filter(
-        (item) => item.status === "completed",
-    );
-
-    const activeLicensePlateCases = licensePlateCases.filter(
-        (item) => item.status === "open" || item.status === "requested",
-    );
-
-    const openPurchasePayments = purchaseCases.filter(
-        (purchase) => purchase.payment_status !== "paid",
-    );
-
-    const incompletePurchaseDocuments = purchaseCases.filter(
-        (purchase) => purchase.document_check_status !== "complete",
-    );
-
-    const completedPurchaseCases = purchaseCases.filter(
-        (purchase) => purchase.status === "completed",
+    const purchaseSummary = purchaseCases.reduce(
+        (summary, purchase) => ({
+            openPurchasePaymentsCount:
+                summary.openPurchasePaymentsCount +
+                (purchase.payment_status !== "paid" ? 1 : 0),
+            incompletePurchaseDocumentsCount:
+                summary.incompletePurchaseDocumentsCount +
+                (purchase.document_check_status !== "complete" ? 1 : 0),
+            completedPurchaseCasesCount:
+                summary.completedPurchaseCasesCount +
+                (purchase.status === "completed" ? 1 : 0),
+        }),
+        {
+            openPurchasePaymentsCount: 0,
+            incompletePurchaseDocumentsCount: 0,
+            completedPurchaseCasesCount: 0,
+        },
     );
 
     const openActions: DashboardData["openActions"] = [];
 
-    if (openInvoices.length > 0) {
+    if (dashboardSalesSummary.openInvoicesCount > 0) {
         openActions.push({
-            label: `${openInvoices.length} offene Zahlung(en)`,
+            label: `${dashboardSalesSummary.openInvoicesCount} offene Zahlung(en)`,
             description: "Offene Verkaufszahlungen prüfen oder Kassenbuch aktualisieren.",
             href: "/dashboard/sales?paymentStatus=open",
             tone: "warning",
         });
     }
 
-    if (activeLicensePlateCases.length > 0) {
+    if (licensePlateSummary.activeLicensePlateCasesCount > 0) {
         openActions.push({
-            label: `${activeLicensePlateCases.length} offene Kennzeichen-Vorgänge`,
+            label: `${licensePlateSummary.activeLicensePlateCasesCount} offene Kennzeichen-Vorgänge`,
             description: "Kurzzeit-, Export- oder Zollkennzeichen weiterbearbeiten.",
             href: "/dashboard/plates",
             tone: "warning",
         });
     }
 
-    if (openPurchasePayments.length > 0) {
+    if (purchaseSummary.openPurchasePaymentsCount > 0) {
         openActions.push({
-            label: `${openPurchasePayments.length} offene Ankaufszahlung(en)`,
+            label: `${purchaseSummary.openPurchasePaymentsCount} offene Ankaufszahlung(en)`,
             description: "Zahlungsstatus der Ankaufsakten prüfen.",
             href: "/dashboard/ankauf",
             tone: "warning",
         });
     }
 
-    if (incompletePurchaseDocuments.length > 0) {
+    if (purchaseSummary.incompletePurchaseDocumentsCount > 0) {
         openActions.push({
-            label: `${incompletePurchaseDocuments.length} Ankaufsakte(n) mit fehlenden Dokumenten`,
+            label: `${purchaseSummary.incompletePurchaseDocumentsCount} Ankaufsakte(n) mit fehlenden Dokumenten`,
             description: "Einkaufsrechnung, Ankaufsvertrag oder Verkäufer-Ausweis ergänzen.",
             href: "/dashboard/ankauf",
             tone: "danger",
         });
     }
 
-    if (vehiclesWithOpenDocuments.length > 0) {
+    if (dashboardVehicleSummary.vehiclesWithOpenDocumentsCount > 0) {
         openActions.push({
-            label: `${vehiclesWithOpenDocuments.length} Fahrzeugakte(n) prüfen`,
+            label: `${dashboardVehicleSummary.vehiclesWithOpenDocumentsCount} Fahrzeugakte(n) prüfen`,
             description: "Pflichtdokumente im Fahrzeugbestand ergänzen.",
             href: "/dashboard/vehicles",
             tone: "danger",
         });
     }
 
-    if (incompleteDocuments.length > 0) {
+    if (incompleteDocumentsCount > 0) {
         openActions.push({
-            label: `${incompleteDocuments.length} Dokument(e) prüfen`,
+            label: `${incompleteDocumentsCount} Dokument(e) prüfen`,
             description: "Dokumentenarchiv auf fehlende oder zu prüfende Dateien kontrollieren.",
             href: "/dashboard/documents?status=open",
             tone: "info",
@@ -220,26 +257,26 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     return {
         customersCount: customers.length,
         vehiclesCount: vehicles.length,
-        currentVehiclesCount: currentVehicles.length,
-        soldVehiclesCount: soldVehicles.length,
-        salesCount: filteredSales.length,
-        invoicesCount: filteredInvoices.length,
+        currentVehiclesCount: dashboardVehicleSummary.currentVehiclesCount,
+        soldVehiclesCount: dashboardVehicleSummary.soldVehiclesCount,
+        salesCount: dashboardSalesSummary.salesCount,
+        invoicesCount: filteredInvoicesCount,
         documentsCount: documents.length,
 
         licensePlateCasesCount: licensePlateCases.length,
-        openLicensePlateCasesCount: openLicensePlateCases.length,
-        requestedLicensePlateCasesCount: requestedLicensePlateCases.length,
-        completedLicensePlateCasesCount: completedLicensePlateCases.length,
+        openLicensePlateCasesCount: licensePlateSummary.openLicensePlateCasesCount,
+        requestedLicensePlateCasesCount: licensePlateSummary.requestedLicensePlateCasesCount,
+        completedLicensePlateCasesCount: licensePlateSummary.completedLicensePlateCasesCount,
 
         purchaseCasesCount: purchaseCases.length,
-        openPurchasePaymentsCount: openPurchasePayments.length,
-        incompletePurchaseDocumentsCount: incompletePurchaseDocuments.length,
-        completedPurchaseCasesCount: completedPurchaseCases.length,
+        openPurchasePaymentsCount: purchaseSummary.openPurchasePaymentsCount,
+        incompletePurchaseDocumentsCount: purchaseSummary.incompletePurchaseDocumentsCount,
+        completedPurchaseCasesCount: purchaseSummary.completedPurchaseCasesCount,
 
-        openInvoicesCount: openInvoices.length,
-        incompleteDocumentsCount: incompleteDocuments.length,
-        totalRevenueNet,
-        totalProfitNet,
+        openInvoicesCount: dashboardSalesSummary.openInvoicesCount,
+        incompleteDocumentsCount,
+        totalRevenueNet: dashboardSalesSummary.totalRevenueNet,
+        totalProfitNet: dashboardSalesSummary.totalProfitNet,
         cashbookBalance: calculateBalance(filteredCashbookEntries),
 
         recentVehicles: vehicles.slice(0, 4).map((vehicle) => ({
@@ -250,7 +287,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
             createdAt: vehicle.created_at,
         })),
 
-        recentSales: filteredSales.slice(0, 4).map((sale) => ({
+        recentSales: dashboardSalesSummary.filteredSales.map((sale) => ({
             id: sale.id,
             invoiceNumber: sale.invoice_number,
             customerName: sale.customer_name,
