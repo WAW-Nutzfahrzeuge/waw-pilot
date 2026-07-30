@@ -262,41 +262,58 @@ export function DocumentsOverview({
     const [documentFilter, setDocumentFilter] =
         useState<DocumentFilter>(() => getInitialDocumentFilter(initialFilter));
 
-    const availableDocuments = documents.filter(
-        (document) => document.status === "available",
-    ).length;
+    const documentSummary = useMemo(() => {
+        return documents.reduce(
+            (summary, document) => {
+                if (document.status === "available") {
+                    summary.availableDocuments += 1;
+                }
 
-    const needsReviewDocuments = documents.filter(
-        (document) => document.status === "needs_review",
-    ).length;
+                if (document.status === "needs_review") {
+                    summary.needsReviewDocuments += 1;
+                }
 
-    const generatedDocuments = documents.filter(
-        (document) => document.generated_by_system,
-    ).length;
+                if (document.generated_by_system) {
+                    summary.generatedDocuments += 1;
+                } else {
+                    summary.uploadedDocuments += 1;
+                }
 
-    const uploadedDocuments = documents.filter(
-        (document) => !document.generated_by_system,
-    ).length;
+                if (invoiceDocumentTypes.includes(document.document_type)) {
+                    summary.invoiceDocuments += 1;
+                }
 
-    const invoiceDocuments = documents.filter((document) =>
-        invoiceDocumentTypes.includes(document.document_type),
-    ).length;
+                if (vehicleDocumentTypes.includes(document.document_type)) {
+                    summary.vehicleDocuments += 1;
+                }
 
-    const vehicleDocuments = documents.filter((document) =>
-        vehicleDocumentTypes.includes(document.document_type),
-    ).length;
+                if (purchaseDocumentTypes.includes(document.document_type)) {
+                    summary.purchaseDocuments += 1;
+                }
 
-    const purchaseDocuments = documents.filter((document) =>
-        purchaseDocumentTypes.includes(document.document_type),
-    ).length;
+                if (licensePlateDocumentTypes.includes(document.document_type)) {
+                    summary.licensePlateDocuments += 1;
+                }
 
-    const licensePlateDocuments = documents.filter((document) =>
-        licensePlateDocumentTypes.includes(document.document_type),
-    ).length;
+                if (document.document_type === "cashbook_receipt") {
+                    summary.cashbookDocuments += 1;
+                }
 
-    const cashbookDocuments = documents.filter(
-        (document) => document.document_type === "cashbook_receipt",
-    ).length;
+                return summary;
+            },
+            {
+                availableDocuments: 0,
+                cashbookDocuments: 0,
+                generatedDocuments: 0,
+                invoiceDocuments: 0,
+                licensePlateDocuments: 0,
+                needsReviewDocuments: 0,
+                purchaseDocuments: 0,
+                uploadedDocuments: 0,
+                vehicleDocuments: 0,
+            },
+        );
+    }, [documents]);
 
     const filteredDocuments = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
@@ -358,15 +375,26 @@ export function DocumentsOverview({
     }, [query, documents, documentFilter, initialVehicleId]);
 
     const groupedDocuments = useMemo(() => {
-        return documentGroupOrder
-            .map((group) => ({
+        const documentsByGroup = new Map<DocumentGroupKey, DocumentRow[]>();
+
+        for (const document of filteredDocuments) {
+            const group = getDocumentGroup(document.document_type);
+            const groupDocuments = documentsByGroup.get(group) ?? [];
+            groupDocuments.push(document);
+            documentsByGroup.set(group, groupDocuments);
+        }
+
+        return documentGroupOrder.flatMap((group) => {
+            const groupDocuments = documentsByGroup.get(group) ?? [];
+
+            if (groupDocuments.length === 0) return [];
+
+            return {
                 group,
                 label: documentGroupLabels[group],
-                documents: filteredDocuments.filter(
-                    (document) => getDocumentGroup(document.document_type) === group,
-                ),
-            }))
-            .filter((group) => group.documents.length > 0);
+                documents: groupDocuments,
+            };
+        });
     }, [filteredDocuments]);
 
     function updateDocumentFilter(nextFilter: DocumentFilter) {
@@ -402,23 +430,23 @@ export function DocumentsOverview({
                 />
                 <DocumentStatCard
                     label="Verfügbar"
-                    value={availableDocuments}
+                    value={documentSummary.availableDocuments}
                     description="direkt abrufbar"
                     icon={FileText}
                 />
                 <DocumentStatCard
                     label="Zu prüfen"
-                    value={needsReviewDocuments}
+                    value={documentSummary.needsReviewDocuments}
                     description="Dokumente mit Prüfbedarf"
                     icon={FileWarning}
-                    danger={needsReviewDocuments > 0}
+                    danger={documentSummary.needsReviewDocuments > 0}
                     href="/dashboard/documents?filter=needs_review"
                     active={documentFilter === "needs_review"}
                 />
                 <DocumentStatCard
                     label="Automatisch"
-                    value={generatedDocuments}
-                    description={`${uploadedDocuments} hochgeladen`}
+                    value={documentSummary.generatedDocuments}
+                    description={`${documentSummary.uploadedDocuments} hochgeladen`}
                     icon={Archive}
                 />
             </section>
@@ -453,12 +481,12 @@ export function DocumentsOverview({
                                 onChange={(value) => updateDocumentFilter(value as DocumentFilter)}
                                 options={[
                                     { value: "all", label: `Alle ${documents.length}` },
-                                    { value: "invoices", label: `Rechnungen ${invoiceDocuments}` },
-                                    { value: "vehicle_documents", label: `Fahrzeuge ${vehicleDocuments}` },
-                                    { value: "purchase_documents", label: `Ankauf ${purchaseDocuments}` },
-                                    { value: "license_plates", label: `Kennzeichen ${licensePlateDocuments}` },
-                                    { value: "cashbook", label: `Kassenbuch ${cashbookDocuments}` },
-                                    { value: "needs_review", label: `Prüfen ${needsReviewDocuments}` },
+                                    { value: "invoices", label: `Rechnungen ${documentSummary.invoiceDocuments}` },
+                                    { value: "vehicle_documents", label: `Fahrzeuge ${documentSummary.vehicleDocuments}` },
+                                    { value: "purchase_documents", label: `Ankauf ${documentSummary.purchaseDocuments}` },
+                                    { value: "license_plates", label: `Kennzeichen ${documentSummary.licensePlateDocuments}` },
+                                    { value: "cashbook", label: `Kassenbuch ${documentSummary.cashbookDocuments}` },
+                                    { value: "needs_review", label: `Prüfen ${documentSummary.needsReviewDocuments}` },
                                 ]}
                             />
                         </div>

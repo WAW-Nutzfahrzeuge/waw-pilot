@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ArrowUpRight,
     FileWarning,
@@ -41,28 +41,38 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
 
-    const openPayments = purchases.filter(
-        (purchase) => purchase.payment_status !== "paid",
-    ).length;
+    const purchaseSummary = useMemo(() => {
+        return purchases.reduce(
+            (summary, purchase) => {
+                if (purchase.payment_status !== "paid") {
+                    summary.openPayments += 1;
+                } else {
+                    summary.paidPurchases += 1;
+                }
 
-    const paidPurchases = purchases.filter(
-        (purchase) => purchase.payment_status === "paid",
-    ).length;
+                if (purchase.document_check_status !== "complete") {
+                    summary.incompleteDocuments += 1;
+                }
 
-    const incompleteDocuments = purchases.filter(
-        (purchase) => purchase.document_check_status !== "complete",
-    ).length;
+                if (purchase.status === "completed") {
+                    summary.completedPurchases += 1;
+                }
 
-    const completedPurchases = purchases.filter(
-        (purchase) => purchase.status === "completed",
-    ).length;
+                summary.totalGross += purchase.gross_amount;
 
-    const totalGross = purchases.reduce(
-        (sum, purchase) => sum + purchase.gross_amount,
-        0,
-    );
+                return summary;
+            },
+            {
+                completedPurchases: 0,
+                incompleteDocuments: 0,
+                openPayments: 0,
+                paidPurchases: 0,
+                totalGross: 0,
+            },
+        );
+    }, [purchases]);
 
-    const filteredPurchases = (() => {
+    const filteredPurchases = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
         return purchases.filter((purchase) => {
@@ -94,7 +104,7 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
 
             return searchableText.includes(normalizedQuery);
         });
-    })();
+    }, [filter, purchases, query]);
 
     return (
         <div className="space-y-6">
@@ -124,23 +134,23 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                 />
                 <PurchaseStatCard
                     label="Einkauf brutto"
-                    value={formatCurrency(totalGross)}
+                    value={formatCurrency(purchaseSummary.totalGross)}
                     description="Summe aller Ankäufe"
                     icon={Wallet}
                 />
                 <PurchaseStatCard
                     label="Offene Zahlungen"
-                    value={openPayments}
-                    description={`${paidPurchases} bezahlt`}
+                    value={purchaseSummary.openPayments}
+                    description={`${purchaseSummary.paidPurchases} bezahlt`}
                     icon={Wallet}
-                    danger={openPayments > 0}
+                    danger={purchaseSummary.openPayments > 0}
                 />
                 <PurchaseStatCard
                     label="Dokumente prüfen"
-                    value={incompleteDocuments}
+                    value={purchaseSummary.incompleteDocuments}
                     description="fehlend oder zu prüfen"
                     icon={FileWarning}
-                    danger={incompleteDocuments > 0}
+                    danger={purchaseSummary.incompleteDocuments > 0}
                 />
             </section>
 
@@ -180,25 +190,25 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                                     active={filter === "open"}
                                     onClick={() => setFilter("open")}
                                     label="Offen"
-                                    count={openPayments}
+                                    count={purchaseSummary.openPayments}
                                 />
                                 <PurchaseFilterButton
                                     active={filter === "paid"}
                                     onClick={() => setFilter("paid")}
                                     label="Bezahlt"
-                                    count={paidPurchases}
+                                    count={purchaseSummary.paidPurchases}
                                 />
                                 <PurchaseFilterButton
                                     active={filter === "documents"}
                                     onClick={() => setFilter("documents")}
                                     label="Dokumente"
-                                    count={incompleteDocuments}
+                                    count={purchaseSummary.incompleteDocuments}
                                 />
                                 <PurchaseFilterButton
                                     active={filter === "completed"}
                                     onClick={() => setFilter("completed")}
                                     label="Abgeschlossen"
-                                    count={completedPurchases}
+                                    count={purchaseSummary.completedPurchases}
                                 />
                             </div>
                         </div>
