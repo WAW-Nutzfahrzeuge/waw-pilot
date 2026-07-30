@@ -34,31 +34,83 @@ type LicensePlatesOverviewProps = {
 
 type PlateFilter = "all" | "short_term" | "export" | "customs" | "open";
 
+type LicensePlateOverviewItem = LicensePlateCaseRow & {
+    typeLabel: string;
+    typeTone: ReturnType<typeof getLicensePlateTypeTone>;
+    statusLabel: string;
+    statusTone: ReturnType<typeof getLicensePlateStatusTone>;
+    validFromLabel: string;
+    validUntilLabel: string;
+    searchableText: string;
+};
+
 export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PlateFilter>("all");
 
-    const shortTermCount = cases.filter(
-        (item) => item.plate_type === "short_term",
-    ).length;
+    const overviewData = useMemo(() => {
+        const items: LicensePlateOverviewItem[] = cases.map((item) => {
+            const typeLabel = getLicensePlateTypeLabel(item.plate_type);
+            const statusLabel = getLicensePlateStatusLabel(item.status);
 
-    const exportCount = cases.filter((item) => item.plate_type === "export").length;
+            return {
+                ...item,
+                typeLabel,
+                typeTone: getLicensePlateTypeTone(item.plate_type),
+                statusLabel,
+                statusTone: getLicensePlateStatusTone(item.status),
+                validFromLabel: formatDate(item.valid_from),
+                validUntilLabel: formatDate(item.valid_until),
+                searchableText: [
+                    typeLabel,
+                    statusLabel,
+                    item.license_plate_number,
+                    item.registration_office,
+                    item.customer_name,
+                    item.vehicle_name,
+                    item.vin,
+                    item.notes,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            };
+        });
+        const counts = cases.reduce(
+            (currentCounts, item) => ({
+                shortTermCount:
+                    currentCounts.shortTermCount +
+                    (item.plate_type === "short_term" ? 1 : 0),
+                exportCount:
+                    currentCounts.exportCount + (item.plate_type === "export" ? 1 : 0),
+                customsCount:
+                    currentCounts.customsCount + (item.plate_type === "customs" ? 1 : 0),
+                openCount:
+                    currentCounts.openCount +
+                    (item.status === "open" || item.status === "requested" ? 1 : 0),
+                completedCount:
+                    currentCounts.completedCount + (item.status === "completed" ? 1 : 0),
+            }),
+            {
+                shortTermCount: 0,
+                exportCount: 0,
+                customsCount: 0,
+                openCount: 0,
+                completedCount: 0,
+            },
+        );
 
-    const customsCount = cases.filter((item) => item.plate_type === "customs").length;
-
-    const openCount = cases.filter(
-        (item) => item.status === "open" || item.status === "requested",
-    ).length;
-
-    const completedCount = cases.filter(
-        (item) => item.status === "completed",
-    ).length;
+        return {
+            items,
+            ...counts,
+        };
+    }, [cases]);
 
     const filteredCases = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return cases.filter((item) => {
+        return overviewData.items.filter((item) => {
             const matchesFilter =
                 filter === "all" ||
                 item.plate_type === filter ||
@@ -69,23 +121,9 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 
             if (!normalizedQuery) return true;
 
-            const searchableText = [
-                getLicensePlateTypeLabel(item.plate_type),
-                getLicensePlateStatusLabel(item.status),
-                item.license_plate_number,
-                item.registration_office,
-                item.customer_name,
-                item.vehicle_name,
-                item.vin,
-                item.notes,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
+            return item.searchableText.includes(normalizedQuery);
         });
-    }, [cases, query, filter]);
+    }, [overviewData.items, query, filter]);
 
     return (
         <div className="space-y-6">
@@ -115,21 +153,21 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
                 />
                 <PlateStatCard
                     label="Offen / beantragt"
-                    value={openCount}
+                    value={overviewData.openCount}
                     description="noch nicht abgeschlossen"
                     icon={CalendarDays}
-                    danger={openCount > 0}
+                    danger={overviewData.openCount > 0}
                 />
                 <PlateStatCard
                     label="Abgeschlossen"
-                    value={completedCount}
+                    value={overviewData.completedCount}
                     description="fertige Vorgänge"
                     icon={ShieldCheck}
                 />
                 <PlateStatCard
                     label="Kurzzeit"
-                    value={shortTermCount}
-                    description={`${exportCount} Export · ${customsCount} Zoll`}
+                    value={overviewData.shortTermCount}
+                    description={`${overviewData.exportCount} Export · ${overviewData.customsCount} Zoll`}
                     icon={Truck}
                 />
             </section>
@@ -170,25 +208,25 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
                                     active={filter === "open"}
                                     onClick={() => setFilter("open")}
                                     label="Offen"
-                                    count={openCount}
+                                    count={overviewData.openCount}
                                 />
                                 <PlateFilterButton
                                     active={filter === "short_term"}
                                     onClick={() => setFilter("short_term")}
                                     label="Kurzzeit"
-                                    count={shortTermCount}
+                                    count={overviewData.shortTermCount}
                                 />
                                 <PlateFilterButton
                                     active={filter === "export"}
                                     onClick={() => setFilter("export")}
                                     label="Export"
-                                    count={exportCount}
+                                    count={overviewData.exportCount}
                                 />
                                 <PlateFilterButton
                                     active={filter === "customs"}
                                     onClick={() => setFilter("customs")}
                                     label="Zoll"
-                                    count={customsCount}
+                                    count={overviewData.customsCount}
                                 />
                             </div>
                         </div>
@@ -228,9 +266,9 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
                                     >
                                         <td className="px-5 py-5">
                                             <StatusBadge
-                                                tone={getLicensePlateTypeTone(item.plate_type)}
+                                                tone={item.typeTone}
                                             >
-                                                {getLicensePlateTypeLabel(item.plate_type)}
+                                                {item.typeLabel}
                                             </StatusBadge>
                                             {item.duration_days ? (
                                                 <p className="mt-2 text-xs font-bold text-slate-500">
@@ -256,10 +294,10 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 
                                         <td className="px-5 py-5">
                                             <p className="text-sm font-bold text-slate-700">
-                                                {formatDate(item.valid_from)}
+                                                {item.validFromLabel}
                                             </p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                bis {formatDate(item.valid_until)}
+                                                bis {item.validUntilLabel}
                                             </p>
                                         </td>
 
@@ -274,9 +312,9 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
 
                                         <td className="px-5 py-5">
                                             <StatusBadge
-                                                tone={getLicensePlateStatusTone(item.status)}
+                                                tone={item.statusTone}
                                             >
-                                                {getLicensePlateStatusLabel(item.status)}
+                                                {item.statusLabel}
                                             </StatusBadge>
                                         </td>
 
@@ -309,7 +347,7 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
     );
 }
 
-function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
+function PlateMobileCard({ item }: { item: LicensePlateOverviewItem }) {
     const router = useRouter();
 
     return (
@@ -321,8 +359,8 @@ function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
         >
             <div className="flex items-start justify-between gap-3">
                 <div>
-                    <StatusBadge tone={getLicensePlateTypeTone(item.plate_type)}>
-                        {getLicensePlateTypeLabel(item.plate_type)}
+                    <StatusBadge tone={item.typeTone}>
+                        {item.typeLabel}
                     </StatusBadge>
                     {item.duration_days ? (
                         <p className="mt-2 text-xs font-bold text-slate-500">
@@ -331,8 +369,8 @@ function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
                     ) : null}
                 </div>
 
-                <StatusBadge tone={getLicensePlateStatusTone(item.status)}>
-                    {getLicensePlateStatusLabel(item.status)}
+                <StatusBadge tone={item.statusTone}>
+                    {item.statusLabel}
                 </StatusBadge>
             </div>
 
@@ -356,11 +394,11 @@ function PlateMobileCard({ item }: { item: LicensePlateCaseRow }) {
                 />
                 <PlateMobileInfoBox
                     label="Von"
-                    value={formatDate(item.valid_from)}
+                    value={item.validFromLabel}
                 />
                 <PlateMobileInfoBox
                     label="Bis"
-                    value={formatDate(item.valid_until)}
+                    value={item.validUntilLabel}
                 />
             </div>
 

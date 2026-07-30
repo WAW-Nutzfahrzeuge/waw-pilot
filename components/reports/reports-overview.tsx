@@ -54,6 +54,26 @@ function getReportsExportHref(data: ReportsData): string {
 
 export function ReportsOverview({ data }: ReportsOverviewProps) {
     const exportHref = getReportsExportHref(data);
+    const openAmountItems = [
+        ...data.openInvoices.map((invoice) => ({
+            id: `invoice-${invoice.id}`,
+            href: `/dashboard/sales/${invoice.saleId}`,
+            label: invoice.invoiceNumber,
+            subline: `${invoice.customerName} · ${invoice.vehicleName} · ${formatDate(invoice.invoiceDate)}`,
+            amount: invoice.grossAmount,
+            badge: "Rechnung" as const,
+        })),
+        ...data.openPurchases.map((purchase) => ({
+            id: `purchase-${purchase.id}`,
+            href: `/dashboard/ankauf/${purchase.id}`,
+            label: purchase.purchaseNumber ?? "Ankauf ohne Nummer",
+            subline: `${purchase.sellerName ?? "Kein Verkäufer"} · ${
+                purchase.vehicleName ?? "Kein Fahrzeug"
+            } · ${formatDate(purchase.purchaseDate)}`,
+            amount: purchase.grossAmount,
+            badge: "Ankauf" as const,
+        })),
+    ];
 
     return (
         <div className="space-y-6">
@@ -397,26 +417,7 @@ export function ReportsOverview({ data }: ReportsOverviewProps) {
                     href="/dashboard/checks"
                     emptyText="Keine offenen Beträge im Zeitraum vorhanden."
                 >
-                    {[
-                        ...data.openInvoices.map((invoice) => ({
-                            id: `invoice-${invoice.id}`,
-                            href: `/dashboard/sales/${invoice.saleId}`,
-                            label: invoice.invoiceNumber,
-                            subline: `${invoice.customerName} · ${invoice.vehicleName} · ${formatDate(invoice.invoiceDate)}`,
-                            amount: invoice.grossAmount,
-                            badge: "Rechnung",
-                        })),
-                        ...data.openPurchases.map((purchase) => ({
-                            id: `purchase-${purchase.id}`,
-                            href: `/dashboard/ankauf/${purchase.id}`,
-                            label: purchase.purchaseNumber ?? "Ankauf ohne Nummer",
-                            subline: `${purchase.sellerName ?? "Kein Verkäufer"} · ${
-                                purchase.vehicleName ?? "Kein Fahrzeug"
-                            } · ${formatDate(purchase.purchaseDate)}`,
-                            amount: purchase.grossAmount,
-                            badge: "Ankauf",
-                        })),
-                    ].map((item) => (
+                    {openAmountItems.map((item) => (
                         <Link
                             key={item.id}
                             href={item.href}

@@ -23,6 +23,17 @@ type VehicleInventoryListProps = {
     rows: InventoryListRow[];
 };
 
+type InventoryListDisplayRow = InventoryListRow & {
+    searchableText: string;
+    purchaseDateLabel: string;
+    saleDateLabel: string;
+    purchaseNetAmountLabel: string;
+    saleNetAmountLabel: string;
+    rawProfitNetLabel: string;
+    statusLabel: string;
+    statusClassName: string;
+};
+
 function formatDate(value: string | null): string {
     if (!value) return "—";
 
@@ -164,13 +175,27 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
 
+    const displayRows = useMemo<InventoryListDisplayRow[]>(() => {
+        return rows.map((row) => ({
+            ...row,
+            searchableText: getSearchableText(row),
+            purchaseDateLabel: formatDate(row.purchaseDate),
+            saleDateLabel: formatDate(row.saleDate),
+            purchaseNetAmountLabel: formatMoney(row.purchaseNetAmount),
+            saleNetAmountLabel: formatMoney(row.saleNetAmount),
+            rawProfitNetLabel: formatMoney(row.rawProfitNet),
+            statusLabel: getStatusLabel(row.status),
+            statusClassName: getStatusClassName(row.status),
+        }));
+    }, [rows]);
+
     const filteredRows = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return rows.filter((row) => {
+        return displayRows.filter((row) => {
             const matchesSearch =
                 !normalizedQuery ||
-                getSearchableText(row).includes(normalizedQuery);
+                row.searchableText.includes(normalizedQuery);
 
             if (!matchesSearch) return false;
 
@@ -180,30 +205,36 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                 toDate,
             });
         });
-    }, [fromDate, query, rows, toDate]);
+    }, [displayRows, fromDate, query, toDate]);
 
-    const totalPurchaseNet = filteredRows.reduce(
-        (sum, row) => sum + row.purchaseNetAmount,
-        0,
+    const inventorySummary = useMemo(() => {
+        let totalPurchaseNet = 0;
+        let totalSaleNet = 0;
+        let totalRawProfitNet = 0;
+
+        for (const row of filteredRows) {
+            totalPurchaseNet += row.purchaseNetAmount;
+            totalSaleNet += row.saleNetAmount ?? 0;
+            totalRawProfitNet += row.rawProfitNet ?? 0;
+        }
+
+        return {
+            totalPurchaseNet,
+            totalSaleNet,
+            totalRawProfitNet,
+        };
+    }, [filteredRows]);
+
+    const filterDescription = useMemo(
+        () => getFilterDescription({
+            query,
+            fromDate,
+            toDate,
+            totalCount: rows.length,
+            filteredCount: filteredRows.length,
+        }),
+        [filteredRows.length, fromDate, query, rows.length, toDate],
     );
-
-    const totalSaleNet = filteredRows.reduce(
-        (sum, row) => sum + (row.saleNetAmount ?? 0),
-        0,
-    );
-
-    const totalRawProfitNet = filteredRows.reduce(
-        (sum, row) => sum + (row.rawProfitNet ?? 0),
-        0,
-    );
-
-    const filterDescription = getFilterDescription({
-        query,
-        fromDate,
-        toDate,
-        totalCount: rows.length,
-        filteredCount: filteredRows.length,
-    });
 
     return (
         <div className="space-y-6 print:space-y-4">
@@ -258,19 +289,19 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                 />
                 <SummaryCard
                     title="Einkauf netto"
-                    value={formatMoney(totalPurchaseNet)}
+                    value={formatMoney(inventorySummary.totalPurchaseNet)}
                     description="Summe Einkauf"
                     icon={TrendingUp}
                 />
                 <SummaryCard
                     title="Verkauf netto"
-                    value={formatMoney(totalSaleNet)}
+                    value={formatMoney(inventorySummary.totalSaleNet)}
                     description="Summe Verkauf"
                     icon={TrendingUp}
                 />
                 <SummaryCard
                     title="Rohgewinn netto"
-                    value={formatMoney(totalRawProfitNet)}
+                    value={formatMoney(inventorySummary.totalRawProfitNet)}
                     description="Summe Rohgewinn"
                     icon={TrendingUp}
                 />
@@ -432,7 +463,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
 
                                         <td className="px-4 py-3 print:px-1 print:py-1">
                                             <div className="font-bold text-slate-950">
-                                                {formatDate(row.purchaseDate)}
+                                                {row.purchaseDateLabel}
                                             </div>
                                             <div className="mt-1 text-xs font-medium text-slate-500 print:text-[7px]">
                                                 {row.purchaseNumber ?? "—"}
@@ -444,7 +475,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                         </td>
 
                                         <td className="px-4 py-3 text-right font-bold text-slate-950 print:px-1 print:py-1">
-                                            {formatMoney(row.purchaseNetAmount)}
+                                            {row.purchaseNetAmountLabel}
                                         </td>
 
                                         <td className="px-4 py-3 font-black text-slate-950 print:px-1 print:py-1">
@@ -452,7 +483,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                         </td>
 
                                         <td className="px-4 py-3 font-bold text-slate-950 print:px-1 print:py-1">
-                                            {formatDate(row.saleDate)}
+                                            {row.saleDateLabel}
                                         </td>
 
                                         <td className="px-4 py-3 font-black text-slate-950 print:px-1 print:py-1">
@@ -464,7 +495,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                         </td>
 
                                         <td className="px-4 py-3 text-right font-bold text-slate-950 print:px-1 print:py-1">
-                                            {formatMoney(row.saleNetAmount)}
+                                            {row.saleNetAmountLabel}
                                         </td>
 
                                         <td
@@ -477,17 +508,17 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                                         : "text-red-700",
                                             )}
                                         >
-                                            {formatMoney(row.rawProfitNet)}
+                                            {row.rawProfitNetLabel}
                                         </td>
 
                                         <td className="px-4 py-3 print:px-1 print:py-1">
                                                 <span
                                                     className={cn(
                                                         "inline-flex rounded-full px-2.5 py-1 text-xs font-black ring-1 print:px-1 print:py-0.5 print:text-[7px]",
-                                                        getStatusClassName(row.status),
+                                                        row.statusClassName,
                                                     )}
                                                 >
-                                                    {getStatusLabel(row.status)}
+                                                    {row.statusLabel}
                                                 </span>
                                         </td>
                                     </tr>
@@ -514,17 +545,17 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                         Summe
                                     </td>
                                     <td className="px-4 py-3 text-right print:px-1 print:py-1">
-                                        {formatMoney(totalPurchaseNet)}
+                                        {formatMoney(inventorySummary.totalPurchaseNet)}
                                     </td>
                                     <td
                                         colSpan={4}
                                         className="px-4 py-3 print:px-1 print:py-1"
                                     />
                                     <td className="px-4 py-3 text-right print:px-1 print:py-1">
-                                        {formatMoney(totalSaleNet)}
+                                        {formatMoney(inventorySummary.totalSaleNet)}
                                     </td>
                                     <td className="px-4 py-3 text-right print:px-1 print:py-1">
-                                        {formatMoney(totalRawProfitNet)}
+                                        {formatMoney(inventorySummary.totalRawProfitNet)}
                                     </td>
                                     <td className="px-4 py-3 print:px-1 print:py-1" />
                                 </tr>
