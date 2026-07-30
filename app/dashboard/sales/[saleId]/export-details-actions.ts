@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { isAllowedArrivalPeriod } from "@/lib/sales/export-date-rules";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -21,6 +21,15 @@ function getSingleRelation<T>(relation: T | T[] | null | undefined): T | null {
     if (!relation) return null;
 
     return Array.isArray(relation) ? relation[0] ?? null : relation;
+}
+
+function revalidateSaleExportDetailsPaths(saleId: string) {
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/documents",
+        "/dashboard/checks",
+    ]);
 }
 
 export async function updateSaleExportDetailsAction(formData: FormData) {
@@ -125,10 +134,7 @@ export async function updateSaleExportDetailsAction(formData: FormData) {
         );
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/sales");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/checks");
+    revalidateSaleExportDetailsPaths(saleId);
 
     redirect(`/dashboard/sales/${saleId}?exportDataSaved=1#export-details`);
 }

@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import type { LicensePlateStatus } from "@/lib/license-plates/license-plate-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -58,8 +58,7 @@ export async function updateLicensePlateStatusAction(formData: FormData) {
         );
     }
 
-    revalidatePath(`/dashboard/plates/${plateCaseId}`);
-    revalidatePath("/dashboard/plates");
+    revalidatePaths([`/dashboard/plates/${plateCaseId}`, "/dashboard/plates"]);
 
     redirect(`/dashboard/plates/${plateCaseId}`);
 }

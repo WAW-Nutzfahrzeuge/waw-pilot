@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
     isSupportedSaleGeneratedDocumentType,
@@ -80,8 +80,7 @@ export async function generateSaleDocumentAction(formData: FormData) {
         entityId: generatedDocument.documentId,
     });
 
-    revalidatePath(`/dashboard/sales/${saleId}`, "page");
-    revalidatePath("/dashboard/documents");
+    revalidatePaths([[`/dashboard/sales/${saleId}`, "page"], "/dashboard/documents"]);
 
     redirect(
         `/dashboard/sales/${saleId}?generatedDocument=${encodeURIComponent(

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 
 import { getCurrentCompanyId } from "@/lib/company";
 import {
@@ -285,9 +285,11 @@ export async function sendStampDocumentsEmailAction(
         return { success: false, message: initialErrorMessage };
     }
 
-    revalidatePath(`/dashboard/sales/${saleId}`);
-    revalidatePath("/dashboard/activities");
-    revalidatePath("/dashboard/emails");
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/activities",
+        "/dashboard/emails",
+    ]);
 
     return {
         success: true,

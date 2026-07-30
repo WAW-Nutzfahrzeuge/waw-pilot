@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { generateAndStoreLicensePlateConsentDocument } from "@/lib/pdf/generated-documents/license-plate-generated-document-storage";
 
 function getStringValue(formData: FormData, key: string): string | null {
@@ -26,10 +26,12 @@ export async function generateLicensePlateConsentAction(formData: FormData) {
         plateCaseId,
     });
 
-    revalidatePath(`/dashboard/plates/${plateCaseId}`);
-    revalidatePath("/dashboard/plates");
-    revalidatePath("/dashboard/documents");
-    revalidatePath("/dashboard/checks");
+    revalidatePaths([
+        `/dashboard/plates/${plateCaseId}`,
+        "/dashboard/plates",
+        "/dashboard/documents",
+        "/dashboard/checks",
+    ]);
 
     redirect(
         `/dashboard/plates/${plateCaseId}?generatedDocument=license_plate_consent#license-plate-documents`,

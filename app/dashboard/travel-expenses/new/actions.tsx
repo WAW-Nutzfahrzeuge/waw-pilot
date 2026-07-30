@@ -1,8 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { generateTravelExpenseFormPdf } from "@/lib/pdf/templates/travel-expense-form-pdf";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -40,6 +40,50 @@ function getSafeFilePart(value: string | null | undefined): string {
         .replace(/[^a-z0-9-_]+/g, "-")
         .replace(/-+/g, "-")
         .replace(/^-|-$/g, "");
+}
+
+async function cleanupFailedTravelExpenseCreation({
+    companyId,
+    travelFormId,
+    documentId,
+    filePath,
+}: {
+    companyId: string;
+    travelFormId: string;
+    documentId?: string | null;
+    filePath?: string | null;
+}) {
+    const supabase = createServerSupabaseClient();
+
+    if (documentId) {
+        await supabase
+            .from("documents")
+            .delete()
+            .eq("id", documentId)
+            .eq("company_id", companyId);
+    }
+
+    if (filePath) {
+        await supabase.storage.from("documents").remove([filePath]);
+    }
+
+    await supabase
+        .from("travel_expense_forms")
+        .delete()
+        .eq("id", travelFormId)
+        .eq("company_id", companyId);
+}
+
+function revalidateTravelExpensePaths({
+    saleId,
+}: {
+    saleId: string | null;
+}) {
+    revalidatePaths([
+        "/dashboard/travel-expenses",
+        "/dashboard/documents",
+        ...(saleId ? [`/dashboard/sales/${saleId}`] : []),
+    ]);
 }
 
 export async function createTravelExpenseFormAction(
@@ -155,6 +199,12 @@ export async function createTravelExpenseFormAction(
         });
 
     if (uploadError) {
+        await cleanupFailedTravelExpenseCreation({
+            companyId,
+            travelFormId,
+            filePath,
+        });
+
         return {
             success: false,
             message: `PDF konnte nicht gespeichert werden: ${uploadError.message}`,
@@ -181,6 +231,12 @@ export async function createTravelExpenseFormAction(
         .single();
 
     if (documentError || !document) {
+        await cleanupFailedTravelExpenseCreation({
+            companyId,
+            travelFormId,
+            filePath,
+        });
+
         return {
             success: false,
             message: `Dokument konnte nicht angelegt werden: ${
@@ -198,17 +254,20 @@ export async function createTravelExpenseFormAction(
         .eq("company_id", companyId);
 
     if (updateError) {
+        await cleanupFailedTravelExpenseCreation({
+            companyId,
+            travelFormId,
+            documentId: document.id as string,
+            filePath,
+        });
+
         return {
             success: false,
             message: `Formular wurde erzeugt, aber Dokument konnte nicht verknüpft werden: ${updateError.message}`,
         };
     }
 
-    revalidatePath("/dashboard/travel-expenses");
-    revalidatePath("/dashboard/documents");
-    if (saleId) {
-        revalidatePath(`/dashboard/sales/${saleId}`);
-    }
+    revalidateTravelExpensePaths({ saleId });
 
     if (saleId) {
         redirect(`/dashboard/sales/${saleId}?travelExpenseCreated=1`);

@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { syncPurchasePaymentFinancialEntry } from "@/lib/accounting/financial-sync";
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
@@ -46,6 +46,17 @@ async function createPurchasePaymentReference(companyId: string): Promise<string
     }
 
     return data;
+}
+
+function revalidatePurchasePaymentPaths(purchaseId: string) {
+    revalidatePaths([
+        `/dashboard/ankauf/${purchaseId}`,
+        "/dashboard/ankauf",
+        "/dashboard/cashbook",
+        "/dashboard/checks",
+        "/dashboard",
+        "/dashboard/activities",
+    ]);
 }
 
 export async function markPurchasePaidAction(formData: FormData) {
@@ -193,12 +204,7 @@ export async function markPurchasePaidAction(formData: FormData) {
         paymentId,
     });
 
-    revalidatePath(`/dashboard/ankauf/${purchaseId}`);
-    revalidatePath("/dashboard/ankauf");
-    revalidatePath("/dashboard/cashbook");
-    revalidatePath("/dashboard/checks");
-    revalidatePath("/dashboard");
-    revalidatePath("/dashboard/activities");
+    revalidatePurchasePaymentPaths(purchaseId);
 
     redirect(`/dashboard/ankauf/${purchaseId}`);
 }

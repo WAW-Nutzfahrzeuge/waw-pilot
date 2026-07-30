@@ -1,8 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 
+import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getInvoiceTypeDocumentType,
@@ -261,9 +261,11 @@ export async function updateSaleBuyerTaxDataAction(
         entityId: customer.id as string,
     });
 
-    revalidatePath("/dashboard/sales/new");
-    revalidatePath(`/dashboard/customers/${customerId}`);
-    revalidatePath("/dashboard/customers");
+    revalidatePaths([
+        "/dashboard/sales/new",
+        `/dashboard/customers/${customerId}`,
+        "/dashboard/customers",
+    ]);
 
     return {
         success: true,
