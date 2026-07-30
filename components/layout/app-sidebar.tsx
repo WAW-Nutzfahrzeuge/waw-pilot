@@ -9,6 +9,8 @@ import type { UserRole } from "@/lib/auth/roles";
 import { getNavigationForRole } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
+type SidebarNavigationItem = ReturnType<typeof getNavigationForRole>["main"][number];
+
 function isNavigationItemActive(pathname: string, href: string): boolean {
     if (href === "/dashboard") {
         return pathname === "/dashboard";
@@ -70,30 +72,12 @@ export function SidebarContent({
                         const isActive = isNavigationItemActive(pathname, item.href);
 
                         return (
-                            <Link
+                            <SidebarNavItem
                                 key={item.href}
-                                href={item.href}
-                                onClick={onNavigate}
-                                className={cn(
-                                    "group relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-bold transition-all duration-200",
-                                    isActive
-                                        ? "bg-white text-slate-950 shadow-lg shadow-cyan-950/25"
-                                        : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
-                                )}
-                            >
-                                {isActive ? (
-                                    <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-500" />
-                                ) : null}
-
-                                <item.icon
-                                    className={cn(
-                                        "size-4 transition-transform duration-200 group-hover:scale-110",
-                                        isActive ? "text-cyan-700" : "text-slate-400",
-                                    )}
-                                />
-
-                                {item.title}
-                            </Link>
+                                item={item}
+                                isActive={isActive}
+                                onNavigate={onNavigate}
+                            />
                         );
                     })}
                 </nav>
@@ -104,30 +88,12 @@ export function SidebarContent({
                             const isActive = isNavigationItemActive(pathname, item.href);
 
                             return (
-                                <Link
+                                <SidebarNavItem
                                     key={item.href}
-                                    href={item.href}
-                                    onClick={onNavigate}
-                                    className={cn(
-                                        "group relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-bold transition-all duration-200",
-                                        isActive
-                                            ? "bg-white text-slate-950 shadow-lg shadow-cyan-950/25"
-                                            : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
-                                    )}
-                                >
-                                    {isActive ? (
-                                        <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-500" />
-                                    ) : null}
-
-                                    <item.icon
-                                        className={cn(
-                                            "size-4 transition-transform duration-200 group-hover:scale-110",
-                                            isActive ? "text-cyan-700" : "text-slate-400",
-                                        )}
-                                    />
-
-                                    {item.title}
-                                </Link>
+                                    item={item}
+                                    isActive={isActive}
+                                    onNavigate={onNavigate}
+                                />
                             );
                         })}
                     </nav>
@@ -145,5 +111,41 @@ export function SidebarContent({
                 </a>
             </div>
         </>
+    );
+}
+
+function SidebarNavItem({
+    item,
+    isActive,
+    onNavigate,
+}: {
+    item: SidebarNavigationItem;
+    isActive: boolean;
+    onNavigate?: () => void;
+}) {
+    return (
+        <Link
+            href={item.href}
+            onClick={onNavigate}
+            className={cn(
+                "group relative flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-bold transition-all duration-200",
+                isActive
+                    ? "bg-white text-slate-950 shadow-lg shadow-cyan-950/25"
+                    : "text-slate-300 hover:bg-white/[0.06] hover:text-white",
+            )}
+        >
+            {isActive ? (
+                <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-500" />
+            ) : null}
+
+            <item.icon
+                className={cn(
+                    "size-4 transition-transform duration-200 group-hover:scale-110",
+                    isActive ? "text-cyan-700" : "text-slate-400",
+                )}
+            />
+
+            {item.title}
+        </Link>
     );
 }

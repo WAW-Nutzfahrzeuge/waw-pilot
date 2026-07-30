@@ -33,6 +33,16 @@ type CustomersListPanelProps = {
     highlightedCustomerId?: string;
 };
 
+type CustomerListDisplayRow = CustomerRow & {
+    displayName: string;
+    subtitle: string;
+    address: string;
+    typeLabel: string;
+    typeTone: ReturnType<typeof getCustomerTypeTone>;
+    createdAtLabel: string;
+    searchableText: string;
+};
+
 export function CustomersListPanel({
     customers,
     highlightedCustomerId,
@@ -62,34 +72,56 @@ export function CustomersListPanel({
         };
     }, [highlightedCustomerId]);
 
+    const customerItems = useMemo<CustomerListDisplayRow[]>(() => {
+        return customers.map((customer) => {
+            const displayName = getCustomerDisplayName(customer);
+            const subtitle = getCustomerSubtitle(customer);
+            const address = getCustomerAddress(customer);
+            const typeLabel = getCustomerTypeLabel(customer.type);
+
+            return {
+                ...customer,
+                displayName,
+                subtitle,
+                address,
+                typeLabel,
+                typeTone: getCustomerTypeTone(customer.type),
+                createdAtLabel: formatDate(customer.created_at),
+                searchableText: [
+                    displayName,
+                    subtitle,
+                    address,
+                    typeLabel,
+                    customer.company_name,
+                    customer.owner_name,
+                    customer.first_name,
+                    customer.last_name,
+                    customer.street,
+                    customer.postal_code,
+                    customer.city,
+                    customer.country,
+                    customer.email,
+                    customer.phone,
+                    customer.tax_number,
+                    customer.vat_id,
+                    customer.commercial_register_number,
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+                    .toLowerCase(),
+            };
+        });
+    }, [customers]);
+
     const filteredCustomers = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        if (!normalizedQuery) return customers;
+        if (!normalizedQuery) return customerItems;
 
-        return customers.filter((customer) => {
-            const searchableText = [
-                customer.company_name,
-                customer.owner_name,
-                customer.first_name,
-                customer.last_name,
-                customer.street,
-                customer.postal_code,
-                customer.city,
-                customer.country,
-                customer.email,
-                customer.phone,
-                customer.tax_number,
-                customer.vat_id,
-                customer.commercial_register_number,
-            ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(normalizedQuery);
-        });
-    }, [query, customers]);
+        return customerItems.filter((customer) =>
+            customer.searchableText.includes(normalizedQuery),
+        );
+    }, [query, customerItems]);
 
     return (
         <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
@@ -147,16 +179,16 @@ export function CustomersListPanel({
                                                 href={`/dashboard/customers/${customer.id}`}
                                                 className="text-base font-extrabold text-slate-950 hover:text-cyan-700 hover:underline"
                                             >
-                                                {getCustomerDisplayName(customer)}
+                                                {customer.displayName}
                                             </Link>
                                             <p className="mt-1 text-sm font-semibold text-slate-500">
-                                                {getCustomerSubtitle(customer)}
+                                                {customer.subtitle}
                                             </p>
                                         </div>
                                     </div>
 
-                                    <StatusBadge tone={getCustomerTypeTone(customer.type)}>
-                                        {getCustomerTypeLabel(customer.type)}
+                                    <StatusBadge tone={customer.typeTone}>
+                                        {customer.typeLabel}
                                     </StatusBadge>
                                 </div>
 
@@ -165,7 +197,7 @@ export function CustomersListPanel({
                                         Adresse
                                     </p>
                                     <p className="mt-1 text-sm font-bold leading-6 text-slate-700">
-                                        {getCustomerAddress(customer)}
+                                        {customer.address}
                                     </p>
                                 </div>
 
@@ -282,16 +314,14 @@ export function CustomersListPanel({
                                                         href={`/dashboard/customers/${customer.id}`}
                                                         className="font-extrabold text-slate-950 hover:text-cyan-700 hover:underline"
                                                     >
-                                                        {getCustomerDisplayName(customer)}
+                                                        {customer.displayName}
                                                     </Link>
                                                     <p className="mt-1 text-sm font-medium text-slate-500">
-                                                        {getCustomerSubtitle(customer)}
+                                                        {customer.subtitle}
                                                     </p>
                                                     <div className="mt-2">
-                                                        <StatusBadge
-                                                            tone={getCustomerTypeTone(customer.type)}
-                                                        >
-                                                            {getCustomerTypeLabel(customer.type)}
+                                                        <StatusBadge tone={customer.typeTone}>
+                                                            {customer.typeLabel}
                                                         </StatusBadge>
                                                     </div>
                                                 </div>
@@ -300,7 +330,7 @@ export function CustomersListPanel({
 
                                         <td className="px-5 py-5">
                                             <p className="max-w-xs text-sm font-semibold leading-6 text-slate-700">
-                                                {getCustomerAddress(customer)}
+                                                {customer.address}
                                             </p>
                                         </td>
 
@@ -347,7 +377,7 @@ export function CustomersListPanel({
 
                                         <td className="px-5 py-5">
                                             <p className="text-sm font-semibold text-slate-700">
-                                                {formatDate(customer.created_at)}
+                                                {customer.createdAtLabel}
                                             </p>
                                         </td>
 
