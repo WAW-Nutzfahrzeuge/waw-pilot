@@ -45,6 +45,11 @@ type InvoicesOverviewProps = {
 
 type InvoiceFilter = "all" | "standard" | "proforma";
 
+const amountSearchFormatter = new Intl.NumberFormat("de-DE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
+
 function normalizeSearchText(value: string): string {
     return value
         .toLowerCase()
@@ -88,10 +93,7 @@ function parseSearchAmount(value: string): number | null {
 function getAmountSearchValues(amount: number): string[] {
     const fixedAmount = amount.toFixed(2);
     const roundedAmount = String(Math.round(amount));
-    const germanAmount = new Intl.NumberFormat("de-DE", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    }).format(amount);
+    const germanAmount = amountSearchFormatter.format(amount);
 
     return [
         fixedAmount,

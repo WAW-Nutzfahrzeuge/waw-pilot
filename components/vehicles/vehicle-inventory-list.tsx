@@ -34,23 +34,27 @@ type InventoryListDisplayRow = InventoryListRow & {
     statusClassName: string;
 };
 
+const inventoryDateFormatter = new Intl.DateTimeFormat("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+});
+
+const inventoryMoneyFormatter = new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency: "EUR",
+});
+
 function formatDate(value: string | null): string {
     if (!value) return "—";
 
-    return new Intl.DateTimeFormat("de-DE", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-    }).format(new Date(value));
+    return inventoryDateFormatter.format(new Date(value));
 }
 
 function formatMoney(value: number | null): string {
     if (value === null) return "—";
 
-    return new Intl.NumberFormat("de-DE", {
-        style: "currency",
-        currency: "EUR",
-    }).format(value);
+    return inventoryMoneyFormatter.format(value);
 }
 
 function getStatusLabel(status: InventoryListRow["status"]): string {
