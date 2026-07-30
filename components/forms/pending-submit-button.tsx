@@ -3,16 +3,17 @@
 import type { ComponentProps } from "react";
 import { useFormStatus } from "react-dom";
 import type { LucideIcon } from "lucide-react";
-import { FilePlus2, FileText, Loader2, Mail } from "lucide-react";
+import { FilePlus2, FileText, Loader2, Mail, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-type PendingSubmitButtonIconName = "file-plus" | "file-text" | "mail";
+type PendingSubmitButtonIconName = "file-plus" | "file-text" | "mail" | "trash";
 
 const pendingSubmitButtonIcons: Record<PendingSubmitButtonIconName, LucideIcon> = {
     "file-plus": FilePlus2,
     "file-text": FileText,
     mail: Mail,
+    trash: Trash2,
 };
 
 type PendingSubmitButtonProps = Omit<
