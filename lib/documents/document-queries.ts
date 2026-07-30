@@ -1,4 +1,5 @@
 import { getCurrentCompanyId } from "@/lib/company";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapDocumentListItemToLegacyRow } from "@/src/modules/documents/application/mappers/legacy-document-row.mapper";
 import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/factories/document-use-case.factory";
 
@@ -31,6 +32,16 @@ export type DocumentRow = {
     review_href: string | null;
 };
 
+export type DocumentDashboardSummary = {
+    documentsCount: number;
+    incompleteDocumentsCount: number;
+};
+
+export type DocumentsToCheckSummary = {
+    count: number;
+    documents: DocumentRow[];
+};
+
 export async function getDocuments(): Promise<DocumentRow[]> {
     const companyId = getCurrentCompanyId();
     const { searchDocuments } = createDocumentUseCases();
@@ -41,4 +52,50 @@ export async function getDocuments(): Promise<DocumentRow[]> {
     });
 
     return result.documents.map(mapDocumentListItemToLegacyRow);
+}
+
+export async function getDocumentDashboardSummary(): Promise<DocumentDashboardSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("documents")
+        .select("status")
+        .eq("company_id", companyId)
+        .neq("status", "missing");
+
+    if (error) {
+        throw new Error(
+            `Dokumenten-Zusammenfassung konnte nicht geladen werden: ${error.message}`,
+        );
+    }
+
+    let incompleteDocumentsCount = 0;
+
+    for (const document of data ?? []) {
+        if (document.status !== "available") {
+            incompleteDocumentsCount += 1;
+        }
+    }
+
+    return {
+        documentsCount: data?.length ?? 0,
+        incompleteDocumentsCount,
+    };
+}
+
+export async function getDocumentsToCheckSummary(): Promise<DocumentsToCheckSummary> {
+    const companyId = getCurrentCompanyId();
+    const { searchDocuments } = createDocumentUseCases();
+    const result = await searchDocuments.execute({
+        companyId,
+        needsReviewOnly: true,
+        limit: 10,
+        includeCount: true,
+    });
+
+    return {
+        count: result.totalCount,
+        documents: result.documents.map(mapDocumentListItemToLegacyRow),
+    };
 }

@@ -1,7 +1,7 @@
 import { getCashbookEntries } from "@/lib/cashbook/cashbook-queries";
 import { calculateBalance } from "@/lib/cashbook/cashbook-helpers";
 import { getCustomers } from "@/lib/customers/customer-queries";
-import { getDocuments } from "@/lib/documents/document-queries";
+import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
 import { getInvoices } from "@/lib/invoices/invoice-queries";
 import { getLicensePlateCases } from "@/lib/license-plates/license-plate-queries";
 import {
@@ -81,7 +81,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         vehicles,
         sales,
         invoices,
-        documents,
+        documentSummary,
         cashbookEntries,
         licensePlateCases,
         purchaseCases,
@@ -90,7 +90,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getVehicles(),
         getSales(),
         getInvoices(),
-        getDocuments(),
+        getDocumentDashboardSummary(),
         getCashbookEntries(),
         getLicensePlateCases(),
         getPurchaseCases(),
@@ -146,13 +146,6 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     for (const entry of cashbookEntries) {
         if (matchesMonthFilter(entry.booking_date, monthFilter)) {
             filteredCashbookEntries.push(entry);
-        }
-    }
-
-    let incompleteDocumentsCount = 0;
-    for (const document of documents) {
-        if (document.status !== "available") {
-            incompleteDocumentsCount += 1;
         }
     }
 
@@ -242,9 +235,9 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         });
     }
 
-    if (incompleteDocumentsCount > 0) {
+    if (documentSummary.incompleteDocumentsCount > 0) {
         openActions.push({
-            label: `${incompleteDocumentsCount} Dokument(e) prüfen`,
+            label: `${documentSummary.incompleteDocumentsCount} Dokument(e) prüfen`,
             description: "Dokumentenarchiv auf fehlende oder zu prüfende Dateien kontrollieren.",
             href: "/dashboard/documents?status=open",
             tone: "info",
@@ -258,7 +251,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         soldVehiclesCount,
         salesCount,
         invoicesCount: filteredInvoicesCount,
-        documentsCount: documents.length,
+        documentsCount: documentSummary.documentsCount,
 
         licensePlateCasesCount: licensePlateCases.length,
         openLicensePlateCasesCount,
@@ -271,7 +264,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         completedPurchaseCasesCount,
 
         openInvoicesCount,
-        incompleteDocumentsCount,
+        incompleteDocumentsCount: documentSummary.incompleteDocumentsCount,
         totalRevenueNet,
         totalProfitNet,
         cashbookBalance: calculateBalance(filteredCashbookEntries),
