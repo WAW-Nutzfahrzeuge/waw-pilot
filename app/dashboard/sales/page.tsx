@@ -11,8 +11,10 @@ type SalesPageProps = {
 };
 
 export default async function SalesPage({ searchParams }: SalesPageProps) {
-    const resolvedSearchParams = await searchParams;
-    const sales = await getSales();
+    const [resolvedSearchParams, sales] = await Promise.all([
+        searchParams,
+        getSales(),
+    ]);
 
     return (
         <SalesOverview

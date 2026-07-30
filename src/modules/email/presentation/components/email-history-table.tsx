@@ -9,6 +9,11 @@ type EmailHistoryTableProps = {
     emptyText?: string;
 };
 
+type EmailHistoryDisplayItem = EmailListItemDto & {
+    recipientsLabel: string;
+    dateLabel: string;
+};
+
 function formatRecipients(recipients: EmailListItemDto["toRecipients"]): string {
     return recipients
         .map((recipient) => recipient.name || recipient.email)
@@ -19,6 +24,12 @@ export function EmailHistoryTable({
     emails,
     emptyText = "Es wurden noch keine E-Mails gefunden.",
 }: EmailHistoryTableProps) {
+    const displayEmails: EmailHistoryDisplayItem[] = emails.map((email) => ({
+        ...email,
+        recipientsLabel: formatRecipients(email.toRecipients),
+        dateLabel: formatDate(email.sentAt ?? email.createdAt),
+    }));
+
     if (emails.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm font-semibold text-slate-500">
@@ -42,7 +53,7 @@ export function EmailHistoryTable({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {emails.map((email) => (
+                        {displayEmails.map((email) => (
                             <tr key={email.id} className="hover:bg-cyan-50/50">
                                 <td className="px-4 py-3">
                                     <EmailStatusBadge status={email.status} />
@@ -53,10 +64,10 @@ export function EmailHistoryTable({
                                     </Link>
                                 </td>
                                 <td className="px-4 py-3 font-semibold text-slate-600">
-                                    {formatDate(email.sentAt ?? email.createdAt)}
+                                    {email.dateLabel}
                                 </td>
                                 <td className="px-4 py-3 text-slate-700">
-                                    {formatRecipients(email.toRecipients)}
+                                    {email.recipientsLabel}
                                 </td>
                                 <td className="px-4 py-3 text-slate-700">{email.subject}</td>
                                 <td className="px-4 py-3 text-right font-bold text-slate-700">

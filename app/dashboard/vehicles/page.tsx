@@ -10,9 +10,15 @@ type VehiclesPageProps = {
     }>;
 };
 
+type VehiclesPageSearchParams = Awaited<NonNullable<VehiclesPageProps["searchParams"]>>;
+
 export default async function VehiclesPage({ searchParams }: VehiclesPageProps) {
-    const vehicles = await getVehicles();
-    const params = searchParams ? await searchParams : {};
+    const searchParamsPromise: Promise<VehiclesPageSearchParams> =
+        searchParams ?? Promise.resolve({});
+    const [vehicles, params] = await Promise.all([
+        getVehicles(),
+        searchParamsPromise,
+    ]);
 
     return (
         <VehicleInventory

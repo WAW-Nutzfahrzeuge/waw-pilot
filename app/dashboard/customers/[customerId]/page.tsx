@@ -16,11 +16,11 @@ export default async function CustomerDetailPage({
                                                      params,
                                                      searchParams,
                                                  }: CustomerDetailPageProps) {
-    const [{ customerId }, resolvedSearchParams] = await Promise.all([
-        params,
+    const { customerId } = await params;
+    const [resolvedSearchParams, customer] = await Promise.all([
         searchParams,
+        getCustomerDetail(customerId),
     ]);
-    const customer = await getCustomerDetail(customerId);
 
     return (
         <CustomerDetail

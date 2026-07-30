@@ -39,12 +39,10 @@ export default async function SaleDetailPage({
                                                  params,
                                                  searchParams,
                                              }: SaleDetailPageProps) {
-    const [{ saleId }, resolvedSearchParams] = await Promise.all([
-        params,
-        searchParams,
-    ]);
+    const { saleId } = await params;
 
-    const [sale, generatedDocuments, exportDetails] = await Promise.all([
+    const [resolvedSearchParams, sale, generatedDocuments, exportDetails] = await Promise.all([
+        searchParams,
         getSaleDetail(saleId),
         getSaleGeneratedDocumentChecks(saleId),
         getSaleExportDetails(saleId),

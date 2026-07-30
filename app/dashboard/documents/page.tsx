@@ -12,8 +12,10 @@ type DocumentsPageProps = {
 };
 
 export default async function DocumentsPage({ searchParams }: DocumentsPageProps) {
-    const resolvedSearchParams = await searchParams;
-    const documents = await getDocuments();
+    const [resolvedSearchParams, documents] = await Promise.all([
+        searchParams,
+        getDocuments(),
+    ]);
 
     return (
         <DocumentsOverview

@@ -13,8 +13,10 @@ type CustomersPageProps = {
 };
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-    const resolvedSearchParams = await searchParams;
-    const customers = await getCustomers();
+    const [resolvedSearchParams, customers] = await Promise.all([
+        searchParams,
+        getCustomers(),
+    ]);
 
     return (
         <CustomersOverview

@@ -11,16 +11,19 @@ type PurchaseDetailPageProps = {
     }>;
 };
 
+type PurchaseDetailSearchParams = Awaited<NonNullable<PurchaseDetailPageProps["searchParams"]>>;
+
 export default async function PurchaseDetailPage({
                                                      params,
                                                      searchParams,
                                                  }: PurchaseDetailPageProps) {
-    const [{ purchaseId }, resolvedSearchParams] = await Promise.all([
-        params,
-        searchParams,
+    const { purchaseId } = await params;
+    const searchParamsPromise: Promise<PurchaseDetailSearchParams> =
+        searchParams ?? Promise.resolve({});
+    const [resolvedSearchParams, purchase] = await Promise.all([
+        searchParamsPromise,
+        getPurchaseCaseDetail(purchaseId),
     ]);
-
-    const purchase = await getPurchaseCaseDetail(purchaseId);
 
     return (
         <PurchaseDetail

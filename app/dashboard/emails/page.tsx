@@ -10,9 +10,15 @@ type EmailsPageProps = {
     }>;
 };
 
+type EmailsPageSearchParams = Awaited<NonNullable<EmailsPageProps["searchParams"]>>;
+
 export default async function EmailsPage({ searchParams }: EmailsPageProps) {
-    const params = (await searchParams) ?? {};
-    const repository = await createEmailRepository();
+    const searchParamsPromise: Promise<EmailsPageSearchParams> =
+        searchParams ?? Promise.resolve({});
+    const [params, repository] = await Promise.all([
+        searchParamsPromise,
+        createEmailRepository(),
+    ]);
     const result = await repository.search({
         companyId: getCurrentCompanyId(),
         search: params.q ?? null,

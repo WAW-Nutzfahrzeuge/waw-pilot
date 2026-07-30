@@ -17,11 +17,11 @@ export default async function VehicleDetailPage({
                                                     params,
                                                     searchParams,
                                                 }: VehicleDetailPageProps) {
-    const [{ vehicleId }, resolvedSearchParams] = await Promise.all([
-        params,
+    const { vehicleId } = await params;
+    const [resolvedSearchParams, vehicle] = await Promise.all([
         searchParams,
+        getVehicleDetail(vehicleId),
     ]);
-    const vehicle = await getVehicleDetail(vehicleId);
 
     return (
         <VehicleDetail

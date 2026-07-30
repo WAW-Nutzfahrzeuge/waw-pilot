@@ -14,12 +14,11 @@ export default async function LicensePlateDetailPage({
                                                          params,
                                                          searchParams,
                                                      }: LicensePlateDetailPageProps) {
-    const [{ plateCaseId }, resolvedSearchParams] = await Promise.all([
-        params,
+    const { plateCaseId } = await params;
+    const [resolvedSearchParams, plateCase] = await Promise.all([
         searchParams,
+        getLicensePlateCaseDetail(plateCaseId),
     ]);
-
-    const plateCase = await getLicensePlateCaseDetail(plateCaseId);
 
     return (
         <LicensePlateDetail

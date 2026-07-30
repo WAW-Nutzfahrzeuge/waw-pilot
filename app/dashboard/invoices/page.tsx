@@ -12,8 +12,10 @@ type InvoicesPageProps = {
 };
 
 export default async function InvoicesPage({ searchParams }: InvoicesPageProps) {
-    const resolvedSearchParams = await searchParams;
-    const invoices = await getInvoices();
+    const [resolvedSearchParams, invoices] = await Promise.all([
+        searchParams,
+        getInvoices(),
+    ]);
 
     return (
         <InvoicesOverview
