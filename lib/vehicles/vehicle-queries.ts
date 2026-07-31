@@ -55,6 +55,11 @@ type VehicleDocumentRow = {
 
 type VehicleDashboardRow = {
     id: string;
+    status: VehicleStatus;
+};
+
+type RecentVehicleDashboardRow = {
+    id: string;
     internal_number: string;
     manufacturer: string;
     model: string;
@@ -149,17 +154,28 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data, error } = await supabase
-        .from("vehicles")
-        .select("id, internal_number, manufacturer, model, status, created_at")
-        .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+    const [vehiclesResult, recentVehiclesResult] = await Promise.all([
+        supabase
+            .from("vehicles")
+            .select("id, status")
+            .eq("company_id", companyId),
+        supabase
+            .from("vehicles")
+            .select("id, internal_number, manufacturer, model, status, created_at")
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
+            .limit(4),
+    ]);
 
-    if (error) {
-        throw new Error(`Fahrzeug-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
+    if (vehiclesResult.error) {
+        throw new Error(`Fahrzeug-Zusammenfassung konnte nicht geladen werden: ${vehiclesResult.error.message}`);
     }
 
-    const vehicles = (data ?? []) as VehicleDashboardRow[];
+    if (recentVehiclesResult.error) {
+        throw new Error(`Aktuelle Fahrzeuge konnten nicht geladen werden: ${recentVehiclesResult.error.message}`);
+    }
+
+    const vehicles = (vehiclesResult.data ?? []) as VehicleDashboardRow[];
     const vehicleIds = vehicles.map((vehicle) => vehicle.id);
     const availableDocumentsByVehicleId = new Map<string, number>();
 
@@ -213,7 +229,9 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
         currentVehiclesCount,
         soldVehiclesCount,
         vehiclesWithOpenDocumentsCount,
-        recentVehicles: vehicles.slice(0, 4).map((vehicle) => ({
+        recentVehicles: (
+            (recentVehiclesResult.data ?? []) as RecentVehicleDashboardRow[]
+        ).map((vehicle) => ({
             id: vehicle.id,
             internalNumber: vehicle.internal_number,
             name: `${vehicle.manufacturer} ${vehicle.model}`,

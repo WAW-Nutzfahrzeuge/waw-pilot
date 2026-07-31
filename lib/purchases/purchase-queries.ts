@@ -68,12 +68,6 @@ type PurchaseCaseQueryRow = {
     } | null;
 };
 
-type PurchaseDashboardSummaryRow = {
-    status: PurchaseCaseStatus;
-    payment_status: PurchaseCasePaymentStatus;
-    document_check_status: PurchaseCaseDocumentStatus;
-};
-
 export type PurchaseDashboardSummary = {
     purchaseCasesCount: number;
     openPurchasePaymentsCount: number;
@@ -189,38 +183,62 @@ export async function getPurchaseDashboardSummary(): Promise<PurchaseDashboardSu
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data, error } = await supabase
-        .from("purchase_cases")
-        .select("status, payment_status, document_check_status")
-        .eq("company_id", companyId);
+    const [
+        totalResult,
+        openPaymentsResult,
+        incompleteDocumentsResult,
+        completedResult,
+    ] = await Promise.all([
+        supabase
+            .from("purchase_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId),
+        supabase
+            .from("purchase_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .neq("payment_status", "paid"),
+        supabase
+            .from("purchase_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .neq("document_check_status", "complete"),
+        supabase
+            .from("purchase_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("status", "completed"),
+    ]);
 
-    if (error) {
-        throw new Error(`Ankaufs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
+    if (totalResult.error) {
+        throw new Error(
+            `Ankaufs-Zusammenfassung konnte nicht geladen werden: ${totalResult.error.message}`,
+        );
     }
 
-    let openPurchasePaymentsCount = 0;
-    let incompletePurchaseDocumentsCount = 0;
-    let completedPurchaseCasesCount = 0;
+    if (openPaymentsResult.error) {
+        throw new Error(
+            `Offene Ankaufszahlungen konnten nicht geladen werden: ${openPaymentsResult.error.message}`,
+        );
+    }
 
-    for (const purchase of (data ?? []) as PurchaseDashboardSummaryRow[]) {
-        if (purchase.payment_status !== "paid") {
-            openPurchasePaymentsCount += 1;
-        }
+    if (incompleteDocumentsResult.error) {
+        throw new Error(
+            `Offene Ankaufsdokumente konnten nicht geladen werden: ${incompleteDocumentsResult.error.message}`,
+        );
+    }
 
-        if (purchase.document_check_status !== "complete") {
-            incompletePurchaseDocumentsCount += 1;
-        }
-
-        if (purchase.status === "completed") {
-            completedPurchaseCasesCount += 1;
-        }
+    if (completedResult.error) {
+        throw new Error(
+            `Abgeschlossene Ankäufe konnten nicht geladen werden: ${completedResult.error.message}`,
+        );
     }
 
     return {
-        purchaseCasesCount: data?.length ?? 0,
-        openPurchasePaymentsCount,
-        incompletePurchaseDocumentsCount,
-        completedPurchaseCasesCount,
+        purchaseCasesCount: totalResult.count ?? 0,
+        openPurchasePaymentsCount: openPaymentsResult.count ?? 0,
+        incompletePurchaseDocumentsCount: incompleteDocumentsResult.count ?? 0,
+        completedPurchaseCasesCount: completedResult.count ?? 0,
     };
 }
 
