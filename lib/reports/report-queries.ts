@@ -4,11 +4,105 @@ import {
     calculateTotalExpenses,
     calculateTotalIncome,
 } from "@/lib/cashbook/cashbook-helpers";
-import { getInvoices } from "@/lib/invoices/invoice-queries";
-import { getPurchaseCases } from "@/lib/purchases/purchase-queries";
-import { getSales } from "@/lib/sales/sale-queries";
-import { getSaleProfitNet } from "@/lib/sales/sale-helpers";
+import { getCurrentCompanyId } from "@/lib/company";
 import { getVehicleReportSummary } from "@/lib/vehicles/vehicle-queries";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+
+type SupabaseRelation<T> = T | T[] | null;
+
+type ReportSaleRow = {
+    id: string;
+    sale_date: string;
+    net_amount: number | string;
+    gross_amount: number | string;
+    vehicles: {
+        manufacturer: string;
+        model: string;
+        purchase_price_net: number | string;
+        additional_costs_net: number | string;
+    } | null;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+    } | null;
+    invoices: SupabaseRelation<{
+        invoice_number: string;
+        invoice_type: string | null;
+    }>;
+};
+
+type ReportInvoiceRow = {
+    id: string;
+    sale_id: string;
+    invoice_number: string;
+    invoice_date: string;
+    gross_amount: number | string;
+    payment_status: string;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+    } | null;
+    vehicles: {
+        manufacturer: string;
+        model: string;
+    } | null;
+};
+
+type ReportPurchaseRow = {
+    id: string;
+    purchase_number: string | null;
+    purchase_date: string;
+    net_amount: number | string;
+    gross_amount: number | string;
+    payment_status: string;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+    } | null;
+    vehicles: {
+        manufacturer: string;
+        model: string;
+    } | null;
+};
+
+type ReportSale = {
+    id: string;
+    invoiceNumber: string | null;
+    customerName: string;
+    vehicleName: string;
+    saleDate: string;
+    revenueNet: number;
+    salesGross: number;
+    profitNet: number;
+};
+
+type ReportInvoice = {
+    id: string;
+    saleId: string;
+    invoiceNumber: string;
+    customerName: string;
+    vehicleName: string;
+    grossAmount: number;
+    invoiceDate: string;
+    paymentStatus: string;
+};
+
+type ReportPurchase = {
+    id: string;
+    purchaseNumber: string | null;
+    sellerName: string | null;
+    vehicleName: string | null;
+    purchaseDate: string;
+    netAmount: number;
+    grossAmount: number;
+    paymentStatus: string;
+};
 
 export type ReportsPeriod =
     | "all"
@@ -169,16 +263,239 @@ function getCustomPeriodLabel(dateFrom: string | null, dateTo: string | null): s
     return "Individueller Zeitraum";
 }
 
-function isInDateRange(
-    dateString: string | null | undefined,
+function getSingleRelation<T>(relation: SupabaseRelation<T>): T | null {
+    if (!relation) return null;
+    if (Array.isArray(relation)) return relation[0] ?? null;
+
+    return relation;
+}
+
+function getManyRelation<T>(relation: SupabaseRelation<T>): T[] {
+    if (!relation) return [];
+    if (Array.isArray(relation)) return relation;
+
+    return [relation];
+}
+
+function getCustomerName(
+    customer:
+        | ReportSaleRow["customers"]
+        | ReportInvoiceRow["customers"]
+        | ReportPurchaseRow["customers"],
+): string {
+    if (!customer) return "Unbekannter Kunde";
+
+    if (customer.type === "company") {
+        return customer.company_name ?? "Unbekannte Firma";
+    }
+
+    const privateName = [customer.first_name, customer.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    return privateName || "Unbekannte Privatperson";
+}
+
+function getVehicleName(
+    vehicle:
+        | ReportSaleRow["vehicles"]
+        | ReportInvoiceRow["vehicles"]
+        | ReportPurchaseRow["vehicles"],
+): string {
+    if (!vehicle) return "Unbekanntes Fahrzeug";
+
+    return `${vehicle.manufacturer} ${vehicle.model}`;
+}
+
+function getPrimaryInvoiceNumber(invoices: ReportSaleRow["invoices"]): string | null {
+    const invoiceList = getManyRelation(invoices);
+    const primaryInvoice =
+        invoiceList.find((invoice) => invoice.invoice_type === "standard") ??
+        getSingleRelation(invoices);
+
+    return primaryInvoice?.invoice_number ?? null;
+}
+
+async function getReportSales(
     dateFrom: string | null,
     dateTo: string | null,
-): boolean {
-    if (!dateString) return false;
-    if (dateFrom && dateString < dateFrom) return false;
-    if (dateTo && dateString > dateTo) return false;
+): Promise<ReportSale[]> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
 
-    return true;
+    let query = supabase
+        .from("sales")
+        .select(
+            `
+      id,
+      sale_date,
+      net_amount,
+      gross_amount,
+      vehicles (
+        manufacturer,
+        model,
+        purchase_price_net,
+        additional_costs_net
+      ),
+      customers:buyer_customer_id (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      invoices (
+        invoice_number,
+        invoice_type
+      )
+    `,
+        )
+        .eq("company_id", companyId);
+
+    if (dateFrom) {
+        query = query.gte("sale_date", dateFrom);
+    }
+
+    if (dateTo) {
+        query = query.lte("sale_date", dateTo);
+    }
+
+    const { data, error } = await query.order("sale_date", { ascending: false });
+
+    if (error) {
+        throw new Error(`Verkaufsberichte konnten nicht geladen werden: ${error.message}`);
+    }
+
+    return ((data ?? []) as unknown as ReportSaleRow[]).map((sale) => {
+        const revenueNet = Number(sale.net_amount);
+        const purchasePriceNet = Number(sale.vehicles?.purchase_price_net ?? 0);
+        const additionalCostsNet = Number(sale.vehicles?.additional_costs_net ?? 0);
+
+        return {
+            id: sale.id,
+            invoiceNumber: getPrimaryInvoiceNumber(sale.invoices),
+            customerName: getCustomerName(sale.customers),
+            vehicleName: getVehicleName(sale.vehicles),
+            saleDate: sale.sale_date,
+            revenueNet,
+            salesGross: Number(sale.gross_amount),
+            profitNet: revenueNet - purchasePriceNet - additionalCostsNet,
+        };
+    });
+}
+
+async function getReportInvoices(
+    dateFrom: string | null,
+    dateTo: string | null,
+): Promise<ReportInvoice[]> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    let query = supabase
+        .from("invoices")
+        .select(
+            `
+      id,
+      sale_id,
+      invoice_number,
+      invoice_date,
+      gross_amount,
+      payment_status,
+      customers (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      vehicles (
+        manufacturer,
+        model
+      )
+    `,
+        )
+        .eq("company_id", companyId);
+
+    if (dateFrom) {
+        query = query.gte("invoice_date", dateFrom);
+    }
+
+    if (dateTo) {
+        query = query.lte("invoice_date", dateTo);
+    }
+
+    const { data, error } = await query.order("invoice_date", { ascending: false });
+
+    if (error) {
+        throw new Error(`Rechnungsberichte konnten nicht geladen werden: ${error.message}`);
+    }
+
+    return ((data ?? []) as unknown as ReportInvoiceRow[]).map((invoice) => ({
+        id: invoice.id,
+        saleId: invoice.sale_id,
+        invoiceNumber: invoice.invoice_number,
+        customerName: getCustomerName(invoice.customers),
+        vehicleName: getVehicleName(invoice.vehicles),
+        grossAmount: Number(invoice.gross_amount),
+        invoiceDate: invoice.invoice_date,
+        paymentStatus: invoice.payment_status,
+    }));
+}
+
+async function getReportPurchases(
+    dateFrom: string | null,
+    dateTo: string | null,
+): Promise<ReportPurchase[]> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    let query = supabase
+        .from("purchase_cases")
+        .select(
+            `
+      id,
+      purchase_number,
+      purchase_date,
+      net_amount,
+      gross_amount,
+      payment_status,
+      customers:seller_customer_id (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      vehicles (
+        manufacturer,
+        model
+      )
+    `,
+        )
+        .eq("company_id", companyId);
+
+    if (dateFrom) {
+        query = query.gte("purchase_date", dateFrom);
+    }
+
+    if (dateTo) {
+        query = query.lte("purchase_date", dateTo);
+    }
+
+    const { data, error } = await query.order("purchase_date", { ascending: false });
+
+    if (error) {
+        throw new Error(`Ankaufsberichte konnten nicht geladen werden: ${error.message}`);
+    }
+
+    return ((data ?? []) as unknown as ReportPurchaseRow[]).map((purchase) => ({
+        id: purchase.id,
+        purchaseNumber: purchase.purchase_number,
+        sellerName: getCustomerName(purchase.customers),
+        vehicleName: purchase.vehicles ? getVehicleName(purchase.vehicles) : null,
+        purchaseDate: purchase.purchase_date,
+        netAmount: Number(purchase.net_amount),
+        grossAmount: Number(purchase.gross_amount),
+        paymentStatus: purchase.payment_status,
+    }));
 }
 
 export function parseReportsFilters(searchParams: {
@@ -243,95 +560,59 @@ export async function getReportsData(
     const [vehicleSummary, sales, invoices, purchases, cashbookEntries] =
         await Promise.all([
             getVehicleReportSummary(),
-            getSales(),
-            getInvoices(),
-            getPurchaseCases(),
-            getCashbookEntries(),
+            getReportSales(dateFrom, dateTo),
+            getReportInvoices(dateFrom, dateTo),
+            getReportPurchases(dateFrom, dateTo),
+            getCashbookEntries({ from: dateFrom, to: dateTo }),
         ]);
-
-    const filteredSales =
-        dateFrom || dateTo
-            ? sales.filter((sale) => isInDateRange(sale.sale_date, dateFrom, dateTo))
-            : sales;
-
-    const filteredInvoices =
-        dateFrom || dateTo
-            ? invoices.filter((invoice) =>
-                isInDateRange(invoice.invoice_date, dateFrom, dateTo),
-            )
-            : invoices;
-
-    const filteredPurchases =
-        dateFrom || dateTo
-            ? purchases.filter((purchase) =>
-                isInDateRange(purchase.purchase_date, dateFrom, dateTo),
-            )
-            : purchases;
-
-    const filteredCashbookEntries =
-        dateFrom || dateTo
-            ? cashbookEntries.filter((entry) =>
-                isInDateRange(entry.booking_date, dateFrom, dateTo),
-            )
-            : cashbookEntries;
 
     let totalRevenueNet = 0;
     let totalSalesGross = 0;
     let totalProfitNet = 0;
 
-    for (const sale of filteredSales) {
-        totalRevenueNet += sale.net_amount;
-        totalSalesGross += sale.gross_amount;
-        totalProfitNet += getSaleProfitNet(sale);
+    for (const sale of sales) {
+        totalRevenueNet += sale.revenueNet;
+        totalSalesGross += sale.salesGross;
+        totalProfitNet += sale.profitNet;
     }
 
     const averageProfitNet =
-        filteredSales.length > 0
-            ? totalProfitNet / filteredSales.length
+        sales.length > 0
+            ? totalProfitNet / sales.length
             : 0;
 
-    const openPurchasePayments: typeof filteredPurchases = [];
+    const openPurchasePayments: typeof purchases = [];
     let totalPurchaseNet = 0;
     let totalPurchaseGross = 0;
     let openPurchasePaymentsGross = 0;
 
-    for (const purchase of filteredPurchases) {
-        const isOpen = purchase.payment_status !== "paid";
+    for (const purchase of purchases) {
+        const isOpen = purchase.paymentStatus !== "paid";
 
-        totalPurchaseNet += purchase.net_amount;
-        totalPurchaseGross += purchase.gross_amount;
+        totalPurchaseNet += purchase.netAmount;
+        totalPurchaseGross += purchase.grossAmount;
 
         if (!isOpen) continue;
 
-        openPurchasePaymentsGross += purchase.gross_amount;
+        openPurchasePaymentsGross += purchase.grossAmount;
         if (openPurchasePayments.length < 5) {
             openPurchasePayments.push(purchase);
         }
     }
 
-    const openInvoices: typeof filteredInvoices = [];
+    const openInvoices: typeof invoices = [];
     let openInvoicesCount = 0;
     let openInvoicesGross = 0;
 
-    for (const invoice of filteredInvoices) {
-        if (invoice.payment_status === "paid") continue;
+    for (const invoice of invoices) {
+        if (invoice.paymentStatus === "paid") continue;
 
         openInvoicesCount += 1;
-        openInvoicesGross += invoice.gross_amount;
+        openInvoicesGross += invoice.grossAmount;
         if (openInvoices.length < 5) {
             openInvoices.push(invoice);
         }
     }
-
-    const mappedSales = filteredSales.map((sale) => ({
-        id: sale.id,
-        invoiceNumber: sale.invoice_number,
-        customerName: sale.customer_name,
-        vehicleName: sale.vehicle_name,
-        saleDate: sale.sale_date,
-        revenueNet: sale.net_amount,
-        profitNet: getSaleProfitNet(sale),
-    }));
 
     return {
         period: filters.period,
@@ -351,53 +632,53 @@ export async function getReportsData(
         openInvoicesGross,
         openInvoicesCount,
 
-        cashbookIncome: calculateTotalIncome(filteredCashbookEntries),
-        cashbookExpenses: calculateTotalExpenses(filteredCashbookEntries),
-        cashbookBalance: calculateBalance(filteredCashbookEntries),
+        cashbookIncome: calculateTotalIncome(cashbookEntries),
+        cashbookExpenses: calculateTotalExpenses(cashbookEntries),
+        cashbookBalance: calculateBalance(cashbookEntries),
 
         vehiclesCount: vehicleSummary.vehiclesCount,
         currentVehiclesCount: vehicleSummary.currentVehiclesCount,
         soldVehiclesCount: vehicleSummary.soldVehiclesCount,
         inventoryValueNet: vehicleSummary.inventoryValueNet,
 
-        topSalesByRevenue: [...mappedSales]
+        topSalesByRevenue: [...sales]
             .sort((a, b) => b.revenueNet - a.revenueNet)
             .slice(0, 5),
 
-        topSalesByProfit: [...mappedSales]
+        topSalesByProfit: [...sales]
             .sort((a, b) => b.profitNet - a.profitNet)
             .slice(0, 5),
 
-        topPurchasesByAmount: filteredPurchases
+        topPurchasesByAmount: purchases
             .map((purchase) => ({
                 id: purchase.id,
-                purchaseNumber: purchase.purchase_number,
-                sellerName: purchase.seller_name,
-                vehicleName: purchase.vehicle_name,
-                purchaseDate: purchase.purchase_date,
-                grossAmount: purchase.gross_amount,
-                paymentStatus: purchase.payment_status,
+                purchaseNumber: purchase.purchaseNumber,
+                sellerName: purchase.sellerName,
+                vehicleName: purchase.vehicleName,
+                purchaseDate: purchase.purchaseDate,
+                grossAmount: purchase.grossAmount,
+                paymentStatus: purchase.paymentStatus,
             }))
             .sort((a, b) => b.grossAmount - a.grossAmount)
             .slice(0, 5),
 
         openInvoices: openInvoices.map((invoice) => ({
             id: invoice.id,
-            saleId: invoice.sale_id,
-            invoiceNumber: invoice.invoice_number,
-            customerName: invoice.customer_name,
-            vehicleName: invoice.vehicle_name,
-            grossAmount: invoice.gross_amount,
-            invoiceDate: invoice.invoice_date,
+            saleId: invoice.saleId,
+            invoiceNumber: invoice.invoiceNumber,
+            customerName: invoice.customerName,
+            vehicleName: invoice.vehicleName,
+            grossAmount: invoice.grossAmount,
+            invoiceDate: invoice.invoiceDate,
         })),
 
         openPurchases: openPurchasePayments.map((purchase) => ({
             id: purchase.id,
-            purchaseNumber: purchase.purchase_number,
-            sellerName: purchase.seller_name,
-            vehicleName: purchase.vehicle_name,
-            grossAmount: purchase.gross_amount,
-            purchaseDate: purchase.purchase_date,
+            purchaseNumber: purchase.purchaseNumber,
+            sellerName: purchase.sellerName,
+            vehicleName: purchase.vehicleName,
+            grossAmount: purchase.grossAmount,
+            purchaseDate: purchase.purchaseDate,
         })),
     };
 }
