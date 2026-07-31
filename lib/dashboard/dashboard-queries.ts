@@ -1,5 +1,4 @@
-import { getCashbookEntries } from "@/lib/cashbook/cashbook-queries";
-import { calculateBalance } from "@/lib/cashbook/cashbook-helpers";
+import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
 import { getCustomersCount } from "@/lib/customers/customer-queries";
 import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
 import { getInvoiceDashboardSummary } from "@/lib/invoices/invoice-queries";
@@ -85,7 +84,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         salesSummary,
         invoiceSummary,
         documentSummary,
-        cashbookEntries,
+        cashbookSummary,
         licensePlateCases,
         purchaseSummary,
     ] = await Promise.all([
@@ -94,7 +93,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getSalesDashboardSummary(monthFilter),
         getInvoiceDashboardSummary(monthFilter),
         getDocumentDashboardSummary(),
-        getCashbookEntries({
+        getCashbookSummary({
             from: dateRange?.from ?? null,
             to: dateRange?.to ?? null,
         }),
@@ -202,7 +201,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         incompleteDocumentsCount: documentSummary.incompleteDocumentsCount,
         totalRevenueNet: salesSummary.totalRevenueNet,
         totalProfitNet: salesSummary.totalProfitNet,
-        cashbookBalance: calculateBalance(cashbookEntries),
+        cashbookBalance: cashbookSummary.balance,
 
         recentVehicles: vehicleSummary.recentVehicles,
 

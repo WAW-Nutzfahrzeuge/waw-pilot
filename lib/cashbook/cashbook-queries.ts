@@ -106,6 +106,17 @@ export type CashbookEntryFilters = {
     to?: string | null;
 };
 
+export type CashbookSummary = {
+    totalIncome: number;
+    totalExpenses: number;
+    balance: number;
+};
+
+type CashbookSummaryRow = {
+    entry_type: CashbookEntryType;
+    amount: number | string;
+};
+
 function isDateParam(value: string | null | undefined): value is string {
     return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -206,4 +217,50 @@ export async function getCashbookEntries(
             purchase_number: purchaseCase?.purchase_number ?? null,
         };
     });
+}
+
+export async function getCashbookSummary(
+    filters: CashbookEntryFilters = {},
+): Promise<CashbookSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    let query = supabase
+        .from("cashbook_entries")
+        .select("entry_type, amount")
+        .eq("company_id", companyId);
+
+    if (isDateParam(filters.from)) {
+        query = query.gte("booking_date", filters.from);
+    }
+
+    if (isDateParam(filters.to)) {
+        query = query.lte("booking_date", filters.to);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        throw new Error(`Kassenbuch-Summe konnte nicht geladen werden: ${error.message}`);
+    }
+
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    for (const entry of (data ?? []) as CashbookSummaryRow[]) {
+        const amount = Number(entry.amount);
+
+        if (entry.entry_type === "income") {
+            totalIncome += amount;
+            continue;
+        }
+
+        totalExpenses += amount;
+    }
+
+    return {
+        totalIncome,
+        totalExpenses,
+        balance: totalIncome - totalExpenses,
+    };
 }

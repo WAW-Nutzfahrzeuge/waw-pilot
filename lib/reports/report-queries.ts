@@ -1,9 +1,4 @@
-import { getCashbookEntries } from "@/lib/cashbook/cashbook-queries";
-import {
-    calculateBalance,
-    calculateTotalExpenses,
-    calculateTotalIncome,
-} from "@/lib/cashbook/cashbook-helpers";
+import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
 import { getCurrentCompanyId } from "@/lib/company";
 import { getVehicleReportSummary } from "@/lib/vehicles/vehicle-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -557,13 +552,13 @@ export async function getReportsData(
             ? getCustomPeriodLabel(dateFrom, dateTo)
             : presetRange.label;
 
-    const [vehicleSummary, sales, invoices, purchases, cashbookEntries] =
+    const [vehicleSummary, sales, invoices, purchases, cashbookSummary] =
         await Promise.all([
             getVehicleReportSummary(),
             getReportSales(dateFrom, dateTo),
             getReportInvoices(dateFrom, dateTo),
             getReportPurchases(dateFrom, dateTo),
-            getCashbookEntries({ from: dateFrom, to: dateTo }),
+            getCashbookSummary({ from: dateFrom, to: dateTo }),
         ]);
 
     let totalRevenueNet = 0;
@@ -632,9 +627,9 @@ export async function getReportsData(
         openInvoicesGross,
         openInvoicesCount,
 
-        cashbookIncome: calculateTotalIncome(cashbookEntries),
-        cashbookExpenses: calculateTotalExpenses(cashbookEntries),
-        cashbookBalance: calculateBalance(cashbookEntries),
+        cashbookIncome: cashbookSummary.totalIncome,
+        cashbookExpenses: cashbookSummary.totalExpenses,
+        cashbookBalance: cashbookSummary.balance,
 
         vehiclesCount: vehicleSummary.vehiclesCount,
         currentVehiclesCount: vehicleSummary.currentVehiclesCount,
