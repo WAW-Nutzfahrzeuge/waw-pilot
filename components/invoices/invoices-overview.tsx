@@ -194,7 +194,7 @@ export function InvoicesOverview({
     const activeHighlightId = useTemporaryHighlight(
         highlightedInvoiceId,
     );
-    const invoiceSearchIndex = useMemo(() => {
+    const invoiceOverviewData = useMemo(() => {
         const index = new Map<
             string,
             {
@@ -202,18 +202,6 @@ export function InvoicesOverview({
                 searchText: string;
             }
         >();
-
-        for (const invoice of invoices) {
-            index.set(invoice.id, {
-                amountText: getInvoiceAmountSearchText(invoice),
-                searchText: getInvoiceSearchText(invoice),
-            });
-        }
-
-        return index;
-    }, [invoices]);
-
-    const invoiceSummary = useMemo(() => {
         const summary = {
             notSentToDatev: 0,
             openInvoices: 0,
@@ -224,6 +212,11 @@ export function InvoicesOverview({
         };
 
         for (const invoice of invoices) {
+            index.set(invoice.id, {
+                amountText: getInvoiceAmountSearchText(invoice),
+                searchText: getInvoiceSearchText(invoice),
+            });
+
             if (invoice.invoice_type === "standard") {
                 summary.standardInvoices += 1;
             }
@@ -244,8 +237,14 @@ export function InvoicesOverview({
             summary.totalNet += invoice.net_amount;
         }
 
-        return summary;
+        return {
+            searchIndex: index,
+            summary,
+        };
     }, [invoices]);
+
+    const invoiceSearchIndex = invoiceOverviewData.searchIndex;
+    const invoiceSummary = invoiceOverviewData.summary;
 
     const filteredInvoices = useMemo(() => {
         const normalizedQuery = normalizeSearchText(query);

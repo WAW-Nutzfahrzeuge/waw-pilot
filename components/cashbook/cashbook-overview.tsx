@@ -147,65 +147,71 @@ export function CashbookOverview({
         return index;
     }, [entries]);
 
-    const filteredEntries = useMemo(() => {
+    const cashbookViewData = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
+        const filteredEntries: CashbookEntryRow[] = [];
+        const summary = {
+            bankBalance: 0,
+            cashBalance: 0,
+            purchaseExpenses: 0,
+            totalBalance: 0,
+            totalExpenses: 0,
+            totalIncome: 0,
+        };
 
-        return entries.filter((entry) => {
+        for (const entry of entries) {
             const matchesPaymentFilter =
                 paymentFilter === "all" || entry.payment_method === paymentFilter;
 
             const matchesEntryTypeFilter =
                 entryTypeFilter === "all" || entry.entry_type === entryTypeFilter;
 
-            if (!matchesPaymentFilter || !matchesEntryTypeFilter) return false;
+            if (!matchesPaymentFilter || !matchesEntryTypeFilter) continue;
 
-            if (!normalizedQuery) return true;
+            if (
+                normalizedQuery &&
+                !(cashbookSearchIndex.get(entry.id)?.includes(normalizedQuery) ?? false)
+            ) {
+                continue;
+            }
 
-            return cashbookSearchIndex.get(entry.id)?.includes(normalizedQuery) ?? false;
-        });
+            filteredEntries.push(entry);
+
+            const signedAmount =
+                entry.entry_type === "income" ? entry.amount : -entry.amount;
+
+            if (entry.entry_type === "income") {
+                summary.totalIncome += entry.amount;
+            } else {
+                summary.totalExpenses += entry.amount;
+
+                if (
+                    entry.category === "vehicle_purchase" ||
+                    entry.purchase_case_id
+                ) {
+                    summary.purchaseExpenses += entry.amount;
+                }
+            }
+
+            if (entry.payment_method === "cash") {
+                summary.cashBalance += signedAmount;
+            }
+
+            if (entry.payment_method === "bank") {
+                summary.bankBalance += signedAmount;
+            }
+
+            summary.totalBalance += signedAmount;
+        }
+
+        return {
+            filteredEntries,
+            summary,
+        };
     }, [query, entries, paymentFilter, entryTypeFilter, cashbookSearchIndex]);
 
-    const cashbookSummary = useMemo(() => {
-        return filteredEntries.reduce(
-            (summary, entry) => {
-                const signedAmount =
-                    entry.entry_type === "income" ? entry.amount : -entry.amount;
-
-                if (entry.entry_type === "income") {
-                    summary.totalIncome += entry.amount;
-                } else {
-                    summary.totalExpenses += entry.amount;
-
-                    if (
-                        entry.category === "vehicle_purchase" ||
-                        entry.purchase_case_id
-                    ) {
-                        summary.purchaseExpenses += entry.amount;
-                    }
-                }
-
-                if (entry.payment_method === "cash") {
-                    summary.cashBalance += signedAmount;
-                }
-
-                if (entry.payment_method === "bank") {
-                    summary.bankBalance += signedAmount;
-                }
-
-                summary.totalBalance += signedAmount;
-
-                return summary;
-            },
-            {
-                bankBalance: 0,
-                cashBalance: 0,
-                purchaseExpenses: 0,
-                totalBalance: 0,
-                totalExpenses: 0,
-                totalIncome: 0,
-            },
-        );
-    }, [filteredEntries]);
+    const filteredEntries = cashbookViewData.filteredEntries;
+    const cashbookSummary = cashbookViewData.summary;
 
     function handlePrint() {
         window.print();

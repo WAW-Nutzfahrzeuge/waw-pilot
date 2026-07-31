@@ -50,11 +50,20 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
     const [filter, setFilter] = useState<PlateFilter>("all");
 
     const overviewData = useMemo(() => {
-        const items: LicensePlateOverviewItem[] = cases.map((item) => {
+        const items: LicensePlateOverviewItem[] = [];
+        const counts = {
+            shortTermCount: 0,
+            exportCount: 0,
+            customsCount: 0,
+            openCount: 0,
+            completedCount: 0,
+        };
+
+        for (const item of cases) {
             const typeLabel = getLicensePlateTypeLabel(item.plate_type);
             const statusLabel = getLicensePlateStatusLabel(item.status);
 
-            return {
+            items.push({
                 ...item,
                 typeLabel,
                 typeTone: getLicensePlateTypeTone(item.plate_type),
@@ -75,31 +84,28 @@ export function LicensePlatesOverview({ cases }: LicensePlatesOverviewProps) {
                     .filter(Boolean)
                     .join(" ")
                     .toLowerCase(),
-            };
-        });
-        const counts = cases.reduce(
-            (currentCounts, item) => ({
-                shortTermCount:
-                    currentCounts.shortTermCount +
-                    (item.plate_type === "short_term" ? 1 : 0),
-                exportCount:
-                    currentCounts.exportCount + (item.plate_type === "export" ? 1 : 0),
-                customsCount:
-                    currentCounts.customsCount + (item.plate_type === "customs" ? 1 : 0),
-                openCount:
-                    currentCounts.openCount +
-                    (item.status === "open" || item.status === "requested" ? 1 : 0),
-                completedCount:
-                    currentCounts.completedCount + (item.status === "completed" ? 1 : 0),
-            }),
-            {
-                shortTermCount: 0,
-                exportCount: 0,
-                customsCount: 0,
-                openCount: 0,
-                completedCount: 0,
-            },
-        );
+            });
+
+            if (item.plate_type === "short_term") {
+                counts.shortTermCount += 1;
+            }
+
+            if (item.plate_type === "export") {
+                counts.exportCount += 1;
+            }
+
+            if (item.plate_type === "customs") {
+                counts.customsCount += 1;
+            }
+
+            if (item.status === "open" || item.status === "requested") {
+                counts.openCount += 1;
+            }
+
+            if (item.status === "completed") {
+                counts.completedCount += 1;
+            }
+        }
 
         return {
             items,

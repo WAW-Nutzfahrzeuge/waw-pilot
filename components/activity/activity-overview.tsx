@@ -47,8 +47,11 @@ function getEntityLabel(entityType: string | null): string {
 export function ActivityOverview({ activities }: ActivityOverviewProps) {
     const [query, setQuery] = useState("");
 
-    const activityItems = useMemo<ActivityOverviewItem[]>(() => {
-        return activities.map((activityLog) => {
+    const activityOverviewData = useMemo(() => {
+        const items: ActivityOverviewItem[] = [];
+        const userNames = new Set<string>();
+
+        for (const activityLog of activities) {
             const displayDate = formatActivityDate(activityLog.created_at);
             const entityLabel = getEntityLabel(activityLog.entity_type);
             const userInitials = activityLog.user_name
@@ -58,7 +61,9 @@ export function ActivityOverview({ activities }: ActivityOverviewProps) {
                 .slice(0, 2)
                 .toUpperCase();
 
-            return {
+            userNames.add(activityLog.user_name);
+
+            items.push({
                 ...activityLog,
                 displayDate,
                 entityLabel,
@@ -73,16 +78,20 @@ export function ActivityOverview({ activities }: ActivityOverviewProps) {
                     .filter(Boolean)
                     .join(" ")
                     .toLowerCase(),
-            };
-        });
+            });
+        }
+
+        return {
+            items,
+            stats: {
+                userCount: userNames.size,
+                lastActivityDate: items[0]?.displayDate ?? "—",
+            },
+        };
     }, [activities]);
 
-    const activityStats = useMemo(() => {
-        return {
-            userCount: new Set(activityItems.map((item) => item.user_name)).size,
-            lastActivityDate: activityItems[0]?.displayDate ?? "—",
-        };
-    }, [activityItems]);
+    const activityItems = activityOverviewData.items;
+    const activityStats = activityOverviewData.stats;
 
     const filteredActivities = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();

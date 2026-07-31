@@ -94,12 +94,52 @@ export function SalesOverview({
         return index;
     }, [sales]);
 
+    const monthSalesData = useMemo(() => {
+        const monthFilteredSales: SaleRow[] = [];
+        const summary = {
+            incompleteDocuments: 0,
+            notSentToDatev: 0,
+            openPayments: 0,
+            totalProfitNet: 0,
+            totalRevenueNet: 0,
+            totalSales: 0,
+        };
+
+        for (const sale of sales) {
+            if (!matchesMonthFilter(sale.sale_date, monthFilter)) continue;
+
+            monthFilteredSales.push(sale);
+
+            if (
+                sale.payment_status === "open" ||
+                sale.payment_status === "partial"
+            ) {
+                summary.openPayments += 1;
+            }
+
+            if (sale.missing_required_documents_count > 0) {
+                summary.incompleteDocuments += 1;
+            }
+
+            if (sale.datev_status === "not_sent") {
+                summary.notSentToDatev += 1;
+            }
+
+            summary.totalRevenueNet += sale.net_amount;
+            summary.totalProfitNet += getSaleProfitNet(sale);
+            summary.totalSales += 1;
+        }
+
+        return {
+            sales: monthFilteredSales,
+            summary,
+        };
+    }, [monthFilter, sales]);
+
     const filteredSales = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return sales.filter((sale) => {
-            if (!matchesMonthFilter(sale.sale_date, monthFilter)) return false;
-
+        return monthSalesData.sales.filter((sale) => {
             const matchesPaymentFilter =
                 paymentFilter === "all" ||
                 (paymentFilter === "open" &&
@@ -116,46 +156,9 @@ export function SalesOverview({
 
             return saleSearchIndex.get(sale.id)?.includes(normalizedQuery) ?? false;
         });
-    }, [query, sales, paymentFilter, monthFilter, saleSearchIndex]);
+    }, [query, monthSalesData.sales, paymentFilter, saleSearchIndex]);
 
-    const salesSummary = useMemo(() => {
-        const monthFilteredSales = sales.filter((sale) =>
-            matchesMonthFilter(sale.sale_date, monthFilter),
-        );
-
-        return monthFilteredSales.reduce(
-            (summary, sale) => {
-                if (
-                    sale.payment_status === "open" ||
-                    sale.payment_status === "partial"
-                ) {
-                    summary.openPayments += 1;
-                }
-
-                if (sale.missing_required_documents_count > 0) {
-                    summary.incompleteDocuments += 1;
-                }
-
-                if (sale.datev_status === "not_sent") {
-                    summary.notSentToDatev += 1;
-                }
-
-                summary.totalRevenueNet += sale.net_amount;
-                summary.totalProfitNet += getSaleProfitNet(sale);
-                summary.totalSales += 1;
-
-                return summary;
-            },
-            {
-                incompleteDocuments: 0,
-                notSentToDatev: 0,
-                openPayments: 0,
-                totalProfitNet: 0,
-                totalRevenueNet: 0,
-                totalSales: 0,
-            },
-        );
-    }, [monthFilter, sales]);
+    const salesSummary = monthSalesData.summary;
 
     return (
         <div className="space-y-6">

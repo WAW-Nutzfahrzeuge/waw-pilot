@@ -46,29 +46,50 @@ export function getCashbookTypeTone(
 }
 
 export function calculateTotalIncome(entries: CashbookEntryRow[]): number {
-    return entries
-        .filter((entry) => entry.entry_type === "income")
-        .reduce((sum, entry) => sum + entry.amount, 0);
+    let total = 0;
+
+    for (const entry of entries) {
+        if (entry.entry_type === "income") {
+            total += entry.amount;
+        }
+    }
+
+    return total;
 }
 
 export function calculateTotalExpenses(entries: CashbookEntryRow[]): number {
-    return entries
-        .filter((entry) => entry.entry_type === "expense")
-        .reduce((sum, entry) => sum + entry.amount, 0);
+    let total = 0;
+
+    for (const entry of entries) {
+        if (entry.entry_type === "expense") {
+            total += entry.amount;
+        }
+    }
+
+    return total;
 }
 
 export function calculateBalance(entries: CashbookEntryRow[]): number {
-    return calculateTotalIncome(entries) - calculateTotalExpenses(entries);
+    let balance = 0;
+
+    for (const entry of entries) {
+        balance += entry.entry_type === "income" ? entry.amount : -entry.amount;
+    }
+
+    return balance;
 }
 
 export function calculatePaymentMethodBalance(
     entries: CashbookEntryRow[],
     method: CashbookPaymentMethod,
 ): number {
-    return entries
-        .filter((entry) => entry.payment_method === method)
-        .reduce((sum, entry) => {
-            if (entry.entry_type === "income") return sum + entry.amount;
-            return sum - entry.amount;
-        }, 0);
+    let balance = 0;
+
+    for (const entry of entries) {
+        if (entry.payment_method !== method) continue;
+
+        balance += entry.entry_type === "income" ? entry.amount : -entry.amount;
+    }
+
+    return balance;
 }

@@ -40,8 +40,15 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
-    const purchaseSearchIndex = useMemo(() => {
+    const purchaseOverviewData = useMemo(() => {
         const index = new Map<string, string>();
+        const summary = {
+            completedPurchases: 0,
+            incompleteDocuments: 0,
+            openPayments: 0,
+            paidPurchases: 0,
+            totalGross: 0,
+        };
 
         for (const purchase of purchases) {
             index.set(
@@ -60,41 +67,32 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                     .join(" ")
                     .toLowerCase(),
             );
+
+            if (purchase.payment_status !== "paid") {
+                summary.openPayments += 1;
+            } else {
+                summary.paidPurchases += 1;
+            }
+
+            if (purchase.document_check_status !== "complete") {
+                summary.incompleteDocuments += 1;
+            }
+
+            if (purchase.status === "completed") {
+                summary.completedPurchases += 1;
+            }
+
+            summary.totalGross += purchase.gross_amount;
         }
 
-        return index;
+        return {
+            searchIndex: index,
+            summary,
+        };
     }, [purchases]);
 
-    const purchaseSummary = useMemo(() => {
-        return purchases.reduce(
-            (summary, purchase) => {
-                if (purchase.payment_status !== "paid") {
-                    summary.openPayments += 1;
-                } else {
-                    summary.paidPurchases += 1;
-                }
-
-                if (purchase.document_check_status !== "complete") {
-                    summary.incompleteDocuments += 1;
-                }
-
-                if (purchase.status === "completed") {
-                    summary.completedPurchases += 1;
-                }
-
-                summary.totalGross += purchase.gross_amount;
-
-                return summary;
-            },
-            {
-                completedPurchases: 0,
-                incompleteDocuments: 0,
-                openPayments: 0,
-                paidPurchases: 0,
-                totalGross: 0,
-            },
-        );
-    }, [purchases]);
+    const purchaseSearchIndex = purchaseOverviewData.searchIndex;
+    const purchaseSummary = purchaseOverviewData.summary;
 
     const filteredPurchases = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
