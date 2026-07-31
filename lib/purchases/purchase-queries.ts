@@ -228,10 +228,16 @@ export async function getPurchaseCasesToCheckSummary(): Promise<PurchaseCasesToC
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data, error } = await supabase
-        .from("purchase_cases")
-        .select(
-            `
+    const [countResult, casesResult] = await Promise.all([
+        supabase
+            .from("purchase_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .neq("document_check_status", "complete"),
+        supabase
+            .from("purchase_cases")
+            .select(
+                `
       id,
       purchase_number,
       purchase_date,
@@ -249,19 +255,24 @@ export async function getPurchaseCasesToCheckSummary(): Promise<PurchaseCasesToC
         vin
       )
     `,
-        )
-        .eq("company_id", companyId)
-        .neq("document_check_status", "complete")
-        .order("created_at", { ascending: false });
+            )
+            .eq("company_id", companyId)
+            .neq("document_check_status", "complete")
+            .order("created_at", { ascending: false })
+            .limit(8),
+    ]);
 
-    if (error) {
-        throw new Error(`Prüfungsrelevante Ankäufe konnten nicht geladen werden: ${error.message}`);
+    if (countResult.error) {
+        throw new Error(`Prüfungsrelevante Ankaufs-Zähler konnten nicht geladen werden: ${countResult.error.message}`);
+    }
+
+    if (casesResult.error) {
+        throw new Error(`Prüfungsrelevante Ankäufe konnten nicht geladen werden: ${casesResult.error.message}`);
     }
 
     return {
-        count: data?.length ?? 0,
-        purchaseCases: ((data ?? []) as unknown as PurchaseCaseQueryRow[])
-            .slice(0, 8)
+        count: countResult.count ?? 0,
+        purchaseCases: ((casesResult.data ?? []) as unknown as PurchaseCaseQueryRow[])
             .map((purchase) => ({
                 id: purchase.id,
                 purchase_number: purchase.purchase_number,

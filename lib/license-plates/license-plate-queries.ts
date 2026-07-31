@@ -67,6 +67,48 @@ type LicensePlateCaseQueryRow = {
     } | null;
 };
 
+type LicensePlateCompactQueryRow = {
+    id: string;
+    plate_type: LicensePlateType;
+    status: LicensePlateStatus;
+    license_plate_number: string | null;
+    valid_until: string | null;
+    customers: LicensePlateCaseQueryRow["customers"];
+    vehicles: {
+        manufacturer: string;
+        model: string;
+    } | null;
+};
+
+type LicensePlateDashboardCountRow = {
+    plate_type: LicensePlateType;
+    status: LicensePlateStatus;
+};
+
+export type LicensePlateCompactRow = {
+    id: string;
+    plate_type: LicensePlateType;
+    status: LicensePlateStatus;
+    customer_name: string | null;
+    vehicle_name: string | null;
+    license_plate_number: string | null;
+    valid_until: string | null;
+};
+
+export type LicensePlateDashboardSummary = {
+    totalCount: number;
+    openCount: number;
+    requestedCount: number;
+    completedCount: number;
+    activeCount: number;
+    recentCases: LicensePlateCompactRow[];
+};
+
+export type OpenLicensePlateCasesSummary = {
+    count: number;
+    cases: LicensePlateCompactRow[];
+};
+
 function getCustomerName(
     customer: LicensePlateCaseQueryRow["customers"],
 ): string | null {
@@ -82,6 +124,28 @@ function getCustomerName(
         .trim();
 
     return privateName.length > 0 ? privateName : "Unbekannte Privatperson";
+}
+
+function getVehicleName(
+    vehicle: LicensePlateCompactQueryRow["vehicles"],
+): string | null {
+    if (!vehicle) return null;
+
+    return `${vehicle.manufacturer} ${vehicle.model}`;
+}
+
+function mapCompactLicensePlateCase(
+    item: LicensePlateCompactQueryRow,
+): LicensePlateCompactRow {
+    return {
+        id: item.id,
+        plate_type: item.plate_type,
+        status: item.status,
+        customer_name: getCustomerName(item.customers),
+        vehicle_name: getVehicleName(item.vehicles),
+        license_plate_number: item.license_plate_number,
+        valid_until: item.valid_until,
+    };
 }
 
 export async function getLicensePlateCases(): Promise<LicensePlateCaseRow[]> {
@@ -161,4 +225,138 @@ export async function getLicensePlateCases(): Promise<LicensePlateCaseRow[]> {
             vin: vehicle?.vin ?? null,
         };
     });
+}
+
+export async function getLicensePlateDashboardSummary(): Promise<LicensePlateDashboardSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const [countsResult, recentResult] = await Promise.all([
+        supabase
+            .from("license_plate_cases")
+            .select("plate_type, status")
+            .eq("company_id", companyId),
+        supabase
+            .from("license_plate_cases")
+            .select(
+                `
+      id,
+      plate_type,
+      status,
+      license_plate_number,
+      valid_until,
+      customers (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      vehicles (
+        manufacturer,
+        model
+      )
+    `,
+            )
+            .eq("company_id", companyId)
+            .order("created_at", { ascending: false })
+            .limit(4),
+    ]);
+
+    if (countsResult.error) {
+        throw new Error(
+            `Kennzeichen-Zähler konnten nicht geladen werden: ${countsResult.error.message}`,
+        );
+    }
+
+    if (recentResult.error) {
+        throw new Error(
+            `Aktuelle Kennzeichen-Vorgänge konnten nicht geladen werden: ${recentResult.error.message}`,
+        );
+    }
+
+    let openCount = 0;
+    let requestedCount = 0;
+    let completedCount = 0;
+
+    for (const item of (countsResult.data ?? []) as LicensePlateDashboardCountRow[]) {
+        if (item.status === "open") {
+            openCount += 1;
+            continue;
+        }
+
+        if (item.status === "requested") {
+            requestedCount += 1;
+            continue;
+        }
+
+        if (item.status === "completed") {
+            completedCount += 1;
+        }
+    }
+
+    return {
+        totalCount: countsResult.data?.length ?? 0,
+        openCount,
+        requestedCount,
+        completedCount,
+        activeCount: openCount + requestedCount,
+        recentCases: ((recentResult.data ?? []) as unknown as LicensePlateCompactQueryRow[])
+            .map(mapCompactLicensePlateCase),
+    };
+}
+
+export async function getOpenLicensePlateCasesSummary(): Promise<OpenLicensePlateCasesSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const [countResult, casesResult] = await Promise.all([
+        supabase
+            .from("license_plate_cases")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .in("status", ["open", "requested"]),
+        supabase
+            .from("license_plate_cases")
+            .select(
+                `
+      id,
+      plate_type,
+      status,
+      license_plate_number,
+      valid_until,
+      customers (
+        type,
+        company_name,
+        first_name,
+        last_name
+      ),
+      vehicles (
+        manufacturer,
+        model
+      )
+    `,
+            )
+            .eq("company_id", companyId)
+            .in("status", ["open", "requested"])
+            .order("created_at", { ascending: false })
+            .limit(8),
+    ]);
+
+    if (countResult.error) {
+        throw new Error(
+            `Offene Kennzeichen-Zähler konnten nicht geladen werden: ${countResult.error.message}`,
+        );
+    }
+
+    if (casesResult.error) {
+        throw new Error(
+            `Offene Kennzeichen-Vorgänge konnten nicht geladen werden: ${casesResult.error.message}`,
+        );
+    }
+
+    return {
+        count: countResult.count ?? 0,
+        cases: ((casesResult.data ?? []) as unknown as LicensePlateCompactQueryRow[])
+            .map(mapCompactLicensePlateCase),
+    };
 }

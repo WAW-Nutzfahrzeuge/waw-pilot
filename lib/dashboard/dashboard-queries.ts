@@ -2,7 +2,7 @@ import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
 import { getCustomersCount } from "@/lib/customers/customer-queries";
 import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
 import { getInvoiceDashboardSummary } from "@/lib/invoices/invoice-queries";
-import { getLicensePlateCases } from "@/lib/license-plates/license-plate-queries";
+import { getLicensePlateDashboardSummary } from "@/lib/license-plates/license-plate-queries";
 import {
     getLicensePlateStatusLabel,
     getLicensePlateTypeLabel,
@@ -85,7 +85,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         invoiceSummary,
         documentSummary,
         cashbookSummary,
-        licensePlateCases,
+        licensePlateSummary,
         purchaseSummary,
     ] = await Promise.all([
         getCustomersCount(),
@@ -97,30 +97,9 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
             from: dateRange?.from ?? null,
             to: dateRange?.to ?? null,
         }),
-        getLicensePlateCases(),
+        getLicensePlateDashboardSummary(),
         getPurchaseDashboardSummary(),
     ]);
-
-    let openLicensePlateCasesCount = 0;
-    let requestedLicensePlateCasesCount = 0;
-    let completedLicensePlateCasesCount = 0;
-    let activeLicensePlateCasesCount = 0;
-
-    for (const item of licensePlateCases) {
-        if (item.status === "open") {
-            openLicensePlateCasesCount += 1;
-            activeLicensePlateCasesCount += 1;
-        }
-
-        if (item.status === "requested") {
-            requestedLicensePlateCasesCount += 1;
-            activeLicensePlateCasesCount += 1;
-        }
-
-        if (item.status === "completed") {
-            completedLicensePlateCasesCount += 1;
-        }
-    }
 
     const openActions: DashboardData["openActions"] = [];
 
@@ -133,9 +112,9 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         });
     }
 
-    if (activeLicensePlateCasesCount > 0) {
+    if (licensePlateSummary.activeCount > 0) {
         openActions.push({
-            label: `${activeLicensePlateCasesCount} offene Kennzeichen-Vorgänge`,
+            label: `${licensePlateSummary.activeCount} offene Kennzeichen-Vorgänge`,
             description: "Kurzzeit-, Export- oder Zollkennzeichen weiterbearbeiten.",
             href: "/dashboard/plates",
             tone: "warning",
@@ -187,10 +166,10 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         invoicesCount: invoiceSummary.invoicesCount,
         documentsCount: documentSummary.documentsCount,
 
-        licensePlateCasesCount: licensePlateCases.length,
-        openLicensePlateCasesCount,
-        requestedLicensePlateCasesCount,
-        completedLicensePlateCasesCount,
+        licensePlateCasesCount: licensePlateSummary.totalCount,
+        openLicensePlateCasesCount: licensePlateSummary.openCount,
+        requestedLicensePlateCasesCount: licensePlateSummary.requestedCount,
+        completedLicensePlateCasesCount: licensePlateSummary.completedCount,
 
         purchaseCasesCount: purchaseSummary.purchaseCasesCount,
         openPurchasePaymentsCount: purchaseSummary.openPurchasePaymentsCount,
@@ -207,7 +186,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
 
         recentSales: salesSummary.recentSales,
 
-        recentLicensePlateCases: licensePlateCases.slice(0, 4).map((item) => ({
+        recentLicensePlateCases: licensePlateSummary.recentCases.map((item) => ({
             id: item.id,
             typeLabel: getLicensePlateTypeLabel(item.plate_type),
             statusLabel: getLicensePlateStatusLabel(item.status),

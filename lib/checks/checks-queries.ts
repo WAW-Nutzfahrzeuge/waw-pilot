@@ -1,5 +1,5 @@
 import { getDocumentsToCheckSummary } from "@/lib/documents/document-queries";
-import { getLicensePlateCases } from "@/lib/license-plates/license-plate-queries";
+import { getOpenLicensePlateCasesSummary } from "@/lib/license-plates/license-plate-queries";
 import { getSalesToCheckSummary } from "@/lib/sales/sale-queries";
 import { getPurchaseCasesToCheckSummary } from "@/lib/purchases/purchase-queries";
 
@@ -50,10 +50,10 @@ export type ChecksData = {
 };
 
 export async function getChecksData(): Promise<ChecksData> {
-    const [documentCheckSummary, licensePlateCases, salesCheckSummary, purchaseCheckSummary] =
+    const [documentCheckSummary, licensePlateSummary, salesCheckSummary, purchaseCheckSummary] =
         await Promise.all([
             getDocumentsToCheckSummary(),
-            getLicensePlateCases(),
+            getOpenLicensePlateCasesSummary(),
             getSalesToCheckSummary(),
             getPurchaseCasesToCheckSummary(),
         ]);
@@ -70,35 +70,15 @@ export async function getChecksData(): Promise<ChecksData> {
             created_at: document.created_at,
         }));
 
-    const openLicensePlateCases: ChecksData["openLicensePlateCases"] = [];
-    let openLicensePlateCasesCount = 0;
-
-    for (const item of licensePlateCases) {
-        if (item.status !== "open" && item.status !== "requested") continue;
-
-        openLicensePlateCasesCount += 1;
-        if (openLicensePlateCases.length >= 8) continue;
-
-        openLicensePlateCases.push({
-            id: item.id,
-            plate_type: item.plate_type,
-            status: item.status,
-            customer_name: item.customer_name,
-            vehicle_name: item.vehicle_name,
-            license_plate_number: item.license_plate_number,
-            valid_until: item.valid_until,
-        });
-    }
-
     return {
         documentsToCheckCount: documentCheckSummary.count,
-        openLicensePlateCasesCount,
+        openLicensePlateCasesCount: licensePlateSummary.count,
         salesToCheckCount: salesCheckSummary.count,
         purchaseCasesToCheckCount: purchaseCheckSummary.count,
 
         purchaseCasesToCheck: purchaseCheckSummary.purchaseCases,
         documentsToCheck,
-        openLicensePlateCases,
+        openLicensePlateCases: licensePlateSummary.cases,
         salesToCheck: salesCheckSummary.sales,
     };
 }

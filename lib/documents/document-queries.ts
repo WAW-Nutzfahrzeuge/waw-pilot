@@ -58,29 +58,35 @@ export async function getDocumentDashboardSummary(): Promise<DocumentDashboardSu
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data, error } = await supabase
-        .from("documents")
-        .select("status")
-        .eq("company_id", companyId)
-        .neq("status", "missing");
+    const [documentsResult, incompleteResult] = await Promise.all([
+        supabase
+            .from("documents")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .neq("status", "missing"),
+        supabase
+            .from("documents")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .neq("status", "missing")
+            .neq("status", "available"),
+    ]);
 
-    if (error) {
+    if (documentsResult.error) {
         throw new Error(
-            `Dokumenten-Zusammenfassung konnte nicht geladen werden: ${error.message}`,
+            `Dokumenten-Zusammenfassung konnte nicht geladen werden: ${documentsResult.error.message}`,
         );
     }
 
-    let incompleteDocumentsCount = 0;
-
-    for (const document of data ?? []) {
-        if (document.status !== "available") {
-            incompleteDocumentsCount += 1;
-        }
+    if (incompleteResult.error) {
+        throw new Error(
+            `Offene Dokumenten-Zusammenfassung konnte nicht geladen werden: ${incompleteResult.error.message}`,
+        );
     }
 
     return {
-        documentsCount: data?.length ?? 0,
-        incompleteDocumentsCount,
+        documentsCount: documentsResult.count ?? 0,
+        incompleteDocumentsCount: incompleteResult.count ?? 0,
     };
 }
 
