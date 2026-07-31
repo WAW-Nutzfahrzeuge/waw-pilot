@@ -19,6 +19,7 @@ import {
 import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
+import { getTodayDateOnly, toDateOnlyString } from "@/lib/format/date";
 import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
@@ -171,7 +172,7 @@ function addDays(dateString: string, days: number): string {
     const date = new Date(dateString);
     date.setDate(date.getDate() + days);
 
-    return date.toISOString().slice(0, 10);
+    return toDateOnlyString(date);
 }
 
 function getInvoiceFileBaseName(invoiceType: InvoiceType): string {
@@ -1453,7 +1454,7 @@ export async function markInvoicePaidAction(formData: FormData) {
                 category: "vehicle_sale",
                 payment_method: paymentMethod,
                 amount: Number(invoiceData.gross_amount),
-                booking_date: new Date().toISOString().slice(0, 10),
+                booking_date: getTodayDateOnly(),
                 description,
                 customer_id: invoiceData.customer_id,
                 vehicle_id: invoiceData.vehicle_id,

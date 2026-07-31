@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/activity/activity-log";
 import { syncSalePaymentFinancialEntry } from "@/lib/accounting/financial-sync";
 import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { isPaymentMethod } from "@/lib/payments/payment-methods";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -27,7 +28,7 @@ type ExistingPaymentRow = {
 };
 
 function getToday(): string {
-    return new Date().toISOString().slice(0, 10);
+    return getTodayDateOnly();
 }
 
 function getPaymentRedirect(saleId: string, params: Record<string, string>) {

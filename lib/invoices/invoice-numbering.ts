@@ -1,4 +1,5 @@
 import { getCurrentCompanyId } from "@/lib/company";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type InvoiceType =
@@ -197,8 +198,7 @@ export async function getNextInvoiceNumber({
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const resolvedInvoiceDate =
-        invoiceDate ?? new Date().toISOString().slice(0, 10);
+    const resolvedInvoiceDate = invoiceDate ?? getTodayDateOnly();
 
     const { data, error } = await supabase.rpc("get_next_invoice_number", {
         p_company_id: companyId,

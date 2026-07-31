@@ -2,6 +2,7 @@ import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
 import { getCurrentCompanyId } from "@/lib/company";
 import { getVehicleReportSummary } from "@/lib/vehicles/vehicle-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { toDateOnlyString } from "@/lib/format/date";
 
 type SupabaseRelation<T> = T | T[] | null;
 
@@ -190,7 +191,7 @@ export type ReportsData = {
 };
 
 function toDateString(date: Date): string {
-    return date.toISOString().slice(0, 10);
+    return toDateOnlyString(date);
 }
 
 function isValidDateString(value: string | null | undefined): value is string {

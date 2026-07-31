@@ -5,6 +5,7 @@ import { useActionState, useRef } from "react";
 import { CalendarDays, FileText, Route, Save, Truck, UserRound } from "lucide-react";
 
 import { createTravelExpenseFormAction } from "@/app/dashboard/travel-expenses/new/actions";
+import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -47,7 +48,7 @@ export function TravelExpenseForm({
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
     const hasSaleContext = Boolean(initialValues?.saleId);
     const backHref = initialValues?.saleId
         ? `/dashboard/sales/${initialValues.saleId}`

@@ -2,6 +2,7 @@ import {
     getReportsData,
     parseReportsFilters,
 } from "@/lib/reports/report-queries";
+import { getTodayDateOnly } from "@/lib/format/date";
 
 type ReportsData = Awaited<ReturnType<typeof getReportsData>>;
 
@@ -57,7 +58,7 @@ function createReportsCsv(data: ReportsData): string {
     const rows: string[] = [];
 
     rows.push(createCsvRow(["WAW Bericht"]));
-    rows.push(createCsvRow(["Exportiert am", new Date().toISOString().slice(0, 10)]));
+    rows.push(createCsvRow(["Exportiert am", getTodayDateOnly()]));
     rows.push(createCsvRow(["Zeitraum", data.periodLabel]));
     rows.push(createCsvRow(["Von", data.dateFrom ?? ""]));
     rows.push(createCsvRow(["Bis", data.dateTo ?? ""]));
@@ -226,7 +227,7 @@ function createReportsCsv(data: ReportsData): string {
 }
 
 function createExportFileName(data: ReportsData): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
 
     if (data.dateFrom || data.dateTo) {
         return `waw-bericht-${data.dateFrom ?? "start"}-bis-${

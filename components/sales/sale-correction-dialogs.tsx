@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/format/currency";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { paymentMethods } from "@/lib/payments/payment-methods";
 import type { SaleDetailInvoice } from "@/lib/sales/sale-detail-queries";
 import { correctionReasonDefinitions } from "@/src/modules/invoice-corrections/domain/constants/correction-types";
@@ -169,7 +170,7 @@ function RefundDialog({
                         />
                     </FormField>
                     <FormField label="Datum" name="refund_date" required>
-                        <Input name="refund_date" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} />
+                        <Input name="refund_date" type="date" required defaultValue={getTodayDateOnly()} />
                     </FormField>
                     <FormField label="Rückzahlungsart" name="refund_method" required>
                         <select

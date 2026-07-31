@@ -24,6 +24,7 @@ import { updatePurchaseCaseAction } from "@/app/dashboard/ankauf/[purchaseId]/ed
 import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -81,7 +82,7 @@ export function PurchaseForm({
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
     const backHref =
         mode === "edit" && initialValues?.id
             ? `/dashboard/ankauf/${initialValues.id}`

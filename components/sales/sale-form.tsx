@@ -33,6 +33,7 @@ import {
 import type { VehicleRow } from "@/lib/vehicles/vehicle-queries";
 import { getVehicleDisplayName } from "@/lib/vehicles/vehicle-helpers";
 import { formatCurrency } from "@/lib/format/currency";
+import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -115,7 +116,7 @@ export function SaleForm({
     const [newCustomerVatId, setNewCustomerVatId] = useState("");
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
     const [saleType, setSaleType] = useState<SaleType>("inland");
     const [saleDate, setSaleDate] = useState(today);
     const [selectedCustomerId, setSelectedCustomerId] = useState(

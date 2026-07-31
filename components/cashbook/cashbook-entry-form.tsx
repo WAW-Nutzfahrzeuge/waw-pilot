@@ -26,6 +26,7 @@ import {
     isAllowedDocumentFile,
 } from "@/lib/documents/upload-validation";
 import { financialCategories } from "@/lib/accounting/financial-categories";
+import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -54,7 +55,7 @@ export function CashbookEntryForm() {
         null,
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
 
     useFormActionFeedback({
         message: state.message,

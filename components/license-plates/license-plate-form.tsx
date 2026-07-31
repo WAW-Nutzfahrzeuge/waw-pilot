@@ -16,6 +16,7 @@ import { createLicensePlateCaseAction } from "@/app/dashboard/plates/new/actions
 import { updateLicensePlateCaseAction } from "@/app/dashboard/plates/[plateCaseId]/edit/actions";
 import type { LicensePlateFormData } from "@/lib/license-plates/license-plate-form-data";
 import type { LicensePlateType } from "@/lib/license-plates/license-plate-queries";
+import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -75,7 +76,7 @@ export function LicensePlateForm({
         initialValues?.plate_type ?? "short_term",
     );
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getTodayDateOnly();
 
     const backHref =
         mode === "edit" && initialValues?.id

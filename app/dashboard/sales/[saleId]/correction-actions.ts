@@ -6,6 +6,7 @@ import { getMoneyFormValue, getStringFormValue } from "@/lib/actions/form-data";
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { isPaymentMethod } from "@/lib/payments/payment-methods";
 import { createInvoiceCorrectionUseCases } from "@/src/modules/invoice-corrections/infrastructure/factories/invoice-correction-use-case.factory";
 
@@ -74,7 +75,7 @@ export async function registerSaleRefundAction(formData: FormData) {
     const amount = getMoneyFormValue(formData, "amount");
     const refundMethod = getStringFormValue(formData, "refund_method");
     const refundDate =
-        getStringFormValue(formData, "refund_date") ?? new Date().toISOString().slice(0, 10);
+        getStringFormValue(formData, "refund_date") ?? getTodayDateOnly();
     const reason = getStringFormValue(formData, "reason");
     const externalReference = getStringFormValue(formData, "external_reference");
     const note = getStringFormValue(formData, "note");

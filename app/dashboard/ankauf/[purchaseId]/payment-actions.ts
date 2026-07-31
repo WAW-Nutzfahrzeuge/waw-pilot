@@ -6,6 +6,7 @@ import { syncPurchasePaymentFinancialEntry } from "@/lib/accounting/financial-sy
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -127,7 +128,7 @@ export async function markPurchasePaidAction(formData: FormData) {
                 payment_reference: paymentReference,
                 amount: Number(purchaseData.gross_amount),
                 payment_method: paymentMethod,
-                payment_date: new Date().toISOString().slice(0, 10),
+                payment_date: getTodayDateOnly(),
                 note: `Zahlung Ankauf ${purchaseNumber}`,
                 created_by: authUserId,
                 last_modified_by: authUserId,
@@ -163,7 +164,7 @@ export async function markPurchasePaidAction(formData: FormData) {
             payment_reference: paymentReference,
             amount: Number(purchaseData.gross_amount),
             payment_method: paymentMethod,
-            payment_date: new Date().toISOString().slice(0, 10),
+            payment_date: getTodayDateOnly(),
         },
         changed_by: authUserId,
     });

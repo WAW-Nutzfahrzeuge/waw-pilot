@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, ScanLine, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toDateOnlyString } from "@/lib/format/date";
 import {
     Dialog,
     DialogContent,
@@ -248,7 +249,7 @@ function getCameraErrorMessage(hasStream: boolean): string {
 
 function getScanFileName(): string {
     const now = new Date();
-    const date = now.toISOString().slice(0, 10);
+    const date = toDateOnlyString(now);
     const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
         .map((value) => String(value).padStart(2, "0"))
         .join("-");

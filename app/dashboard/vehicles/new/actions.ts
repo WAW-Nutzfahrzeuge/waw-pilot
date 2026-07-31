@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { getCurrentCompanyId } from "@/lib/company";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
     getDocumentTooLargeMessage,
@@ -310,7 +311,7 @@ export async function createVehicleAction(
                 company_id: companyId,
                 vehicle_id: vehicleId,
                 seller_customer_id: sellerCustomerId,
-                purchase_date: purchaseDate ?? new Date().toISOString().slice(0, 10),
+                purchase_date: purchaseDate ?? getTodayDateOnly(),
                 purchase_price_net: purchasePriceNet,
                 additional_costs_net: additionalCostsNet,
                 notes,

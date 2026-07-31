@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/format/currency";
+import { getTodayDateOnly } from "@/lib/format/date";
 import { paymentMethods } from "@/lib/payments/payment-methods";
 import type { SaleDetailPayment } from "@/lib/sales/sale-detail-queries";
 
@@ -205,7 +206,7 @@ function PaymentFields({
                         id="payment_date"
                         name="payment_date"
                         type="date"
-                        defaultValue={payment?.payment_date ?? new Date().toISOString().slice(0, 10)}
+                        defaultValue={payment?.payment_date ?? getTodayDateOnly()}
                         required
                         className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                     />

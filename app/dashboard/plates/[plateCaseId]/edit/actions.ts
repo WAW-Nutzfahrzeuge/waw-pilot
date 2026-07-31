@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
+import { toDateOnlyString } from "@/lib/format/date";
 import type { LicensePlateType } from "@/lib/license-plates/license-plate-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -46,7 +47,7 @@ function addDays(dateString: string, days: number): string {
     const date = new Date(dateString);
     date.setDate(date.getDate() + days);
 
-    return date.toISOString().slice(0, 10);
+    return toDateOnlyString(date);
 }
 
 export async function updateLicensePlateCaseAction(
