@@ -13,7 +13,10 @@ import {
 } from "@/utils/payment-utils";
 import type { PaymentMethod } from "@/lib/payments/payment-methods";
 import { getSaleDocumentStatus } from "@/utils/sale-document-status";
-import { matchesMonthFilter, type MonthFilterValue } from "@/utils/month-filter";
+import {
+    getMonthFilterDateRange,
+    type MonthFilterValue,
+} from "@/utils/month-filter";
 
 export type SaleType = "inland" | "eu" | "export_third_country";
 export type SaleStatus = "draft" | "active" | "completed" | "cancelled";
@@ -273,8 +276,9 @@ export async function getSalesDashboardSummary(
 ): Promise<SalesDashboardSummary> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
+    const dateRange = getMonthFilterDateRange(monthFilter);
 
-    const { data, error } = await supabase
+    let query = supabase
         .from("sales")
         .select(
             `
@@ -305,8 +309,15 @@ export async function getSalesDashboardSummary(
       )
     `,
         )
-        .eq("company_id", companyId)
-        .order("sale_date", { ascending: false });
+        .eq("company_id", companyId);
+
+    if (dateRange) {
+        query = query
+            .gte("sale_date", dateRange.from)
+            .lte("sale_date", dateRange.to);
+    }
+
+    const { data, error } = await query.order("sale_date", { ascending: false });
 
     if (error) {
         throw new Error(`Verkaufs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
@@ -319,8 +330,6 @@ export async function getSalesDashboardSummary(
     const recentSales: SalesDashboardSummary["recentSales"] = [];
 
     for (const sale of (data ?? []) as unknown as SaleSummaryQueryRow[]) {
-        if (!matchesMonthFilter(sale.sale_date, monthFilter)) continue;
-
         const grossAmount = Number(sale.gross_amount);
         const payments = getManyRelation(sale.sale_payments).map((payment) => ({
             amount: Number(payment.amount),

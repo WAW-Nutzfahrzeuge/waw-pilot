@@ -1,7 +1,10 @@
 import { getCurrentCompanyId } from "@/lib/company";
 import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { matchesMonthFilter, type MonthFilterValue } from "@/utils/month-filter";
+import {
+    getMonthFilterDateRange,
+    type MonthFilterValue,
+} from "@/utils/month-filter";
 
 export type InvoiceStatus = "draft" | "created" | "sent" | "paid" | "cancelled";
 export type InvoicePaymentStatus = "open" | "partial" | "paid";
@@ -81,10 +84,6 @@ type InvoiceQueryRow = {
         vehicle_type: string | null;
         vin: string;
     } | null;
-};
-
-type InvoiceDashboardSummaryRow = {
-    invoice_date: string;
 };
 
 function getCustomerName(customer: InvoiceQueryRow["customers"]): string {
@@ -233,23 +232,24 @@ export async function getInvoiceDashboardSummary(
 ): Promise<{ invoicesCount: number }> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
+    const dateRange = getMonthFilterDateRange(monthFilter);
 
-    const { data, error } = await supabase
+    let query = supabase
         .from("invoices")
-        .select("invoice_date")
+        .select("id", { count: "exact", head: true })
         .eq("company_id", companyId);
+
+    if (dateRange) {
+        query = query
+            .gte("invoice_date", dateRange.from)
+            .lte("invoice_date", dateRange.to);
+    }
+
+    const { count, error } = await query;
 
     if (error) {
         throw new Error(`Rechnungs-Zusammenfassung konnte nicht geladen werden: ${error.message}`);
     }
 
-    let invoicesCount = 0;
-
-    for (const invoice of (data ?? []) as InvoiceDashboardSummaryRow[]) {
-        if (matchesMonthFilter(invoice.invoice_date, monthFilter)) {
-            invoicesCount += 1;
-        }
-    }
-
-    return { invoicesCount };
+    return { invoicesCount: count ?? 0 };
 }

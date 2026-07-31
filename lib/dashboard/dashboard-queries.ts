@@ -11,7 +11,10 @@ import {
 import { getSalesDashboardSummary } from "@/lib/sales/sale-queries";
 import { getVehicleDashboardSummary } from "@/lib/vehicles/vehicle-queries";
 import { getPurchaseDashboardSummary } from "@/lib/purchases/purchase-queries";
-import { matchesMonthFilter, normalizeMonthFilter } from "@/utils/month-filter";
+import {
+    getMonthFilterDateRange,
+    normalizeMonthFilter,
+} from "@/utils/month-filter";
 
 export type DashboardData = {
     customersCount: number;
@@ -75,6 +78,7 @@ export type DashboardData = {
 
 export async function getDashboardData(month?: string | null): Promise<DashboardData> {
     const monthFilter = normalizeMonthFilter(month);
+    const dateRange = getMonthFilterDateRange(monthFilter);
     const [
         customersCount,
         vehicleSummary,
@@ -90,17 +94,13 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getSalesDashboardSummary(monthFilter),
         getInvoiceDashboardSummary(monthFilter),
         getDocumentDashboardSummary(),
-        getCashbookEntries(),
+        getCashbookEntries({
+            from: dateRange?.from ?? null,
+            to: dateRange?.to ?? null,
+        }),
         getLicensePlateCases(),
         getPurchaseDashboardSummary(),
     ]);
-
-    const filteredCashbookEntries: typeof cashbookEntries = [];
-    for (const entry of cashbookEntries) {
-        if (matchesMonthFilter(entry.booking_date, monthFilter)) {
-            filteredCashbookEntries.push(entry);
-        }
-    }
 
     let openLicensePlateCasesCount = 0;
     let requestedLicensePlateCasesCount = 0;
@@ -202,7 +202,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         incompleteDocumentsCount: documentSummary.incompleteDocumentsCount,
         totalRevenueNet: salesSummary.totalRevenueNet,
         totalProfitNet: salesSummary.totalProfitNet,
-        cashbookBalance: calculateBalance(filteredCashbookEntries),
+        cashbookBalance: calculateBalance(cashbookEntries),
 
         recentVehicles: vehicleSummary.recentVehicles,
 

@@ -1,5 +1,17 @@
 export type MonthFilterValue = "current" | "all" | string;
 
+export type MonthFilterDateRange = {
+    from: string;
+    to: string;
+};
+
+function toDateOnly(year: number, month: number, day: number): string {
+    const paddedMonth = String(month).padStart(2, "0");
+    const paddedDay = String(day).padStart(2, "0");
+
+    return `${year}-${paddedMonth}-${paddedDay}`;
+}
+
 export function getCurrentMonthValue(date = new Date()): string {
     return String(date.getMonth() + 1);
 }
@@ -28,6 +40,27 @@ export function matchesMonthFilter(
     const month = filter === "current" ? now.getMonth() + 1 : Number(filter);
 
     return date.getFullYear() === now.getFullYear() && date.getMonth() + 1 === month;
+}
+
+export function getMonthFilterDateRange(
+    filter: MonthFilterValue,
+    now = new Date(),
+): MonthFilterDateRange | null {
+    if (filter === "all") return null;
+
+    const month = filter === "current" ? now.getMonth() + 1 : Number(filter);
+
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+        return null;
+    }
+
+    const year = now.getFullYear();
+    const lastDayOfMonth = new Date(year, month, 0).getDate();
+
+    return {
+        from: toDateOnly(year, month, 1),
+        to: toDateOnly(year, month, lastDayOfMonth),
+    };
 }
 
 export function getMonthFilterOptions() {
