@@ -12,6 +12,7 @@ import {
 import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { logActivity } from "@/lib/activity/activity-log";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
@@ -1586,7 +1587,11 @@ export async function createSaleAction(
             entityId: createdInvoiceId,
         });
 
-        const invoiceFileName = `rechnung-${invoiceNumber}.pdf`;
+        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: saleNumber,
+            documentType: getInvoiceTypeDocumentType("standard"),
+            mimeType: "application/pdf",
+        });
         const invoiceFilePath = `invoices/${invoiceFileName}`;
 
         const { data: invoiceDocument, error: documentError } = await supabase

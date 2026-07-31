@@ -1,5 +1,9 @@
 import { getCurrentCompanyId } from "@/lib/company";
-import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
+import {
+    getInvoiceTypeDocumentType,
+    type InvoiceType,
+} from "@/lib/invoices/invoice-numbering";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
     getMonthFilterDateRange,
@@ -18,6 +22,7 @@ export type InvoiceRow = {
 
     invoice_type: InvoiceType;
     invoice_number: string;
+    sale_number: string | null;
     invoice_date: string;
     due_date: string | null;
 
@@ -84,6 +89,9 @@ type InvoiceQueryRow = {
         vehicle_type: string | null;
         vin: string;
     } | null;
+    sales: {
+        sale_number: string | null;
+    } | null;
 };
 
 function getCustomerName(customer: InvoiceQueryRow["customers"]): string {
@@ -101,16 +109,16 @@ function getCustomerName(customer: InvoiceQueryRow["customers"]): string {
     return privateName.length > 0 ? privateName : "Unbekannter Kunde";
 }
 
-function getInvoiceFileName(invoiceType: InvoiceType, invoiceNumber: string): string {
-    const baseNames: Record<InvoiceType, string> = {
-        standard: "rechnung",
-        proforma: "proforma-rechnung",
-        down_payment: "anzahlungsrechnung",
-        cancellation_invoice: "stornorechnung",
-        credit_note: "gutschrift",
-    };
-
-    return `${baseNames[invoiceType]}-${invoiceNumber}.pdf`;
+function getInvoiceFileName(
+    invoiceType: InvoiceType,
+    invoiceNumber: string,
+    saleNumber: string | null,
+): string {
+    return new ExportFileNamePolicy().createDocumentFileName({
+        saleReference: saleNumber ?? invoiceNumber,
+        documentType: getInvoiceTypeDocumentType(invoiceType),
+        mimeType: "application/pdf",
+    });
 }
 
 function getInvoiceSortWeight(invoiceType: InvoiceType): number {
@@ -165,6 +173,9 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
         model,
         vehicle_type,
         vin
+      ),
+      sales:sale_id (
+        sale_number
       )
     `,
         )
@@ -189,6 +200,7 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
 
                 invoice_type: invoiceType,
                 invoice_number: invoice.invoice_number,
+                sale_number: invoice.sales?.sale_number ?? null,
                 invoice_date: invoice.invoice_date,
                 due_date: invoice.due_date,
 
@@ -214,7 +226,11 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
                     : "Unbekanntes Fahrzeug",
                 vehicle_type: vehicle?.vehicle_type ?? null,
                 vin: vehicle?.vin ?? "—",
-                pdf_file_name: getInvoiceFileName(invoiceType, invoice.invoice_number),
+                pdf_file_name: getInvoiceFileName(
+                    invoiceType,
+                    invoice.invoice_number,
+                    invoice.sales?.sale_number ?? null,
+                ),
             };
         })
         .sort((a, b) => {

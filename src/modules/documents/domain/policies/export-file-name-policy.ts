@@ -35,8 +35,8 @@ const windowsReservedNames = new Set([
 const documentFilePrefixes: Record<string, string> = {
     invoice: "Rechnung",
     invoice_pdf: "Rechnung",
-    zugferd_invoice: "ZUGFeRD_Rechnung",
-    proforma_invoice: "Proforma_Rechnung",
+    zugferd_invoice: "ZUGFeRD",
+    proforma_invoice: "Proforma",
     down_payment_invoice: "Anzahlungsrechnung",
     cancellation_invoice: "Stornorechnung",
     credit_note: "Gutschrift",
@@ -118,7 +118,7 @@ export class ExportFileNamePolicy {
         saleReference: string;
     }): string {
         return trimToMaxLength(
-            normalizeFileNamePart(`Verkauf ${params.saleReference}`),
+            `Verkauf ${normalizeFileNamePart(params.saleReference)}`,
             96,
         );
     }
@@ -135,14 +135,10 @@ export class ExportFileNamePolicy {
             getExtensionFromMimeType(context.mimeType) ??
             getExtensionFromFileName(context.originalFileName) ??
             "bin";
-        const datePart = context.createdAt?.slice(0, 10);
-        const parts = [
-            prefix,
-            context.saleReference,
-            context.vehicleLabel,
-            datePart,
-        ].filter((part): part is string => Boolean(part?.trim()));
-        const baseName = trimToMaxLength(normalizeFileNamePart(parts.join("_")), 150);
+        const baseName = trimToMaxLength(
+            normalizeFileNamePart(`${prefix}_${context.saleReference}`),
+            150,
+        );
 
         return `${baseName}.${extension}`;
     }

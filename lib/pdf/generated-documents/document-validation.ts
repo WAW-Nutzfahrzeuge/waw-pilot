@@ -118,6 +118,7 @@ export type GeneratedDocumentValidationData = {
 
     sale?: {
         id?: string | null;
+        saleNumber?: string | null;
         saleType?: string | null;
         saleDate?: string | null;
         invoiceNumber?: string | null;

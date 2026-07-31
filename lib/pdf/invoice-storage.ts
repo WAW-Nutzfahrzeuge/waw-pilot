@@ -2,25 +2,16 @@ import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
+import {
+    getInvoiceTypeDocumentType,
+} from "@/lib/invoices/invoice-numbering";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 export type StoredInvoicePdfResult = {
     fileName: string;
     filePath: string;
     fileSize: number;
 };
-
-function getInvoiceFileBaseName(invoiceType: InvoiceType): string {
-    const fileBaseNames: Record<InvoiceType, string> = {
-        standard: "rechnung",
-        proforma: "proforma-rechnung",
-        down_payment: "anzahlungsrechnung",
-        cancellation_invoice: "stornorechnung",
-        credit_note: "gutschrift",
-    };
-
-    return fileBaseNames[invoiceType];
-}
 
 export async function generateAndStoreInvoicePdf(
     invoiceId: string,
@@ -40,8 +31,11 @@ export async function generateAndStoreInvoicePdf(
         termsPdf: termsPdf?.bytes ?? null,
     });
 
-    const fileBaseName = getInvoiceFileBaseName(pdfData.invoiceType);
-    const fileName = `${fileBaseName}-${pdfData.invoiceNumber}.pdf`;
+    const fileName = new ExportFileNamePolicy().createDocumentFileName({
+        saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,
+        documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
+        mimeType: "application/pdf",
+    });
     const filePath = `invoices/${fileName}`;
 
     const { error: uploadError } = await supabase.storage

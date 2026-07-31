@@ -402,7 +402,7 @@ export function InvoicesOverview({
                                             <InvoiceTypePill invoice={invoice} />
 
                                             <p className="mt-2 break-all text-lg font-extrabold text-cyan-700">
-                                                {invoice.invoice_number}
+                                                {invoice.sale_number ?? invoice.invoice_number}
                                             </p>
                                             <p className="mt-1 text-sm font-bold text-slate-950">
                                                 {invoice.customer_name}
@@ -558,10 +558,10 @@ export function InvoicesOverview({
                                             <InvoiceTypePill invoice={invoice} />
 
                                             <p className="mt-2 font-extrabold text-cyan-700">
-                                                {invoice.invoice_number}
+                                                {invoice.sale_number ?? invoice.invoice_number}
                                             </p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                Verkauf: {invoice.sale_id}
+                                                Verkauf: {invoice.sale_number ?? invoice.sale_id}
                                             </p>
                                         </td>
 

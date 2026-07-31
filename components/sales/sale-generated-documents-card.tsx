@@ -19,15 +19,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { GenerateSaleDocumentSubmitButton } from "@/components/sales/generate-sale-document-submit-button";
 import { TemporarySuccessMessage } from "@/components/shared/temporary-success-message";
 import { DocumentCard } from "@/components/shared/document-card";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 type SaleGeneratedDocumentsCardProps = {
     saleId: string;
+    saleNumber: string | null;
     documents: SaleGeneratedDocumentCheck[];
     generatedDocumentType?: string | null;
 };
 
 export function SaleGeneratedDocumentsCard({
                                                saleId,
+                                               saleNumber,
                                                documents,
                                                generatedDocumentType = null,
                                            }: SaleGeneratedDocumentsCardProps) {
@@ -98,6 +101,7 @@ export function SaleGeneratedDocumentsCard({
                         <GeneratedDocumentRow
                             key={document.type}
                             saleId={saleId}
+                            saleNumber={saleNumber}
                             document={document}
                             wasJustGenerated={generatedDocumentType === document.type}
                         />
@@ -110,10 +114,12 @@ export function SaleGeneratedDocumentsCard({
 
 function GeneratedDocumentRow({
                                   saleId,
+                                  saleNumber,
                                   document,
                                   wasJustGenerated,
                               }: {
     saleId: string;
+    saleNumber: string | null;
     document: SaleGeneratedDocumentCheck;
     wasJustGenerated: boolean;
 }) {
@@ -248,6 +254,15 @@ function GeneratedDocumentRow({
                         <DocumentFileStatus
                             title="Generiertes Dokument"
                             document={document.generatedDocument}
+                            displayFileName={
+                                document.generatedDocument
+                                    ? new ExportFileNamePolicy().createDocumentFileName({
+                                          saleReference: saleNumber ?? saleId,
+                                          documentType: document.documentType,
+                                          mimeType: "application/pdf",
+                                      })
+                                    : null
+                            }
                             emptyText={getGeneratedDocumentEmptyText(document)}
                         />
 
@@ -431,10 +446,12 @@ function DocumentContextAction({
 function DocumentFileStatus({
                                 title,
                                 document,
+                                displayFileName = null,
                                 emptyText,
                             }: {
     title: string;
     document: SaleGeneratedDocumentCheck["generatedDocument"];
+    displayFileName?: string | null;
     emptyText: string;
 }) {
     if (!document) {
@@ -472,7 +489,7 @@ function DocumentFileStatus({
                         {title}
                     </p>
                     <p className="mt-1 truncate text-xs font-semibold leading-5 text-emerald-800">
-                        {document.fileName}
+                        {displayFileName ?? document.fileName}
                     </p>
                 </div>
             </div>

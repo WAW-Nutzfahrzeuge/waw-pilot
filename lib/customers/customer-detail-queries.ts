@@ -7,6 +7,7 @@ type CustomerBaseRow = {
     company_id: string;
     type: "company" | "private";
     company_name: string | null;
+    owner_name: string | null;
     first_name: string | null;
     last_name: string | null;
     street: string | null;
@@ -134,6 +135,10 @@ export type CustomerDetail = {
     id: string;
     type: "company" | "private";
     name: string;
+    company_name: string | null;
+    owner_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
     street: string | null;
     postal_code: string | null;
     city: string | null;
@@ -198,6 +203,7 @@ export async function getCustomerDetail(
       company_id,
       type,
       company_name,
+      owner_name,
       first_name,
       last_name,
       street,
@@ -478,6 +484,10 @@ export async function getCustomerDetail(
         id: customer.id,
         type: customer.type,
         name: getCustomerName(customer),
+        company_name: customer.company_name,
+        owner_name: customer.owner_name,
+        first_name: customer.first_name,
+        last_name: customer.last_name,
         street: customer.street,
         postal_code: customer.postal_code,
         city: customer.city,

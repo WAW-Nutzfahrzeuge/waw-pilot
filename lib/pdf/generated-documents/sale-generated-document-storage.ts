@@ -18,42 +18,13 @@ import {
     DocumentDatePolicy,
     type DocumentDateSuggestion,
 } from "@/src/modules/documents/domain/policies/document-date-policy";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 export type GenerateSaleDocumentResult = {
     documentId: string;
     fileName: string;
     filePath: string;
 };
-
-function getSafeFilePart(value: string | null | undefined): string {
-    if (!value) return "ohne-nummer";
-
-    return value
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-|-$/g, "");
-}
-
-function getSaleGeneratedDocumentFileBaseName(
-    documentType: GeneratedDocumentType,
-): string {
-    const names: Record<GeneratedDocumentType, string> = {
-        invoice_pdf: "rechnung",
-        proforma_invoice: "proforma-rechnung",
-        handover_protocol: "uebergabeprotokoll",
-        entry_certificate: "gelangensbestaetigung",
-        transport_proof: "verbringungsnachweis",
-        license_plate_consent: "einverstaendniserklaerung-kennzeichen",
-        travel_expense_form: "reisekostenformular",
-        purchase_contract: "ankaufsvertrag",
-        sales_contract: "kaufvertrag",
-        abd_checklist: "abd-checkliste",
-        exit_note_checklist: "ausgangsvermerk-checkliste",
-    };
-
-    return names[documentType];
-}
 
 function buildGeneratedDocumentMetadata(params: {
     documentDate: DocumentDateSuggestion;
@@ -198,15 +169,18 @@ export async function generateAndStoreSaleGeneratedDocument(params: {
         params.documentDateOverride ?? null,
     );
 
-    const fileBaseName = getSaleGeneratedDocumentFileBaseName(params.documentType);
-    const numberPart = getSafeFilePart(
-        documentData.sale?.invoiceNumber ?? params.saleId,
-    );
+    const fileNamePolicy = new ExportFileNamePolicy();
+    const saleReference = documentData.sale?.saleNumber ?? documentData.sale?.invoiceNumber ?? params.saleId;
+    const fileName = fileNamePolicy.createDocumentFileName({
+        saleReference,
+        documentType: params.documentType,
+        mimeType: "application/pdf",
+    });
+    const fileBaseName = fileName.replace(/\.pdf$/i, "");
 
     const generatedAt = new Date().toISOString();
     const versionPart = generatedAt.replace(/[:.]/g, "-");
-    const fileName = `${fileBaseName}-${numberPart}.pdf`;
-    const filePath = `generated-documents/sales/${params.saleId}/${fileBaseName}-${numberPart}-${versionPart}.pdf`;
+    const filePath = `generated-documents/sales/${params.saleId}/${fileBaseName}-${versionPart}.pdf`;
     const metadata = buildGeneratedDocumentMetadata({
         documentDate,
         generatedAt,

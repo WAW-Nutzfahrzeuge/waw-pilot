@@ -25,6 +25,7 @@ import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-term
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
     buildCanonicalInvoiceData,
@@ -48,6 +49,7 @@ type SaleInvoiceVehicleRelation = {
 type SaleInvoiceSourceRow = {
     id: string;
     company_id: string;
+    sale_number: string | null;
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
@@ -132,6 +134,7 @@ type ZugferdInvoiceEmailQueryRow = {
     id: string;
     sale_id: string | null;
     invoice_number: string;
+    sales: { sale_number: string | null } | { sale_number: string | null }[] | null;
     zugferd_file_path: string | null;
     zugferd_validation_status: string | null;
     zugferd_email_send_count: number | null;
@@ -173,18 +176,6 @@ function addDays(dateString: string, days: number): string {
     date.setDate(date.getDate() + days);
 
     return toDateOnlyString(date);
-}
-
-function getInvoiceFileBaseName(invoiceType: InvoiceType): string {
-    const fileBaseNames: Record<InvoiceType, string> = {
-        standard: "rechnung",
-        proforma: "proforma-rechnung",
-        down_payment: "anzahlungsrechnung",
-        cancellation_invoice: "stornorechnung",
-        credit_note: "gutschrift",
-    };
-
-    return fileBaseNames[invoiceType];
 }
 
 function getPaymentMethodLabel(paymentMethod: string): string {
@@ -369,6 +360,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
             `
       id,
       company_id,
+      sale_number,
       vehicle_id,
       buyer_customer_id,
       sale_date,
@@ -493,8 +485,11 @@ export async function createSaleInvoiceAction(formData: FormData) {
         entityId: invoiceId,
     });
 
-    const fileBaseName = getInvoiceFileBaseName(invoiceType);
-    const invoiceFileName = `${fileBaseName}-${invoiceNumber}.pdf`;
+    const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+        saleReference: sale.sale_number ?? invoiceNumber,
+        documentType: getInvoiceTypeDocumentType(invoiceType),
+        mimeType: "application/pdf",
+    });
     const invoiceFilePath = `invoices/${invoiceFileName}`;
 
     const { data: documentData, error: documentError } = await supabase
@@ -964,8 +959,11 @@ export async function createZugferdInvoiceAction(formData: FormData) {
             visiblePdfBase64: Buffer.from(visiblePdfBytes).toString("base64"),
         });
         const pdfBytes = Buffer.from(serviceResult.pdfBase64, "base64");
-        const fileName =
-            serviceResult.fileName ?? `rechnung-${pdfData.invoiceNumber}-zugferd.pdf`;
+        const fileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,
+            documentType: "zugferd_invoice",
+            mimeType: "application/pdf",
+        });
         const filePath = `invoices/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -1178,6 +1176,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
       id,
       sale_id,
       invoice_number,
+      sales:sale_id (sale_number),
       zugferd_file_path,
       zugferd_validation_status,
       zugferd_email_send_count,
@@ -1203,6 +1202,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
     }
 
     const invoice = data as unknown as ZugferdInvoiceEmailQueryRow;
+    const saleRelation = Array.isArray(invoice.sales) ? invoice.sales[0] : invoice.sales;
     const customer = getSingleRelation(invoice.customers);
 
     if (!customer?.email) {
@@ -1256,7 +1256,11 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
             bodyHtml: template.html,
             resolvedAttachments: [
                 {
-                    fileName: `rechnung-${invoice.invoice_number}-zugferd.pdf`,
+                    fileName: new ExportFileNamePolicy().createDocumentFileName({
+                        saleReference: saleRelation?.sale_number ?? invoice.invoice_number,
+                        documentType: "zugferd_invoice",
+                        mimeType: "application/pdf",
+                    }),
                     content: fileBytes,
                     mimeType: "application/pdf",
                     fileSizeBytes: fileBytes.byteLength,

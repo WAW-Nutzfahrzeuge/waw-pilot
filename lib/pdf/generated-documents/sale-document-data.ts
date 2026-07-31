@@ -47,6 +47,7 @@ type VehicleRelation = {
 type SaleQueryRow = {
     id: string;
     company_id: string;
+    sale_number: string | null;
     buyer_customer_id: string;
     vehicle_id: string;
     sale_type: string | null;
@@ -118,7 +119,8 @@ export async function getSaleGeneratedDocumentData(
         .from("sales")
         .select(
             `
-            id,
+    id,
+            sale_number,
             company_id,
             buyer_customer_id,
             vehicle_id,
@@ -269,6 +271,7 @@ export async function getSaleGeneratedDocumentData(
 
         sale: {
             id: sale.id,
+            saleNumber: sale.sale_number,
             saleType: sale.sale_type ?? "inland",
             saleDate: sale.sale_date,
             invoiceNumber: invoice?.invoice_number ?? null,

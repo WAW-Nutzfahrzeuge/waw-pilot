@@ -15,6 +15,7 @@ import type {
 } from "@/src/modules/invoice-corrections/application/ports/invoice-correction-repository.port";
 import { getCorrectionReasonLabel } from "@/src/modules/invoice-corrections/domain/constants/correction-types";
 import { CorrectionCalculationService } from "@/src/modules/invoice-corrections/domain/services/correction-calculation.service";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 type InvoiceRow = {
     id: string;
@@ -263,7 +264,17 @@ export class SupabaseInvoiceCorrectionRepository implements InvoiceCorrectionRep
         }
 
         const invoiceId = correctionInvoice.id as string;
-        const invoiceFileName = `stornorechnung-${invoiceNumber}.pdf`;
+        const { data: saleReferenceRow } = await this.supabase
+            .from("sales")
+            .select("sale_number")
+            .eq("company_id", command.companyId)
+            .eq("id", original.saleId)
+            .maybeSingle();
+        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: saleReferenceRow?.sale_number ?? invoiceNumber,
+            documentType: "cancellation_invoice",
+            mimeType: "application/pdf",
+        });
         const invoiceFilePath = `invoices/${invoiceFileName}`;
 
         const { data: documentData, error: documentError } = await this.supabase

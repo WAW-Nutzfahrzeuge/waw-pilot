@@ -6,7 +6,6 @@ import {
     ExportSaleFileUseCase,
     SaleFileExportError,
 } from "@/src/modules/documents/application/use-cases/export-sale-file.use-case";
-import { normalizeFileNamePart } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 export const runtime = "nodejs";
 
@@ -17,7 +16,7 @@ type RouteContext = {
 };
 
 function createContentDispositionFileName(fileName: string): string {
-    return normalizeFileNamePart(fileName).replace(/"/g, "");
+    return fileName.replace(/["\r\n]/g, "");
 }
 
 function toArrayBuffer(buffer: Buffer): ArrayBuffer {

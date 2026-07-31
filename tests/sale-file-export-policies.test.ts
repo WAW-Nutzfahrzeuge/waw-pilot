@@ -31,7 +31,7 @@ test("ExportFileNamePolicy creates safe Windows-compatible names", () => {
         policy.createZipFileName({
             saleReference: "026-015",
         }),
-        "Verkauf_026-015.zip",
+        "Verkauf 026-015.zip",
     );
     assert.equal(
         policy.createDocumentFileName({
@@ -41,7 +41,23 @@ test("ExportFileNamePolicy creates safe Windows-compatible names", () => {
             mimeType: "application/pdf",
             createdAt: "2026-07-25T12:00:00.000Z",
         }),
-        "Gelangensbestaetigung_026-015_MAN_TGX_2026-07-25.pdf",
+        "Gelangensbestaetigung_026-015.pdf",
+    );
+    assert.equal(
+        policy.createDocumentFileName({
+            saleReference: "VK 1",
+            documentType: "invoice_pdf",
+            mimeType: "application/pdf",
+        }),
+        "Rechnung_VK_1.pdf",
+    );
+    assert.equal(
+        policy.createDocumentFileName({
+            saleReference: "VK 1",
+            documentType: "proforma_invoice",
+            mimeType: "application/pdf",
+        }),
+        "Proforma_VK_1.pdf",
     );
 });
 

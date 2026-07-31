@@ -5,6 +5,8 @@ import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-term
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getInvoiceTypeDocumentType } from "@/lib/invoices/invoice-numbering";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 export const runtime = "nodejs";
 
@@ -23,7 +25,9 @@ type InvoiceDocumentRelation = {
 type SupabaseRelation<T> = T | T[] | null;
 
 type InvoiceDocumentQueryResult = {
+    invoice_type: "standard" | "proforma" | "down_payment" | "cancellation_invoice" | "credit_note";
     invoice_number: string;
+    sales: SupabaseRelation<{ sale_number: string | null }>;
     pdf_document_id: string | null;
     documents: SupabaseRelation<InvoiceDocumentRelation>;
 };
@@ -47,6 +51,8 @@ async function getStoredInvoicePdf(invoiceId: string) {
         .select(
             `
       invoice_number,
+      invoice_type,
+      sales:sale_id (sale_number),
       pdf_document_id,
       documents:pdf_document_id (
         file_name,
@@ -63,6 +69,7 @@ async function getStoredInvoicePdf(invoiceId: string) {
 
     const invoice = data as unknown as InvoiceDocumentQueryResult;
     const document = getSingleRelation(invoice.documents);
+    const sale = getSingleRelation(invoice.sales);
 
     if (!document?.file_path) return null;
 
@@ -74,9 +81,15 @@ async function getStoredInvoicePdf(invoiceId: string) {
 
     const arrayBuffer = await fileData.arrayBuffer();
 
+    const fileName = new ExportFileNamePolicy().createDocumentFileName({
+        saleReference: sale?.sale_number ?? invoice.invoice_number,
+        documentType: getInvoiceTypeDocumentType(invoice.invoice_type),
+        mimeType: document.mime_type ?? "application/pdf",
+    });
+
     return {
         bytes: Buffer.from(arrayBuffer),
-        fileName: document.file_name || `rechnung-${invoice.invoice_number}.pdf`,
+        fileName,
         contentType: document.mime_type || "application/pdf",
     };
 }
@@ -113,7 +126,11 @@ export async function GET(_request: Request, context: RouteContext) {
         return new NextResponse(Buffer.from(pdfBytes), {
             headers: {
                 "Content-Type": "application/pdf",
-                "Content-Disposition": `attachment; filename="rechnung-${pdfData.invoiceNumber}.pdf"`,
+                "Content-Disposition": `attachment; filename="${new ExportFileNamePolicy().createDocumentFileName({
+                    saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,
+                    documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
+                    mimeType: "application/pdf",
+                })}"`,
                 "Cache-Control": "no-store",
             },
         });

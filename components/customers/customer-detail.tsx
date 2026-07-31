@@ -4,11 +4,10 @@ import {
     ArrowUpRight,
     Building2,
     Download,
+    Edit3,
     ExternalLink,
     FileText,
-    PencilLine,
     Receipt,
-    Save,
     Truck,
     UserRound,
     Wallet,
@@ -34,6 +33,7 @@ import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { updateCustomerMasterDataAction } from "@/app/dashboard/customers/[customerId]/actions";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FlashMessage } from "@/components/shared/flash-message";
@@ -131,11 +131,14 @@ export function CustomerDetail({
                     <TemporaryHighlight active={highlight}>
                         <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
-                                <SectionTitle
-                                    icon={customer.type === "company" ? Building2 : UserRound}
-                                    title="Stammdaten"
-                                    description="Kontakt- und Rechnungsdaten des Kunden."
-                                />
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                    <SectionTitle
+                                        icon={customer.type === "company" ? Building2 : UserRound}
+                                        title="Stammdaten"
+                                        description="Kontakt- und Rechnungsdaten des Kunden."
+                                    />
+                                    <CustomerMasterDataEditDialog customer={customer} />
+                                </div>
 
                                 <div className="mt-5 space-y-3">
                                     <InfoRow label="Name" value={customer.name} />
@@ -162,112 +165,6 @@ export function CustomerDetail({
                                         label="Angelegt am"
                                         value={formatDate(customer.created_at)}
                                     />
-                                </div>
-
-                                <div className="mt-6 rounded-3xl border border-cyan-100 bg-cyan-50/60 p-4">
-                                    <div className="flex items-start gap-3">
-                                        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
-                                            <PencilLine className="size-4" />
-                                        </div>
-
-                                        <div>
-                                            <p className="text-sm font-extrabold text-cyan-950">
-                                                Stammdaten bearbeiten
-                                            </p>
-                                            <p className="mt-1 text-xs font-semibold leading-5 text-cyan-800">
-                                                Diese Angaben werden für Rechnungen, Gelangensbestätigung,
-                                                Verbringungsnachweis und weitere PDF-Dokumente verwendet.
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <form action={updateCustomerMasterDataAction} className="mt-4 space-y-4">
-                                        <input type="hidden" name="customer_id" value={customer.id} />
-
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            <CustomerFormField
-                                                label="Straße"
-                                                name="street"
-                                                defaultValue={customer.street ?? ""}
-                                                placeholder="z. B. Musterstraße 1"
-                                            />
-
-                                            <CustomerFormField
-                                                label="PLZ"
-                                                name="postal_code"
-                                                defaultValue={customer.postal_code ?? ""}
-                                                placeholder="z. B. 20095"
-                                            />
-
-                                            <CustomerFormField
-                                                label="Stadt"
-                                                name="city"
-                                                defaultValue={customer.city ?? ""}
-                                                placeholder="z. B. Hamburg"
-                                            />
-
-                                            <CustomerFormField
-                                                label="Land"
-                                                name="country"
-                                                defaultValue={customer.country ?? ""}
-                                                placeholder="z. B. Deutschland"
-                                            />
-
-                                            <CustomerFormField
-                                                label="E-Mail"
-                                                name="email"
-                                                type="email"
-                                                defaultValue={customer.email ?? ""}
-                                                placeholder="kunde@example.com"
-                                            />
-
-                                            <EmailLanguageSelect
-                                                defaultValue={customer.preferred_language}
-                                            />
-
-                                            <CustomerFormField
-                                                label="Telefon"
-                                                name="phone"
-                                                type="tel"
-                                                defaultValue={customer.phone ?? ""}
-                                                placeholder="+49 ..."
-                                                pattern={phoneInputPattern}
-                                                title="Bitte gib eine gültige Telefonnummer ein."
-                                            />
-
-                                            <CustomerFormField
-                                                label="Steuernummer"
-                                                name="tax_number"
-                                                defaultValue={customer.tax_number ?? ""}
-                                                placeholder="z. B. 12/345/67890"
-                                            />
-
-                                            <CustomerFormField
-                                                label="USt-ID"
-                                                name="vat_id"
-                                                defaultValue={customer.vat_id ?? ""}
-                                                placeholder="z. B. ATU12345678"
-                                            />
-                                        </div>
-
-                                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                                            <p className="text-xs font-bold leading-5 text-amber-900">
-                                                Für Inland-Verkäufe muss die Steuernummer gepflegt sein.
-                                                Für EU-Verkäufe muss die USt-ID gepflegt sein.
-                                                Stadt und Land werden zusätzlich für Export- und Verbringungsdokumente verwendet.
-                                            </p>
-                                        </div>
-
-                                        <div className="flex justify-end">
-                                            <Button
-                                                type="submit"
-                                                className="h-11 rounded-2xl bg-cyan-700 px-5 font-extrabold text-white hover:bg-cyan-800"
-                                            >
-                                                <Save className="mr-2 size-4" />
-                                                Stammdaten speichern
-                                            </Button>
-                                        </div>
-                                    </form>
                                 </div>
                             </CardContent>
                         </Card>
@@ -610,6 +507,117 @@ function getCustomerDocumentDisplayName(
     }
 
     return getDocumentTypeLabel(document.document_type);
+}
+
+function CustomerMasterDataEditDialog({
+                                          customer,
+                                      }: {
+    customer: CustomerDetailType;
+}) {
+    return (
+        <FormDialog
+            trigger={
+                <Button variant="outline" className="rounded-2xl bg-white font-bold">
+                    <Edit3 className="mr-2 size-4" />
+                    Kunde bearbeiten
+                </Button>
+            }
+            title="Kunde bearbeiten"
+            description="Änderungen gelten für zukünftige Vorgänge. Bereits erzeugte Rechnungs-PDFs bleiben unverändert."
+            action={updateCustomerMasterDataAction}
+            submitLabel="Kunde speichern"
+        >
+            <input type="hidden" name="customer_id" value={customer.id} />
+
+            <div className="grid gap-4 md:grid-cols-2">
+                {customer.type === "company" ? (
+                    <>
+                        <CustomerFormField
+                            label="Firma"
+                            name="company_name"
+                            defaultValue={customer.company_name ?? ""}
+                            placeholder="z. B. Muster GmbH"
+                        />
+                        <CustomerFormField
+                            label="Inhaber / Ansprechpartner"
+                            name="owner_name"
+                            defaultValue={customer.owner_name ?? ""}
+                            placeholder="z. B. Max Mustermann"
+                        />
+                    </>
+                ) : (
+                    <>
+                        <CustomerFormField
+                            label="Vorname"
+                            name="first_name"
+                            defaultValue={customer.first_name ?? ""}
+                            placeholder="z. B. Max"
+                        />
+                        <CustomerFormField
+                            label="Nachname"
+                            name="last_name"
+                            defaultValue={customer.last_name ?? ""}
+                            placeholder="z. B. Mustermann"
+                        />
+                    </>
+                )}
+
+                <CustomerFormField
+                    label="Straße"
+                    name="street"
+                    defaultValue={customer.street ?? ""}
+                    placeholder="z. B. Musterstraße 1"
+                />
+                <CustomerFormField
+                    label="PLZ"
+                    name="postal_code"
+                    defaultValue={customer.postal_code ?? ""}
+                    placeholder="z. B. 20095"
+                />
+                <CustomerFormField
+                    label="Stadt"
+                    name="city"
+                    defaultValue={customer.city ?? ""}
+                    placeholder="z. B. Hamburg"
+                />
+                <CustomerFormField
+                    label="Land"
+                    name="country"
+                    defaultValue={customer.country ?? ""}
+                    placeholder="z. B. Deutschland"
+                />
+                <CustomerFormField
+                    label="E-Mail"
+                    name="email"
+                    type="email"
+                    defaultValue={customer.email ?? ""}
+                    placeholder="kunde@example.com"
+                />
+                <EmailLanguageSelect defaultValue={customer.preferred_language} />
+                <CustomerFormField
+                    label="Telefon"
+                    name="phone"
+                    type="tel"
+                    defaultValue={customer.phone ?? ""}
+                    placeholder="+49 ..."
+                    pattern={phoneInputPattern}
+                    title="Bitte gib eine gültige Telefonnummer ein."
+                />
+                <CustomerFormField
+                    label="Steuernummer"
+                    name="tax_number"
+                    defaultValue={customer.tax_number ?? ""}
+                    placeholder="z. B. 12/345/67890"
+                />
+                <CustomerFormField
+                    label="USt-ID"
+                    name="vat_id"
+                    defaultValue={customer.vat_id ?? ""}
+                    placeholder="z. B. ATU12345678"
+                />
+            </div>
+        </FormDialog>
+    );
 }
 
 function InfoRow({

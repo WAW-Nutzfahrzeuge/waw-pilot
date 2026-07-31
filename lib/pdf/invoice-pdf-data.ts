@@ -52,6 +52,7 @@ type VehicleRelation = {
 };
 
 type SaleRelation = {
+    sale_number: string | null;
     sale_type: SaleType | null;
     invoice_notes: string | null;
     include_damage_notes_on_invoice: boolean | null;
@@ -138,6 +139,7 @@ const invoicePdfBaseSelect = `
         damage_notes
       ),
       sales (
+        sale_number,
         sale_type,
         invoice_notes,
         include_damage_notes_on_invoice
@@ -272,6 +274,7 @@ export async function getInvoicePdfData(
         invoiceType: invoice.invoice_type ?? "standard",
         saleType: getSaleTypeValue(sale),
         invoiceNumber: invoice.invoice_number,
+        saleNumber: sale?.sale_number ?? null,
         invoiceDate: invoice.invoice_date,
         correction: invoice.original_invoice_number
             ? {

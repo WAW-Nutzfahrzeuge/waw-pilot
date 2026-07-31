@@ -23,6 +23,7 @@ type SaleExportInvoiceRow = {
 type SaleExportRow = {
     id: string;
     company_id: string;
+    sale_number: string | null;
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
@@ -115,6 +116,7 @@ function getSaleReference(sale: SaleExportRow, invoices: SaleExportInvoiceRow[])
     const firstInvoiceWithNumber = invoices.find((invoice) => invoice.invoice_number);
 
     return (
+        sale.sale_number ??
         standardInvoice?.invoice_number ??
         firstInvoiceWithNumber?.invoice_number ??
         sale.vehicles?.internal_number ??
@@ -284,6 +286,7 @@ export class ExportSaleFileUseCase {
                 `
                 id,
                 company_id,
+                sale_number,
                 vehicle_id,
                 buyer_customer_id,
                 sale_date,

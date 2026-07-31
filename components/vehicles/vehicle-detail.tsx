@@ -90,28 +90,16 @@ export function VehicleDetail({
                 title={vehicle.name}
                 description="Detailansicht mit Fahrzeugdaten, Kundenbezug, Verkäufen und Dokumenten."
                 action={
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                            asChild
-                            variant="outline"
-                            className="rounded-2xl border-slate-200 bg-white font-bold"
-                        >
-                            <Link href="/dashboard/vehicles">
-                                <ArrowLeft className="mr-2 size-4" />
-                                Zurück
-                            </Link>
-                        </Button>
-
-                        <Button
-                            asChild
-                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                        >
-                            <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
-                                <Edit3 className="mr-2 size-4" />
-                                Bearbeiten
-                            </Link>
-                        </Button>
-                    </div>
+                    <Button
+                        asChild
+                        variant="outline"
+                        className="rounded-2xl border-slate-200 bg-white font-bold"
+                    >
+                        <Link href="/dashboard/vehicles">
+                            <ArrowLeft className="mr-2 size-4" />
+                            Zurück
+                        </Link>
+                    </Button>
                 }
             />
 
@@ -168,11 +156,23 @@ export function VehicleDetail({
                 <div className="space-y-6">
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
-                            <SectionTitle
-                                icon={Truck}
-                                title="Fahrzeugdaten"
-                                description="Technische Stammdaten."
-                            />
+                            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <SectionTitle
+                                    icon={Truck}
+                                    title="Fahrzeugdaten"
+                                    description="Technische Stammdaten."
+                                />
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    className="rounded-2xl bg-white font-bold"
+                                >
+                                    <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
+                                        <Edit3 className="mr-2 size-4" />
+                                        Bearbeiten
+                                    </Link>
+                                </Button>
+                            </div>
 
                             <div className="mt-5 space-y-3">
                                 <InfoRow label="Hersteller" value={vehicle.manufacturer} />

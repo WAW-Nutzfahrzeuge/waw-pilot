@@ -34,6 +34,7 @@ import {
 import { formatCurrency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/date";
 import { getDocumentTypeLabel } from "@/lib/documents/document-helpers";
+import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
@@ -95,6 +96,20 @@ type SaleDetailProps = {
     recordSaved?: string | null;
     recordError?: string | null;
 };
+
+function getSaleDocumentDisplayFileName(
+    document: SaleDetailType["documents"][number] | null,
+    saleNumber: string | null,
+): string | null {
+    if (!document) return null;
+    if (document.source !== "generated") return document.file_name;
+
+    return new ExportFileNamePolicy().createDocumentFileName({
+        saleReference: saleNumber ?? "ohne-nummer",
+        documentType: document.document_type,
+        mimeType: document.mime_type,
+    });
+}
 
 export async function SaleDetail({
                                sale,
@@ -654,6 +669,7 @@ export async function SaleDetail({
 
                     <SaleGeneratedDocumentsCard
                         saleId={sale.id}
+                        saleNumber={sale.sale_number}
                         documents={generatedDocuments}
                         generatedDocumentType={generatedDocumentType}
                     />
@@ -752,7 +768,10 @@ export async function SaleDetail({
                                                 {requiredDocument.document ? (
                                                     <div className="mt-2 space-y-2">
                                                         <p className="text-sm font-semibold text-slate-600">
-                                                            {requiredDocument.document.file_name}
+                                                            {getSaleDocumentDisplayFileName(
+                                                                requiredDocument.document,
+                                                                sale.sale_number,
+                                                            )}
                                                         </p>
 
                                                         <div className="flex flex-wrap gap-2">
@@ -816,14 +835,17 @@ export async function SaleDetail({
                                                             saleId={sale.id}
                                                             documentType={uploadOption.documentType}
                                                             documentLabel={uploadOption.label}
-                                                            existingDocumentId={
-                                                                isExistingOption
-                                                                    ? requiredDocument.document?.id ?? null
-                                                                    : null
-                                                            }
+                                                                existingDocumentId={
+                                                                    isExistingOption
+                                                                        ? requiredDocument.document?.id ?? null
+                                                                        : null
+                                                                }
                                                             existingFileName={
                                                                 isExistingOption
-                                                                    ? requiredDocument.document?.file_name ?? null
+                                                                    ? getSaleDocumentDisplayFileName(
+                                                                          requiredDocument.document,
+                                                                          sale.sale_number,
+                                                                      )
                                                                     : null
                                                             }
                                                         />
@@ -837,7 +859,10 @@ export async function SaleDetail({
                                                     documentType={requiredDocument.documentType}
                                                     documentLabel={requiredDocument.label}
                                                     existingDocumentId={requiredDocument.document?.id ?? null}
-                                                    existingFileName={requiredDocument.document?.file_name ?? null}
+                                                    existingFileName={getSaleDocumentDisplayFileName(
+                                                        requiredDocument.document,
+                                                        sale.sale_number,
+                                                    )}
                                                 />
                                             </div>
                                         )}
@@ -870,7 +895,7 @@ export async function SaleDetail({
                                         >
                                             <div>
                                                 <p className="font-extrabold text-slate-950">
-                                                    {document.file_name}
+                                                    {getSaleDocumentDisplayFileName(document, sale.sale_number)}
                                                 </p>
                                                 <p className="mt-1 text-sm font-medium text-slate-500">
                                                     {getDocumentTypeLabel(document.document_type)} · {document.status}
@@ -960,9 +985,6 @@ function InvoiceCard({
                     <h3 className="text-lg font-extrabold leading-tight text-slate-950">
                         {getInvoiceTypeLabel(invoice.invoice_type)}
                     </h3>
-                    <p className="mt-2 text-2xl font-extrabold text-cyan-700">
-                        {invoice.invoice_number}
-                    </p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
                         {formatDate(invoice.invoice_date)}
                     </p>

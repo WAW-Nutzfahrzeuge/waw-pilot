@@ -20,6 +20,7 @@ export type InvoicePdfData = {
     invoiceType: InvoiceType;
     saleType: SaleType;
     invoiceNumber: string;
+    saleNumber: string | null;
     invoiceDate: string;
     correction?: {
         originalInvoiceNumber: string | null;
