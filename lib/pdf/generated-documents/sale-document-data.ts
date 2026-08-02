@@ -115,10 +115,14 @@ export async function getSaleGeneratedDocumentData(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data: saleData, error: saleError } = await supabase
-        .from("sales")
-        .select(
-            `
+    const [
+        { data: saleData, error: saleError },
+        { data: invoiceData, error: invoiceError },
+    ] = await Promise.all([
+        supabase
+            .from("sales")
+            .select(
+                `
     id,
             sale_number,
             company_id,
@@ -174,11 +178,29 @@ export async function getSaleGeneratedDocumentData(
                 first_registration,
                 construction_year
             )
+                `,
+            )
+            .eq("id", saleId)
+            .eq("company_id", companyId)
+            .single(),
+        supabase
+            .from("invoices")
+            .select(
+                `
+            id,
+            invoice_number,
+            invoice_date,
+            invoice_type,
+            status,
+            payment_status
         `,
-        )
-        .eq("id", saleId)
-        .eq("company_id", companyId)
-        .single();
+            )
+            .eq("company_id", companyId)
+            .eq("sale_id", saleId)
+            .order("invoice_date", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+    ]);
 
     if (saleError || !saleData) {
         throw new Error(
@@ -193,24 +215,6 @@ export async function getSaleGeneratedDocumentData(
     const company = getSingleRelation(sale.companies);
     const customer = getSingleRelation(sale.customers);
     const vehicle = getSingleRelation(sale.vehicles);
-
-    const { data: invoiceData, error: invoiceError } = await supabase
-        .from("invoices")
-        .select(
-            `
-            id,
-            invoice_number,
-            invoice_date,
-            invoice_type,
-            status,
-            payment_status
-        `,
-        )
-        .eq("company_id", companyId)
-        .eq("sale_id", saleId)
-        .order("invoice_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
 
     if (invoiceError) {
         throw new Error(
