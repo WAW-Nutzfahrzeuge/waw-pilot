@@ -87,6 +87,10 @@ export function getRequiredDocumentsForSale({
 }): RequiredDocumentDefinition[] {
     void isCompanyCustomer;
 
+    if (saleType === "export_third_country") {
+        return [...THIRD_COUNTRY_REQUIRED_DOCUMENTS];
+    }
+
     const requiredDocuments = [...BASE_REQUIRED_DOCUMENTS];
 
     if (saleType === "inland") {
@@ -104,10 +108,6 @@ export function getRequiredDocumentsForSale({
         })
     ) {
         requiredDocuments.push(...EU_COMPANY_VAT_REQUIRED_DOCUMENTS);
-    }
-
-    if (saleType === "export_third_country") {
-        requiredDocuments.push(...THIRD_COUNTRY_REQUIRED_DOCUMENTS);
     }
 
     return requiredDocuments;

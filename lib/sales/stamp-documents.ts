@@ -1,5 +1,6 @@
 import type { EmailLanguage } from "@/lib/customers/email-languages";
 import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
+import type { SaleType } from "@/lib/sales/sale-queries";
 
 export const STAMP_DOCUMENT_TYPES = [
     {
@@ -28,6 +29,18 @@ export const STAMP_DOCUMENT_TYPES = [
 
 export type StampDocumentKey = (typeof STAMP_DOCUMENT_TYPES)[number]["key"];
 
+const STAMP_DOCUMENT_KEYS_BY_SALE_TYPE: Record<SaleType, readonly StampDocumentKey[]> = {
+    inland: ["handover_protocol"],
+    eu: ["entry_certificate", "transport_proof", "handover_protocol"],
+    export_third_country: [],
+};
+
+export function getStampDocumentKeysForSaleType(
+    saleType: SaleType,
+): readonly StampDocumentKey[] {
+    return STAMP_DOCUMENT_KEYS_BY_SALE_TYPE[saleType];
+}
+
 export type StampDocumentCandidate = {
     id: string;
     document_type: string;
@@ -54,14 +67,16 @@ export function getStampDocumentType(
 
 export function getAvailableStampDocuments(
     documents: StampDocumentCandidate[],
+    saleType: SaleType = "eu",
 ): Array<StampDocumentCandidate & { stampKey: StampDocumentKey; label: string }> {
     const usedKeys = new Set<StampDocumentKey>();
+    const allowedKeys = new Set(getStampDocumentKeysForSaleType(saleType));
     const result: Array<StampDocumentCandidate & { stampKey: StampDocumentKey; label: string }> = [];
 
     for (const document of documents) {
         const definition = getStampDocumentType(document);
 
-        if (!definition || usedKeys.has(definition.key)) continue;
+        if (!definition || !allowedKeys.has(definition.key) || usedKeys.has(definition.key)) continue;
         if (!document.file_path || document.status === "missing") continue;
 
         usedKeys.add(definition.key);
@@ -77,13 +92,16 @@ export function getAvailableStampDocuments(
 
 export function getMissingStampDocumentLabels(
     documents: StampDocumentCandidate[],
+    saleType: SaleType = "eu",
 ): string[] {
     const availableKeys = new Set(
-        getAvailableStampDocuments(documents).map((document) => document.stampKey),
+        getAvailableStampDocuments(documents, saleType).map((document) => document.stampKey),
     );
 
     return STAMP_DOCUMENT_TYPES.filter(
-        (definition) => !availableKeys.has(definition.key),
+        (definition) =>
+            getStampDocumentKeysForSaleType(saleType).includes(definition.key) &&
+            !availableKeys.has(definition.key),
     ).map((definition) => definition.label);
 }
 

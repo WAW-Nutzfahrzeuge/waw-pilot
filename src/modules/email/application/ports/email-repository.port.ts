@@ -39,6 +39,11 @@ export interface EmailRepositoryPort {
         failureCode: string;
         failureMessage: string;
     }): Promise<void>;
+    claimFailedMessageForRetry(params: {
+        companyId: string;
+        emailId: string;
+        actorId?: string | null;
+    }): Promise<EmailMessageDto | null>;
     createDeliveryAttempt(params: {
         companyId: string;
         emailId: string;

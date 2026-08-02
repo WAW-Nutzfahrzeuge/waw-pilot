@@ -357,6 +357,33 @@ export class SupabaseEmailRepository implements EmailRepositoryPort {
         }
     }
 
+    async claimFailedMessageForRetry(params: {
+        companyId: string;
+        emailId: string;
+        actorId?: string | null;
+    }): Promise<EmailMessageDto | null> {
+        const { data, error } = await this.supabase
+            .from("email_messages")
+            .update({
+                status: "SENDING",
+                failed_at: null,
+                failure_code: null,
+                failure_message: null,
+                updated_by: params.actorId ?? null,
+            })
+            .eq("company_id", params.companyId)
+            .eq("id", params.emailId)
+            .eq("status", "FAILED")
+            .select(emailSelect)
+            .maybeSingle();
+
+        if (error) {
+            throw new Error(`E-Mail konnte nicht erneut gestartet werden: ${error.message}`);
+        }
+
+        return data ? mapEmailRow(data as unknown as EmailMessageRow) : null;
+    }
+
     async createDeliveryAttempt(params: {
         companyId: string;
         emailId: string;

@@ -78,6 +78,7 @@ type SaleDetailProps = {
     invoiceRegeneratedNumber?: string | null;
     invoiceEmailSent?: string | null;
     invoiceEmailError?: string | null;
+    stampEmailSent?: string | null;
     zugferdCreated?: boolean;
     zugferdEmailSent?: string | null;
     zugferdError?: string | null;
@@ -124,6 +125,7 @@ export async function SaleDetail({
                                invoiceRegeneratedNumber = null,
                                invoiceEmailSent = null,
                                invoiceEmailError = null,
+                               stampEmailSent = null,
                                zugferdCreated = false,
                                zugferdEmailSent = null,
                                zugferdError = null,
@@ -230,6 +232,13 @@ export async function SaleDetail({
                         </div>
                     </div>
                 </div>
+            ) : null}
+
+            {stampEmailSent ? (
+                <FlashMessage
+                    message="E-Mail wurde erfolgreich versendet."
+                    description="Die Dokumente zum Stempeln wurden an den Kunden gesendet."
+                />
             ) : null}
 
             {cancellationCreated ? (
@@ -666,12 +675,14 @@ export async function SaleDetail({
 
                     <SaleExportDetailsForm details={exportDetails} />
 
-                    <SaleGeneratedDocumentsCard
-                        saleId={sale.id}
-                        saleNumber={sale.sale_number}
-                        documents={generatedDocuments}
-                        generatedDocumentType={generatedDocumentType}
-                    />
+                    {generatedDocuments.length > 0 ? (
+                        <SaleGeneratedDocumentsCard
+                            saleId={sale.id}
+                            saleNumber={sale.sale_number}
+                            documents={generatedDocuments}
+                            generatedDocumentType={generatedDocumentType}
+                        />
+                    ) : null}
 
                     <Card className="overflow-hidden rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm">
                         <CardContent className="p-0">
@@ -682,20 +693,23 @@ export async function SaleDetail({
                                     description="Fehlende Unterlagen direkt hochladen und automatisch der Verkaufsakte zuordnen."
                                 />
 
-                                <div className="mt-4">
-                                    <SendStampDocumentsDialog
-                                        saleId={sale.id}
-                                        customer={{
-                                            name: sale.customer.name,
-                                            email: sale.customer.email,
-                                            preferred_language:
-                                                sale.customer.preferred_language,
-                                            country: sale.customer.country,
-                                        }}
-                                        vehicleLabel={sale.vehicle.name}
-                                        documents={sale.documents}
-                                    />
-                                </div>
+                                {sale.sale_type !== "export_third_country" ? (
+                                    <div className="mt-4">
+                                        <SendStampDocumentsDialog
+                                            saleId={sale.id}
+                                            saleType={sale.sale_type}
+                                            customer={{
+                                                name: sale.customer.name,
+                                                email: sale.customer.email,
+                                                preferred_language:
+                                                    sale.customer.preferred_language,
+                                                country: sale.customer.country,
+                                            }}
+                                            vehicleLabel={sale.vehicle.name}
+                                            documents={sale.documents}
+                                        />
+                                    </div>
+                                ) : null}
 
                                 <div
                                     className={

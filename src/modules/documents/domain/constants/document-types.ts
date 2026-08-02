@@ -225,6 +225,17 @@ export const documentTypeDefinitions: readonly DocumentTypeDefinition[] = [
         defaultStatus: "ACTIVE",
     }),
     defineDocumentType({
+        code: "customs",
+        label: "Zolldokument / Ausfuhrnachweis / Ausgangsvermerk",
+        canBeRequired: true,
+        replacementAllowed: true,
+        archiveAllowed: true,
+        allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
+        sortOrder: 55,
+        badgeTone: "warning",
+        defaultStatus: "REVIEW_REQUIRED",
+    }),
+    defineDocumentType({
         code: "bzst_vat_verification_primary",
         label: "BZSt-Prüfnachweis – Ergebnisübersicht",
         description:

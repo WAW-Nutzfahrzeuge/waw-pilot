@@ -329,7 +329,9 @@ export async function generateEntryCertificatePdf(
     const contentWidth = ctx.width - contentX * 2;
     const centerX = ctx.width / 2;
 
-    let y = await drawCompanyDocumentHeader(ctx, data);
+    // Keep the legal title block below the company header and derive the
+    // customer field position from the rendered number of title lines.
+    let y = (await drawCompanyDocumentHeader(ctx, data)) + 16;
 
     drawCenteredText(
         page,
@@ -343,9 +345,9 @@ export async function generateEntryCertificatePdf(
         },
     );
 
-    y -= 16;
+    y -= 10;
 
-    drawCenteredText(
+    y = drawCenteredText(
         page,
         "- Muster einer Gelangensbestätigung im Sinne des § 17a Abs. 2 Nr. 2 UStDV -",
         centerX,
@@ -357,25 +359,25 @@ export async function generateEntryCertificatePdf(
         },
     );
 
-    y -= 44;
+    y -= 16;
 
-    drawCenteredText(
+    y = drawCenteredText(
         page,
         "Bestätigung über das Gelangen des Gegenstands einer innergemeinschaftlichen Lieferung in einen anderen EU-Mitgliedstaat (Gelangensbestätigung)",
         centerX,
         y,
         {
             font: timesBold,
-            size: 12,
+            size: 10,
             maxWidth: contentWidth,
-            lineHeight: 15,
+            lineHeight: 13,
         },
     );
 
     /**
      * Name und Anschrift Abnehmer
      */
-    const customerLineY = 612;
+    const customerLineY = y - 18;
 
     drawValueAboveLine(page, {
         value: getCustomerLine(data),

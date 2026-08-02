@@ -15,6 +15,7 @@ import {
     getAvailableStampDocuments,
     getStampDocumentType,
 } from "@/lib/sales/stamp-documents";
+import type { SaleType } from "@/lib/sales/sale-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createSendEmailUseCase } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
@@ -41,6 +42,7 @@ type SaleEmailDocumentRow = {
 
 type SaleEmailQueryRow = {
     id: string;
+    sale_type: SaleType | null;
     buyer_customer_id: string;
     customers: SupabaseRelation<{
         id: string;
@@ -150,6 +152,7 @@ export async function sendStampDocumentsEmailAction(
         .select(
             `
             id,
+            sale_type,
             buyer_customer_id,
             customers:buyer_customer_id (
                 id,
@@ -190,6 +193,13 @@ export async function sendStampDocumentsEmailAction(
     const customer = getSingleRelation(sale.customers);
     const vehicle = getSingleRelation(sale.vehicles);
 
+    if (sale.sale_type === "export_third_country") {
+        return {
+            success: false,
+            message: "Für Drittlandexporte werden keine Dokumente zum Stempeln versendet.",
+        };
+    }
+
     if (!customer || !vehicle) {
         return {
             success: false,
@@ -199,6 +209,7 @@ export async function sendStampDocumentsEmailAction(
 
     const availableStampDocuments = getAvailableStampDocuments(
         getManyRelation(sale.documents),
+        sale.sale_type ?? "inland",
     ).filter((document) => selectedDocumentIds.has(document.id));
 
     if (availableStampDocuments.length === 0) {

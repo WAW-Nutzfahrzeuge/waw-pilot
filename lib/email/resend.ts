@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 type EmailAttachment = {
     filename: string;
     content: Buffer;
@@ -38,6 +40,23 @@ export class EmailSendError extends Error {
     }
 }
 
+/** Resend accepts idempotency keys from 1 to 256 characters. */
+export function normalizeResendIdempotencyKey(
+    idempotencyKey: string | undefined,
+): string | undefined {
+    const normalizedKey = idempotencyKey?.trim();
+
+    if (!normalizedKey) {
+        return undefined;
+    }
+
+    if (normalizedKey.length <= 256) {
+        return normalizedKey;
+    }
+
+    return `waw-${createHash("sha256").update(normalizedKey).digest("hex")}`;
+}
+
 export async function sendEmailWithResend({
     to,
     cc = [],
@@ -52,6 +71,7 @@ export async function sendEmailWithResend({
 }: SendEmailParams): Promise<SendEmailResult> {
     const apiKey = process.env.RESEND_API_KEY;
     const from = explicitFrom?.trim();
+    const normalizedIdempotencyKey = normalizeResendIdempotencyKey(idempotencyKey);
 
     if (!apiKey || !from) {
         throw new EmailConfigurationError();
@@ -62,7 +82,9 @@ export async function sendEmailWithResend({
         headers: {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+            ...(normalizedIdempotencyKey
+                ? { "Idempotency-Key": normalizedIdempotencyKey }
+                : {}),
         },
         body: JSON.stringify({
             from,

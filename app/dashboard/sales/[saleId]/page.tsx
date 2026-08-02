@@ -16,6 +16,7 @@ type SaleDetailPageProps = {
         invoiceRegenerated?: string;
         invoiceEmailSent?: string;
         invoiceEmailError?: string;
+        stampEmailSent?: string;
         zugferdCreated?: string;
         zugferdEmailSent?: string;
         zugferdError?: string;
@@ -72,6 +73,7 @@ export default async function SaleDetailPage({
             invoiceRegeneratedNumber={resolvedSearchParams.invoiceRegenerated ?? null}
             invoiceEmailSent={resolvedSearchParams.invoiceEmailSent ?? null}
             invoiceEmailError={resolvedSearchParams.invoiceEmailError ?? null}
+            stampEmailSent={resolvedSearchParams.stampEmailSent ?? null}
             zugferdCreated={resolvedSearchParams.zugferdCreated === "1"}
             zugferdEmailSent={resolvedSearchParams.zugferdEmailSent ?? null}
             zugferdError={resolvedSearchParams.zugferdError ?? null}

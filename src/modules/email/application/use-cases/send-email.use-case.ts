@@ -110,19 +110,31 @@ export class SendEmailUseCase {
         message.validateBeforeSend();
         message.assertTransition("READY_TO_SEND");
 
-        const persistedEmail = await this.repository.createSendingMessage({
-            ...command,
-            status: "SENDING",
-            attachments: resolvedAttachments.map((attachment, index) => ({
-                documentId: attachment.documentId.length > 0 ? attachment.documentId : null,
-                documentVersionId: attachment.documentVersionId,
-                fileName: attachment.fileName,
-                mimeType: attachment.mimeType,
-                fileSizeBytes: attachment.fileSizeBytes,
-                attachmentType: attachment.attachmentType,
-                sortOrder: index,
-            })),
-        });
+        const persistedEmail = existingEmail?.status === "FAILED"
+            ? await this.repository.claimFailedMessageForRetry({
+                companyId: command.companyId,
+                emailId: existingEmail.id,
+                actorId: command.actorId,
+            })
+            : await this.repository.createSendingMessage({
+                ...command,
+                status: "SENDING",
+                attachments: resolvedAttachments.map((attachment, index) => ({
+                    documentId: attachment.documentId.length > 0 ? attachment.documentId : null,
+                    documentVersionId: attachment.documentVersionId,
+                    fileName: attachment.fileName,
+                    mimeType: attachment.mimeType,
+                    fileSizeBytes: attachment.fileSizeBytes,
+                    attachmentType: attachment.attachmentType,
+                    sortOrder: index,
+                })),
+            });
+
+        if (!persistedEmail) {
+            throw new EmailAlreadySentError(
+                "Diese E-Mail wird bereits verarbeitet. Bitte prüfe die Versandhistorie.",
+            );
+        }
 
         await this.audit.record({
             companyId: command.companyId,

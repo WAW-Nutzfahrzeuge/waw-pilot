@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState, useActionState } from "react";
+import { useEffect, useMemo, useRef, useState, useActionState } from "react";
 import { Mail, Send, X } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import {
     sendStampDocumentsEmailAction,
@@ -18,6 +19,7 @@ import {
     getStampDocumentsEmailTemplate,
     type StampDocumentCandidate,
 } from "@/lib/sales/stamp-documents";
+import type { SaleType } from "@/lib/sales/sale-queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -33,6 +35,7 @@ type SendStampDocumentsDialogProps = {
     };
     vehicleLabel: string;
     documents: StampDocumentCandidate[];
+    saleType: SaleType;
 };
 
 const initialState: SendStampDocumentsEmailState = {
@@ -45,14 +48,15 @@ export function SendStampDocumentsDialog({
                                              customer,
                                              vehicleLabel,
                                              documents,
+                                             saleType,
                                          }: SendStampDocumentsDialogProps) {
     const availableDocuments = useMemo(
-        () => getAvailableStampDocuments(documents),
-        [documents],
+        () => getAvailableStampDocuments(documents, saleType),
+        [documents, saleType],
     );
     const missingDocumentLabels = useMemo(
-        () => getMissingStampDocumentLabels(documents),
-        [documents],
+        () => getMissingStampDocumentLabels(documents, saleType),
+        [documents, saleType],
     );
     const suggestedLanguage = getSuggestedEmailLanguage({
         country: customer.country,
@@ -76,6 +80,21 @@ export function SendStampDocumentsDialog({
         sendStampDocumentsEmailAction,
         initialState,
     );
+    const router = useRouter();
+    const successHandledRef = useRef(false);
+
+    useEffect(() => {
+        if (!state.success || successHandledRef.current) return;
+
+        successHandledRef.current = true;
+        setOpen(false);
+
+        const url = new URL(window.location.href);
+        url.searchParams.set("stampEmailSent", "1");
+        url.hash = "";
+        router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: true });
+    }, [router, state.success]);
+
     const canSend =
         availableDocuments.length > 0 &&
         selectedDocumentIds.size > 0 &&

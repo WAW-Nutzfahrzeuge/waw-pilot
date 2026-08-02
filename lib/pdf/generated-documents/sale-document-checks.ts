@@ -114,6 +114,13 @@ function getGenerationMode(params: {
         return "not_relevant";
     }
 
+    if (
+        params.definition.type === "handover_protocol" &&
+        params.saleType === "export_third_country"
+    ) {
+        return "not_relevant";
+    }
+
     if (isSupportedSaleGeneratedDocumentType(params.definition.type)) {
         return "automatic";
     }
