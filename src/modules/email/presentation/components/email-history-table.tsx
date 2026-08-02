@@ -1,5 +1,10 @@
-import Link from "next/link";
+"use client";
 
+import { useState, useTransition } from "react";
+import Link from "next/link";
+import { Loader2 } from "lucide-react";
+
+import { loadMoreSaleEmailHistoryAction } from "@/app/dashboard/sales/[saleId]/email-actions";
 import { formatDate } from "@/lib/format/date";
 import { EmailStatusBadge } from "@/src/modules/email/presentation/components/email-status-badge";
 import type { EmailListItemDto } from "@/src/modules/email/application/dto/email.dto";
@@ -7,6 +12,8 @@ import type { EmailListItemDto } from "@/src/modules/email/application/dto/email
 type EmailHistoryTableProps = {
     emails: EmailListItemDto[];
     emptyText?: string;
+    saleId?: string;
+    hasMore?: boolean;
 };
 
 type EmailHistoryDisplayItem = EmailListItemDto & {
@@ -23,14 +30,20 @@ function formatRecipients(recipients: EmailListItemDto["toRecipients"]): string 
 export function EmailHistoryTable({
     emails,
     emptyText = "Es wurden noch keine E-Mails gefunden.",
+    saleId,
+    hasMore = false,
 }: EmailHistoryTableProps) {
-    const displayEmails: EmailHistoryDisplayItem[] = emails.map((email) => ({
+    const [visibleEmails, setVisibleEmails] = useState(emails);
+    const [visibleHasMore, setVisibleHasMore] = useState(hasMore);
+    const [isPending, startTransition] = useTransition();
+
+    const displayEmails: EmailHistoryDisplayItem[] = visibleEmails.map((email) => ({
         ...email,
         recipientsLabel: formatRecipients(email.toRecipients),
         dateLabel: formatDate(email.sentAt ?? email.createdAt),
     }));
 
-    if (emails.length === 0) {
+    if (visibleEmails.length === 0) {
         return (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-5 text-sm font-semibold text-slate-500">
                 {emptyText}
@@ -78,6 +91,32 @@ export function EmailHistoryTable({
                     </tbody>
                 </table>
             </div>
+            {saleId && visibleHasMore ? (
+                <div className="flex justify-center border-t border-slate-100 px-4 py-3">
+                    <button
+                        type="button"
+                        aria-label="Weitere E-Mails anzeigen"
+                        disabled={isPending}
+                        onClick={() => {
+                            startTransition(async () => {
+                                const result = await loadMoreSaleEmailHistoryAction(
+                                    saleId,
+                                    visibleEmails.length,
+                                );
+
+                                setVisibleEmails((currentEmails) => [
+                                    ...currentEmails,
+                                    ...result.emails,
+                                ]);
+                                setVisibleHasMore(result.hasMore);
+                            });
+                        }}
+                        className="inline-flex size-9 items-center justify-center rounded-full border border-slate-200 bg-white text-lg font-black leading-none text-slate-700 shadow-sm transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-800 disabled:cursor-wait disabled:opacity-60"
+                    >
+                        {isPending ? <Loader2 className="size-4 animate-spin" /> : "…"}
+                    </button>
+                </div>
+            ) : null}
         </div>
     );
 }

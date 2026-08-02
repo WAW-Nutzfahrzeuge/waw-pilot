@@ -71,6 +71,7 @@ type SaleDetailProps = {
     generatedDocuments: SaleGeneratedDocumentCheck[];
     exportDetails: SaleExportDetails;
     emailHistory: EmailListItemDto[];
+    emailHistoryHasMore: boolean;
     isZugferdServiceConfigured: boolean;
     generatedDocumentType?: string | null;
     invoiceCreatedNumber?: string | null;
@@ -116,6 +117,7 @@ export async function SaleDetail({
                                generatedDocuments,
                                exportDetails,
                                emailHistory,
+                               emailHistoryHasMore,
                                isZugferdServiceConfigured,
                                generatedDocumentType = null,
                                invoiceCreatedNumber = null,
@@ -647,7 +649,10 @@ export async function SaleDetail({
                                     />
                                     <div className="mt-4">
                                         <EmailHistoryTable
+                                            key={emailHistory[0]?.id ?? "empty"}
                                             emails={emailHistory}
+                                            saleId={sale.id}
+                                            hasMore={emailHistoryHasMore}
                                             emptyText="Für diese Verkaufsakte wurden noch keine E-Mails versendet."
                                         />
                                     </div>

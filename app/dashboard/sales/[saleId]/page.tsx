@@ -47,7 +47,7 @@ export default async function SaleDetailPage({
             companyId: getCurrentCompanyId(),
             contextType: "SALE",
             contextId: saleId,
-            limit: 20,
+            limit: 4,
         }),
     );
 
@@ -65,6 +65,7 @@ export default async function SaleDetailPage({
             generatedDocuments={generatedDocuments}
             exportDetails={exportDetails}
             emailHistory={emailHistory.emails}
+            emailHistoryHasMore={emailHistory.emails.length < emailHistory.totalCount}
             isZugferdServiceConfigured={isZugferdServiceConfigured()}
             generatedDocumentType={resolvedSearchParams.generatedDocument ?? null}
             invoiceCreatedNumber={resolvedSearchParams.invoiceCreated ?? null}
