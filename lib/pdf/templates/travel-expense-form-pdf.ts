@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import {
     StandardFonts,
     rgb,
@@ -10,6 +7,7 @@ import {
 
 import { createPdfLayout } from "@/lib/pdf/core/pdf-layout";
 import { formatPdfDate } from "@/lib/pdf/core/pdf-format";
+import { getWawLogoBytes } from "@/lib/pdf/core/pdf-assets";
 
 export type TravelExpensePdfData = {
     driverName: string;
@@ -314,8 +312,7 @@ async function drawLogo(
     y: number,
 ) {
     try {
-        const logoPath = path.join(process.cwd(), "public", "brand", "waw-logo.png");
-        const logoBytes = await readFile(logoPath);
+        const logoBytes = await getWawLogoBytes();
         const logoImage = await pdfDoc.embedPng(logoBytes);
 
         const logoWidth = 130;

@@ -4,6 +4,7 @@ import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { normalizeEmailLanguage } from "@/lib/customers/email-languages";
 import { formatIban } from "@/lib/settings/company-bank-details";
+import { getWawLogoBytes } from "@/lib/pdf/core/pdf-assets";
 import {
     embedCompanyPdfImage,
     type CompanySignatureStampAssets,
@@ -103,6 +104,28 @@ const pdfFontPath = path.join(
     "og",
     "Geist-Regular.ttf",
 );
+type InvoicePdfAssets = {
+    fontBytes: Buffer;
+    logoBytes: Uint8Array;
+};
+
+let invoicePdfAssetsPromise: Promise<InvoicePdfAssets> | null = null;
+
+function loadInvoicePdfAssets(): Promise<InvoicePdfAssets> {
+    if (!invoicePdfAssetsPromise) {
+        invoicePdfAssetsPromise = Promise.all([
+            readFile(pdfFontPath),
+            getWawLogoBytes(),
+        ])
+            .then(([fontBytes, logoBytes]) => ({ fontBytes, logoBytes }))
+            .catch((error: unknown) => {
+                invoicePdfAssetsPromise = null;
+                throw error;
+            });
+    }
+
+    return invoicePdfAssetsPromise;
+}
 
 function formatDate(value: string | null): string {
     if (!value) return "-";
@@ -710,13 +733,11 @@ export async function generateInvoicePdf(
     pdfDoc.registerFontkit(fontkit);
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
-    const embeddedFontBytes = await readFile(pdfFontPath);
-    const embeddedFont = await pdfDoc.embedFont(embeddedFontBytes, { subset: false });
+    const { fontBytes, logoBytes } = await loadInvoicePdfAssets();
+    const embeddedFont = await pdfDoc.embedFont(fontBytes, { subset: false });
     const helvetica = embeddedFont;
     const helveticaBold = embeddedFont;
 
-    const logoPath = path.join(process.cwd(), "public", "brand", "waw-logo.png");
-    const logoBytes = await readFile(logoPath);
     const logoImage = await pdfDoc.embedPng(logoBytes);
 
     page.drawImage(logoImage, {

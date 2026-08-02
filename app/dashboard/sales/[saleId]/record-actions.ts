@@ -83,24 +83,25 @@ export async function updateSaleCustomerAction(formData: FormData) {
         redirectWithSaleMessage(saleId, { recordError: "invalidPhone" });
     }
 
-    const { data: sale } = await supabase
-        .from("sales")
-        .select("id")
-        .eq("id", saleId)
-        .eq("company_id", companyId)
-        .eq("buyer_customer_id", customerId)
-        .maybeSingle();
+    const [{ data: sale }, { data: existingCustomer }] = await Promise.all([
+        supabase
+            .from("sales")
+            .select("id")
+            .eq("id", saleId)
+            .eq("company_id", companyId)
+            .eq("buyer_customer_id", customerId)
+            .maybeSingle(),
+        supabase
+            .from("customers")
+            .select("vat_id")
+            .eq("id", customerId)
+            .eq("company_id", companyId)
+            .maybeSingle(),
+    ]);
 
     if (!sale) {
         redirectWithSaleMessage(saleId, { recordError: "saleCustomerMismatch" });
     }
-
-    const { data: existingCustomer } = await supabase
-        .from("customers")
-        .select("vat_id")
-        .eq("id", customerId)
-        .eq("company_id", companyId)
-        .maybeSingle();
 
     const { error } = await supabase
         .from("customers")
@@ -232,25 +233,27 @@ export async function updateSaleVehicleAction(formData: FormData) {
         redirectWithSaleMessage(saleId, { recordError: "vehiclePriceInvalid" });
     }
 
-    const { data: sale } = await supabase
-        .from("sales")
-        .select("id")
-        .eq("id", saleId)
-        .eq("company_id", companyId)
-        .eq("vehicle_id", vehicleId)
-        .maybeSingle();
+    const [{ data: sale }, { data: duplicateVinVehicle, error: duplicateVinError }] =
+        await Promise.all([
+            supabase
+                .from("sales")
+                .select("id")
+                .eq("id", saleId)
+                .eq("company_id", companyId)
+                .eq("vehicle_id", vehicleId)
+                .maybeSingle(),
+            supabase
+                .from("vehicles")
+                .select("id")
+                .eq("company_id", companyId)
+                .eq("vin", vin)
+                .neq("id", vehicleId)
+                .limit(1),
+        ]);
 
     if (!sale) {
         redirectWithSaleMessage(saleId, { recordError: "saleVehicleMismatch" });
     }
-
-    const { data: duplicateVinVehicle, error: duplicateVinError } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("vin", vin)
-        .neq("id", vehicleId)
-        .limit(1);
 
     if (duplicateVinError) {
         console.error("[sale-record] vin duplicate check failed", duplicateVinError);

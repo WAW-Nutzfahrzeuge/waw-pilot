@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { PDFDocument, type PDFImage } from "pdf-lib";
 
 import {
@@ -9,6 +6,7 @@ import {
     type PdfLayoutContext,
 } from "@/lib/pdf/core/pdf-layout";
 import { pdfTheme } from "@/lib/pdf/core/pdf-theme";
+import { getWawLogoBytes } from "@/lib/pdf/core/pdf-assets";
 import type { SaleGeneratedDocumentData } from "@/lib/pdf/generated-documents/sale-document-data";
 
 export type CompanyDocumentIdentity = {
@@ -37,8 +35,6 @@ const fallbackCompanyIdentity: CompanyDocumentIdentity = {
     mobilePhone2: null,
 };
 
-let cachedLogoBytes: Uint8Array | null = null;
-
 export function resolveCompanyDocumentIdentity(
     data: SaleGeneratedDocumentData,
 ): CompanyDocumentIdentity {
@@ -62,13 +58,8 @@ export function resolveCompanyDocumentIdentity(
 }
 
 async function getLogoBytes(): Promise<Uint8Array | null> {
-    if (cachedLogoBytes) return cachedLogoBytes;
-
     try {
-        cachedLogoBytes = await readFile(
-            path.join(process.cwd(), "public", "brand", "waw-logo.png"),
-        );
-        return cachedLogoBytes;
+        return await getWawLogoBytes();
     } catch {
         return null;
     }

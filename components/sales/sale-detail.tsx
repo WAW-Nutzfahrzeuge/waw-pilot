@@ -53,8 +53,7 @@ import { ZugferdInvoiceActions } from "@/components/sales/zugferd-invoice-action
 import { SalePaymentsCard } from "@/components/sales/sale-payments-card";
 import { SaleCorrectionsCard } from "@/components/sales/sale-corrections-card";
 import { DownloadSaleFileButton } from "@/components/sales/download-sale-file-button";
-import { getCurrentCompanyId } from "@/lib/company";
-import { createEmailRepository } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
+import type { EmailListItemDto } from "@/src/modules/email/application/dto/email.dto";
 import { EmailHistoryTable } from "@/src/modules/email/presentation/components/email-history-table";
 import { GetVatVerificationRequirementUseCase } from "@/src/modules/documents/application/use-cases/get-vat-verification-requirement.use-case";
 import { BzstVatVerificationCard } from "@/src/modules/documents/presentation/components/bzst-vat-verification-card";
@@ -71,6 +70,7 @@ type SaleDetailProps = {
     sale: SaleDetailType;
     generatedDocuments: SaleGeneratedDocumentCheck[];
     exportDetails: SaleExportDetails;
+    emailHistory: EmailListItemDto[];
     isZugferdServiceConfigured: boolean;
     generatedDocumentType?: string | null;
     invoiceCreatedNumber?: string | null;
@@ -115,6 +115,7 @@ export async function SaleDetail({
                                sale,
                                generatedDocuments,
                                exportDetails,
+                               emailHistory,
                                isZugferdServiceConfigured,
                                generatedDocumentType = null,
                                invoiceCreatedNumber = null,
@@ -140,13 +141,6 @@ export async function SaleDetail({
                                recordSaved = null,
                                recordError = null,
                            }: SaleDetailProps) {
-    const emailRepository = await createEmailRepository();
-    const emailHistory = await emailRepository.search({
-        companyId: getCurrentCompanyId(),
-        contextType: "SALE",
-        contextId: sale.id,
-        limit: 20,
-    });
     const missingRequirementLabels = [
         ...sale.missing_required_labels,
         ...sale.missing_required_data_labels,
@@ -653,7 +647,7 @@ export async function SaleDetail({
                                     />
                                     <div className="mt-4">
                                         <EmailHistoryTable
-                                            emails={emailHistory.emails}
+                                            emails={emailHistory}
                                             emptyText="Für diese Verkaufsakte wurden noch keine E-Mails versendet."
                                         />
                                     </div>

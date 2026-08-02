@@ -3,6 +3,8 @@ import { getSaleGeneratedDocumentChecks } from "@/lib/pdf/generated-documents/sa
 import { getSaleDetail } from "@/lib/sales/sale-detail-queries";
 import { getSaleExportDetails } from "@/lib/sales/sale-export-details-queries";
 import { isZugferdServiceConfigured } from "@/lib/zugferd/zugferd-service-client";
+import { getCurrentCompanyId } from "@/lib/company";
+import { createEmailRepository } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
 type SaleDetailPageProps = {
     params: Promise<{
@@ -40,12 +42,21 @@ export default async function SaleDetailPage({
                                                  searchParams,
                                              }: SaleDetailPageProps) {
     const { saleId } = await params;
+    const emailHistoryPromise = createEmailRepository().then((emailRepository) =>
+        emailRepository.search({
+            companyId: getCurrentCompanyId(),
+            contextType: "SALE",
+            contextId: saleId,
+            limit: 20,
+        }),
+    );
 
-    const [resolvedSearchParams, sale, generatedDocuments, exportDetails] = await Promise.all([
+    const [resolvedSearchParams, sale, generatedDocuments, exportDetails, emailHistory] = await Promise.all([
         searchParams,
         getSaleDetail(saleId),
         getSaleGeneratedDocumentChecks(saleId),
         getSaleExportDetails(saleId),
+        emailHistoryPromise,
     ]);
 
     return (
@@ -53,6 +64,7 @@ export default async function SaleDetailPage({
             sale={sale}
             generatedDocuments={generatedDocuments}
             exportDetails={exportDetails}
+            emailHistory={emailHistory.emails}
             isZugferdServiceConfigured={isZugferdServiceConfigured()}
             generatedDocumentType={resolvedSearchParams.generatedDocument ?? null}
             invoiceCreatedNumber={resolvedSearchParams.invoiceCreated ?? null}

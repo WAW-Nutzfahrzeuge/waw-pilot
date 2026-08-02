@@ -95,19 +95,32 @@ export async function updatePurchaseCaseAction(
         };
     }
 
-    const { data: existingPurchase } = await supabase
-        .from("purchase_cases")
-        .select("purchase_number, payment_status")
-        .eq("id", purchaseId)
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-    const { data: vehicleData } = await supabase
-        .from("vehicles")
-        .select("internal_number, manufacturer, model, status")
-        .eq("id", vehicleId)
-        .eq("company_id", companyId)
-        .maybeSingle();
+    const [
+        { data: existingPurchase },
+        { data: vehicleData },
+        { data: existingVehiclePurchase },
+    ] = await Promise.all([
+        supabase
+            .from("purchase_cases")
+            .select("purchase_number, payment_status")
+            .eq("id", purchaseId)
+            .eq("company_id", companyId)
+            .maybeSingle(),
+        supabase
+            .from("vehicles")
+            .select("internal_number, manufacturer, model, status")
+            .eq("id", vehicleId)
+            .eq("company_id", companyId)
+            .maybeSingle(),
+        supabase
+            .from("purchase_cases")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("vehicle_id", vehicleId)
+            .neq("id", purchaseId)
+            .limit(1)
+            .maybeSingle(),
+    ]);
 
     if (!vehicleData) {
         return {
@@ -115,15 +128,6 @@ export async function updatePurchaseCaseAction(
             message: "Das Fahrzeug wurde nicht gefunden.",
         };
     }
-
-    const { data: existingVehiclePurchase } = await supabase
-        .from("purchase_cases")
-        .select("id")
-        .eq("company_id", companyId)
-        .eq("vehicle_id", vehicleId)
-        .neq("id", purchaseId)
-        .limit(1)
-        .maybeSingle();
 
     if (vehicleData.status === "sold" || existingVehiclePurchase) {
         return {
