@@ -498,11 +498,11 @@ function getInvoiceTitle(invoiceType: InvoiceType, invoiceNumber: string): strin
     }
 
     if (invoiceType === "proforma") {
-        return "Proforma Anzahlungs Rechnung";
+        return `Proforma Anzahlungs Rechnung ${invoiceNumber}`;
     }
 
     if (invoiceType === "down_payment") {
-        return "Anzahlungs Rechnung";
+        return `Anzahlungs Rechnung ${invoiceNumber}`;
     }
 
     return `Rechnung | Invoice ${invoiceNumber}`;
@@ -518,7 +518,7 @@ function getInvoiceBoxTitle(invoiceType: InvoiceType, invoiceNumber: string): st
     }
 
     if (invoiceType === "proforma") {
-        return "Anzahlungs-Rechnung: Proforma";
+        return `Anzahlungs-Rechnung: Proforma ${invoiceNumber}`;
     }
 
     if (invoiceType === "down_payment") {
@@ -732,6 +732,7 @@ export async function generateInvoicePdf(
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
     const page = pdfDoc.addPage([pageWidth, pageHeight]);
+    const visibleDocumentNumber = data.saleNumber?.trim() || data.invoiceNumber;
 
     const { fontBytes, logoBytes } = await loadInvoicePdfAssets();
     const embeddedFont = await pdfDoc.embedFont(fontBytes, { subset: false });
@@ -747,7 +748,7 @@ export async function generateInvoicePdf(
         height: 95,
     });
 
-    drawText(page, getInvoiceTitle(data.invoiceType, data.invoiceNumber), 210, 805, {
+    drawText(page, getInvoiceTitle(data.invoiceType, visibleDocumentNumber), 210, 805, {
         font: helveticaBold,
         size: data.invoiceType === "standard" ? 22 : 21,
         color: data.invoiceType === "standard" ? gray : black,
@@ -887,7 +888,7 @@ export async function generateInvoicePdf(
         borderWidth: 1,
     });
 
-    drawWrappedText(page, getInvoiceBoxTitle(data.invoiceType, data.invoiceNumber), 48, 525, {
+    drawWrappedText(page, getInvoiceBoxTitle(data.invoiceType, visibleDocumentNumber), 48, 525, {
         font: helveticaBold,
         size: 9,
         lineHeight: 10,
