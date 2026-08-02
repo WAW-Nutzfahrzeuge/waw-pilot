@@ -9,7 +9,7 @@ export function composeBilingualEmailText({
     localizedText: string;
     englishText: string;
 }): string {
-    if (language !== "de") {
+    if (language === "en") {
         return localizedText;
     }
 
