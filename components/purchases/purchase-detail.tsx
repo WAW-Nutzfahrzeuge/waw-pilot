@@ -31,6 +31,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { markPurchasePaidAction } from "@/app/dashboard/ankauf/[purchaseId]/payment-actions";
 import { FlashMessage } from "@/components/shared/flash-message";
@@ -481,13 +482,12 @@ function MarkPurchasePaidButton({
                 <option value="cash">Bar</option>
             </select>
 
-            <Button
-                type="submit"
+            <PendingSubmitButton
+                label="Ankauf bezahlt markieren"
+                pendingLabel="Wird gespeichert..."
+                iconName="check-circle"
                 className="rounded-2xl bg-emerald-700 font-bold text-white hover:bg-emerald-800"
-            >
-                <CheckCircle2 className="mr-2 size-4" />
-                Ankauf bezahlt markieren
-            </Button>
+            />
         </form>
     );
 }

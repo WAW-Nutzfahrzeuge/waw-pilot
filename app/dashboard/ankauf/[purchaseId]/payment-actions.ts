@@ -154,30 +154,31 @@ export async function markPurchasePaidAction(formData: FormData) {
         throw new Error("Ankaufzahlung konnte nicht gespeichert werden.");
     }
 
-    await supabase.from("purchase_payment_audit_log").insert({
-        company_id: companyId,
-        payment_id: paymentId,
-        purchase_id: purchaseId,
-        action: "CREATED",
-        previous_values: null,
-        new_values: {
-            payment_reference: paymentReference,
-            amount: Number(purchaseData.gross_amount),
-            payment_method: paymentMethod,
-            payment_date: getTodayDateOnly(),
-        },
-        changed_by: authUserId,
-    });
-
-    const { error: purchaseUpdateError } = await supabase
-        .from("purchase_cases")
-        .update({
-            payment_status: "paid",
-            status: "completed",
-            updated_at: new Date().toISOString(),
-        })
-        .eq("id", purchaseId)
-        .eq("company_id", companyId);
+    const [, { error: purchaseUpdateError }] = await Promise.all([
+        supabase.from("purchase_payment_audit_log").insert({
+            company_id: companyId,
+            payment_id: paymentId,
+            purchase_id: purchaseId,
+            action: "CREATED",
+            previous_values: null,
+            new_values: {
+                payment_reference: paymentReference,
+                amount: Number(purchaseData.gross_amount),
+                payment_method: paymentMethod,
+                payment_date: getTodayDateOnly(),
+            },
+            changed_by: authUserId,
+        }),
+        supabase
+            .from("purchase_cases")
+            .update({
+                payment_status: "paid",
+                status: "completed",
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", purchaseId)
+            .eq("company_id", companyId),
+    ]);
 
     if (purchaseUpdateError) {
         throw new Error(
@@ -185,16 +186,17 @@ export async function markPurchasePaidAction(formData: FormData) {
         );
     }
 
-    await logActivity({
-        action: `Ankaufzahlung ${paymentReference} über ${paymentMethodLabel} erfasst`,
-        entityType: "purchase",
-        entityId: purchaseId,
-    });
-
-    await syncPurchasePaymentFinancialEntry({
-        companyId,
-        paymentId,
-    });
+    await Promise.all([
+        logActivity({
+            action: `Ankaufzahlung ${paymentReference} über ${paymentMethodLabel} erfasst`,
+            entityType: "purchase",
+            entityId: purchaseId,
+        }),
+        syncPurchasePaymentFinancialEntry({
+            companyId,
+            paymentId,
+        }),
+    ]);
 
     revalidatePurchasePaymentPaths(purchaseId);
 

@@ -3,6 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import {
     Dialog,
     DialogClose,
@@ -53,12 +54,11 @@ export function FormDialog({
                                 Abbrechen
                             </Button>
                         </DialogClose>
-                        <Button
-                            type="submit"
+                        <PendingSubmitButton
+                            label={submitLabel}
+                            pendingLabel="Speichert..."
                             className="bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                        >
-                            {submitLabel}
-                        </Button>
+                        />
                     </DialogFooter>
                 </form>
             </DialogContent>
