@@ -82,6 +82,25 @@ export function SendStampDocumentsDialog({
     );
     const router = useRouter();
     const successHandledRef = useRef(false);
+    const lastCustomerLanguageRef = useRef(suggestedLanguage);
+
+    useEffect(() => {
+        if (lastCustomerLanguageRef.current === suggestedLanguage) return;
+
+        lastCustomerLanguageRef.current = suggestedLanguage;
+        const template = getStampDocumentsEmailTemplate({
+            language: suggestedLanguage,
+            customerName: customer.name,
+            vehicleLabel,
+            documentLabels: availableDocuments
+                .filter((document) => selectedDocumentIds.has(document.id))
+                .map((document) => document.label),
+        });
+
+        setLanguage(suggestedLanguage);
+        setSubject(template.subject);
+        setBody(template.text);
+    }, [availableDocuments, customer.name, selectedDocumentIds, suggestedLanguage, vehicleLabel]);
 
     useEffect(() => {
         if (!state.success || successHandledRef.current) return;

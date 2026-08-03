@@ -129,12 +129,23 @@ Prosimy o sprawdzenie załączonych dokumentów, podpisanie oraz opieczętowanie
 Załączone dokumenty:
 ${documentList}
 
-Dziękujemy.
+        Dziękujemy.
 
 Z poważaniem
 W.A.W Nutzfahrzeuge`;
 
-        return { subject, text };
+        return {
+            subject,
+            text: composeBilingualEmailText({
+                language,
+                localizedText: text,
+                englishText: getEnglishStampDocumentsEmailText({
+                    customerName,
+                    vehicleLabel,
+                    documentList,
+                }),
+            }),
+        };
     }
 
     if (language === "bg") {
@@ -153,23 +164,26 @@ ${documentList}
 С уважение
 W.A.W Nutzfahrzeuge`;
 
-        return { subject, text };
+        return {
+            subject,
+            text: composeBilingualEmailText({
+                language,
+                localizedText: text,
+                englishText: getEnglishStampDocumentsEmailText({
+                    customerName,
+                    vehicleLabel,
+                    documentList,
+                }),
+            }),
+        };
     }
 
     const englishSubject = `Documents for signature and stamp - Vehicle ${vehicleLabel}`;
-    const englishText = `Hello ${customerName},
-
-please find attached the documents relating to your vehicle ${vehicleLabel}.
-
-Please review the attached documents, sign and stamp them where indicated, and return the completed documents to us by email.
-
-Attached documents:
-${documentList}
-
-Thank you.
-
-Kind regards
-W.A.W Nutzfahrzeuge`;
+    const englishText = getEnglishStampDocumentsEmailText({
+        customerName,
+        vehicleLabel,
+        documentList,
+    });
 
     if (language === "en") {
         return { subject: englishSubject, text: englishText };
@@ -196,4 +210,28 @@ W.A.W Nutzfahrzeuge`;
     });
 
     return { subject, text };
+}
+
+function getEnglishStampDocumentsEmailText({
+                                                    customerName,
+                                                    vehicleLabel,
+                                                    documentList,
+                                                }: {
+    customerName: string;
+    vehicleLabel: string;
+    documentList: string;
+}): string {
+    return `Hello ${customerName},
+
+please find attached the documents relating to your vehicle ${vehicleLabel}.
+
+Please review the attached documents, sign and stamp them where indicated, and return the completed documents to us by email.
+
+Attached documents:
+${documentList}
+
+Thank you.
+
+Kind regards
+W.A.W Nutzfahrzeuge`;
 }
