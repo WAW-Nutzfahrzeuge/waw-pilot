@@ -3,7 +3,7 @@ import type {
     ZugferdValidationIssue,
 } from "@/lib/zugferd/canonical-invoice";
 
-const ZUGFERD_SERVICE_TIMEOUT_MS = 120_000;
+const ZUGFERD_SERVICE_TIMEOUT_MS = 240_000;
 
 type ZugferdServiceRequestErrorCode =
     | "UNAUTHORIZED"
