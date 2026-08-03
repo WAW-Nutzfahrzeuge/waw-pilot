@@ -83,13 +83,14 @@ export function SendStampDocumentsDialog({
     const router = useRouter();
     const successHandledRef = useRef(false);
     const lastCustomerLanguageRef = useRef(suggestedLanguage);
+    const renderedLanguageRef = useRef<EmailLanguage | null>(null);
 
     useEffect(() => {
-        if (lastCustomerLanguageRef.current === suggestedLanguage) return;
+        if (renderedLanguageRef.current === language) return;
 
-        lastCustomerLanguageRef.current = suggestedLanguage;
+        renderedLanguageRef.current = language;
         const template = getStampDocumentsEmailTemplate({
-            language: suggestedLanguage,
+            language,
             customerName: customer.name,
             vehicleLabel,
             documentLabels: availableDocuments
@@ -97,10 +98,16 @@ export function SendStampDocumentsDialog({
                 .map((document) => document.label),
         });
 
-        setLanguage(suggestedLanguage);
         setSubject(template.subject);
         setBody(template.text);
-    }, [availableDocuments, customer.name, selectedDocumentIds, suggestedLanguage, vehicleLabel]);
+    }, [availableDocuments, customer.name, language, selectedDocumentIds, vehicleLabel]);
+
+    useEffect(() => {
+        if (lastCustomerLanguageRef.current === suggestedLanguage) return;
+
+        lastCustomerLanguageRef.current = suggestedLanguage;
+        setLanguage(suggestedLanguage);
+    }, [suggestedLanguage]);
 
     useEffect(() => {
         if (!state.success || successHandledRef.current) return;
@@ -122,16 +129,6 @@ export function SendStampDocumentsDialog({
 
     function updateLanguage(nextLanguage: EmailLanguage) {
         setLanguage(nextLanguage);
-        const template = getStampDocumentsEmailTemplate({
-            language: nextLanguage,
-            customerName: customer.name,
-            vehicleLabel,
-            documentLabels: availableDocuments
-                .filter((document) => selectedDocumentIds.has(document.id))
-                .map((document) => document.label),
-        });
-        setSubject(template.subject);
-        setBody(template.text);
     }
 
     function toggleDocument(documentId: string) {
