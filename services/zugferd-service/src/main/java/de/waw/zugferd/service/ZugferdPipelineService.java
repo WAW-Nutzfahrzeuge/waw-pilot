@@ -98,11 +98,10 @@ public class ZugferdPipelineService {
             Files.write(xml, xmlBytes);
 
             List<ValidationIssue> issues = new ArrayList<>();
-            boolean convertedPdfAValid = validateWithVeraPdf(pdfaPdf, issues, "VERAPDF_CONVERTED_PDFA3B");
-
-            if (!convertedPdfAValid) {
-                throw new ValidationFailedException(issues);
-            }
+            // The final embedded ZUGFeRD PDF is validated below. Validating
+            // this intermediate PDF/A file as well doubles the expensive
+            // veraPDF work without increasing the validity guarantee of the
+            // stored result.
 
             boolean xmlValid = validateWithMustang(xml, issues, "xml", invoiceProfile);
 
