@@ -349,11 +349,9 @@ export async function deleteSaleDocumentAction(formData: FormData) {
     }
 
     revalidatePaths([
-        [`/dashboard/sales/${saleId}`, "page"],
         `/dashboard/sales/${saleId}`,
-        "/dashboard/sales",
         "/dashboard/documents",
     ]);
 
-    redirect(`/dashboard/sales/${saleId}?documentDeleted=1&refresh=${Date.now()}`);
+    redirect(`/dashboard/sales/${saleId}?documentDeleted=1`);
 }
