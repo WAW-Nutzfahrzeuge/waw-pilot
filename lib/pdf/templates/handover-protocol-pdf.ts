@@ -65,8 +65,8 @@ function getConstructionYearLabel(data: SaleGeneratedDocumentData): string {
         : "—";
 }
 
-function getInvoiceNumber(data: SaleGeneratedDocumentData): string {
-    return requireValue(data.sale?.invoiceNumber);
+function getSaleReference(data: SaleGeneratedDocumentData): string {
+    return requireValue(data.sale?.saleNumber ?? data.sale?.invoiceNumber);
 }
 
 function getDocumentDate(data: SaleGeneratedDocumentData): string {
@@ -180,7 +180,7 @@ export async function generateHandoverProtocolPdf(
 
     drawText(
         ctx,
-        `Übergabeprotokoll zur Rechnungsnummer: ${getInvoiceNumber(data)}`,
+        `Übergabeprotokoll zur Verkaufsnummer: ${getSaleReference(data)}`,
         ctx.margin,
         y,
         {
