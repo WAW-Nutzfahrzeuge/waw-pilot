@@ -220,7 +220,7 @@ export async function generateAndStoreSaleGeneratedDocument(params: {
         const { error: updateError } = await supabase
             .from("documents")
             .update({
-                status: definition.requiresSignature ? "needs_review" : "available",
+                status: "available",
                 file_name: fileName,
                 file_path: filePath,
                 mime_type: "application/pdf",
@@ -257,7 +257,7 @@ export async function generateAndStoreSaleGeneratedDocument(params: {
             company_id: companyId,
             document_type: definition.documentType,
             source: "generated",
-            status: definition.requiresSignature ? "needs_review" : "available",
+            status: "available",
             file_name: fileName,
             file_path: filePath,
             mime_type: "application/pdf",

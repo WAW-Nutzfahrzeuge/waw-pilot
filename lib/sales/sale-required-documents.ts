@@ -15,6 +15,7 @@ export type RequiredDocumentDefinition = {
 export type SaleDocumentInput = {
     document_type: string;
     status: "available" | "missing" | "needs_review";
+    source?: string | null;
 };
 
 const BASE_REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
@@ -122,7 +123,11 @@ export function evaluateRequiredDocuments({
 }) {
     const availableDocumentTypes = new Set(
         documents
-            .filter((document) => document.status === "available")
+            .filter(
+                (document) =>
+                    document.status === "available" ||
+                    (document.status === "needs_review" && document.source === "generated"),
+            )
             .map((document) => document.document_type),
     );
 

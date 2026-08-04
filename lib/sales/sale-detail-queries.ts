@@ -872,7 +872,12 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
 
     const availableDocumentsByType = new Map<string, SaleDetailDocument>();
     for (const document of documents) {
-        if (document.status !== "available") continue;
+        if (
+            document.status !== "available" &&
+            !(document.status === "needs_review" && document.source === "generated")
+        ) {
+            continue;
+        }
         if (!availableDocumentsByType.has(document.document_type)) {
             availableDocumentsByType.set(document.document_type, document);
         }

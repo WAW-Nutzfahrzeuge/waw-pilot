@@ -71,6 +71,7 @@ type InvoiceRelation = {
 type DocumentRelation = {
     document_type: string;
     status: "available" | "missing" | "needs_review";
+    source: string | null;
 };
 
 type PaymentRelation = {
@@ -408,7 +409,8 @@ export async function getSalesToCheckSummary(): Promise<SalesToCheckSummary> {
       ),
       documents (
         document_type,
-        status
+        status,
+        source
       )
     `,
         )
@@ -497,7 +499,8 @@ export async function getSales(): Promise<SaleRow[]> {
       ),
       documents (
         document_type,
-        status
+        status,
+        source
       ),
       sale_payments (
         amount,
