@@ -48,6 +48,7 @@ import { DeleteSaleDocumentForm } from "@/components/sales/delete-sale-document-
 import { TemporaryHighlight } from "@/components/shared/temporary-highlight";
 import { RegenerateInvoicePdfForm } from "@/components/sales/regenerate-invoice-pdf-form";
 import { SendInvoiceEmailForm } from "@/components/sales/send-invoice-email-form";
+import { SendInvoiceDatevEmailForm } from "@/components/sales/send-invoice-datev-email-form";
 import { SendStampDocumentsDialog } from "@/components/sales/send-stamp-documents-dialog";
 import { ZugferdInvoiceActions } from "@/components/sales/zugferd-invoice-actions";
 import { SalePaymentsCard } from "@/components/sales/sale-payments-card";
@@ -78,6 +79,8 @@ type SaleDetailProps = {
     invoiceRegeneratedNumber?: string | null;
     invoiceEmailSent?: string | null;
     invoiceEmailError?: string | null;
+    datevInvoiceSent?: boolean;
+    datevInvoiceError?: string | null;
     stampEmailSent?: string | null;
     zugferdCreated?: boolean;
     zugferdEmailSent?: string | null;
@@ -125,6 +128,8 @@ export async function SaleDetail({
                                invoiceRegeneratedNumber = null,
                                invoiceEmailSent = null,
                                invoiceEmailError = null,
+                               datevInvoiceSent = false,
+                               datevInvoiceError = null,
                                stampEmailSent = null,
                                zugferdCreated = false,
                                zugferdEmailSent = null,
@@ -228,6 +233,31 @@ export async function SaleDetail({
                             </p>
                             <p className="mt-1 text-sm font-semibold text-red-800">
                                 {getInvoiceEmailErrorMessage(invoiceEmailError)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {datevInvoiceSent ? (
+                <FlashMessage
+                    message="Rechnung wurde an DATEV gesendet."
+                    description="Die normale Rechnung wurde separat an die DATEV-Upload-Adresse gesendet."
+                />
+            ) : null}
+
+            {datevInvoiceError ? (
+                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
+                            <FileWarning className="size-5" />
+                        </div>
+                        <div>
+                            <p className="font-extrabold text-red-950">
+                                Rechnung konnte nicht an DATEV gesendet werden.
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-red-800">
+                                {getDatevInvoiceErrorMessage(datevInvoiceError)}
                             </p>
                         </div>
                     </div>
@@ -1049,6 +1079,13 @@ function InvoiceCard({
 
                 <SendInvoiceEmailForm saleId={saleId} invoiceId={invoice.id} />
 
+                {invoice.invoice_type === "standard" ? (
+                    <SendInvoiceDatevEmailForm
+                        saleId={saleId}
+                        invoiceId={invoice.id}
+                    />
+                ) : null}
+
                 {invoice.invoice_type !== "proforma" ? (
                     <Button
                         asChild
@@ -1157,6 +1194,21 @@ function getInvoiceEmailErrorMessage(errorCode: string): string {
             "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
         sendFailed:
             "Rechnung konnte nicht per E-Mail gesendet werden. Bitte versuche es erneut.",
+    };
+
+    return messages[errorCode] ?? messages.sendFailed;
+}
+
+function getDatevInvoiceErrorMessage(errorCode: string): string {
+    const messages: Record<string, string> = {
+        missingPdf:
+            "Für diese Rechnung wurde noch kein PDF erzeugt. Bitte generiere zuerst das PDF.",
+        standardOnly:
+            "Der separate DATEV-Versand ist nur für normale Rechnungen verfügbar.",
+        mailNotConfigured:
+            "E-Mail-Versand ist noch nicht eingerichtet. Bitte die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
+        sendFailed:
+            "Die Rechnung konnte nicht separat an DATEV gesendet werden. Bitte versuche es erneut.",
     };
 
     return messages[errorCode] ?? messages.sendFailed;

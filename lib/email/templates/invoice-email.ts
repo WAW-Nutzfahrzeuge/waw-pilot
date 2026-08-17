@@ -12,6 +12,24 @@ type InvoiceEmailTemplate = {
     html: string;
 };
 
+export function getDatevInvoiceEmailTemplate(invoiceNumber: string): InvoiceEmailTemplate {
+    const subject = `Rechnung ${invoiceNumber} für DATEV`;
+    const text = [
+        "Guten Tag,",
+        "",
+        `anbei erhalten Sie die Rechnung ${invoiceNumber} zur Verarbeitung in DATEV.`,
+        "",
+        "Mit freundlichen Grüßen",
+        "WAW Nutzfahrzeuge",
+    ].join("\n");
+
+    return {
+        subject,
+        text,
+        html: toHtml(text),
+    };
+}
+
 type TemplateText = {
     subject: string;
     greeting: string;

@@ -14,8 +14,10 @@ import {
 } from "@/lib/invoices/invoice-numbering";
 import {
     getInvoiceEmailTemplate,
+    getDatevInvoiceEmailTemplate,
     getZugferdInvoiceEmailTemplate,
 } from "@/lib/email/templates/invoice-email";
+import { DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient";
 import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
@@ -83,6 +85,7 @@ type InvoiceEmailQueryRow = {
     id: string;
     sale_id: string | null;
     invoice_number: string;
+    invoice_type: InvoiceType;
     email_send_count: number | null;
     pdf_document_id: string | null;
     customers: InvoiceEmailCustomerRelation | InvoiceEmailCustomerRelation[] | null;
@@ -241,6 +244,18 @@ function getInvoiceEmailSuccessRedirect(
     return `/dashboard/sales/${saleId}?invoiceEmailSent=${encodeURIComponent(
         email,
     )}&highlightInvoiceId=${invoiceId}`;
+}
+
+function getDatevInvoiceErrorRedirect(
+    saleId: string,
+    invoiceId: string,
+    errorCode: string,
+): string {
+    return `/dashboard/sales/${saleId}?datevInvoiceError=${errorCode}&highlightInvoiceId=${invoiceId}`;
+}
+
+function getDatevInvoiceSuccessRedirect(saleId: string, invoiceId: string): string {
+    return `/dashboard/sales/${saleId}?datevInvoiceSent=1&highlightInvoiceId=${invoiceId}`;
 }
 
 function getZugferdErrorRedirect(
@@ -886,6 +901,105 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     revalidateInvoiceEmailPaths(saleId);
 
     redirect(getInvoiceEmailSuccessRedirect(saleId, invoiceId, customer.email));
+}
+
+export async function sendInvoiceToDatevAction(formData: FormData) {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+    const saleId = getStringValue(formData, "sale_id");
+    const invoiceId = getStringValue(formData, "invoice_id");
+
+    if (!saleId || !invoiceId) {
+        throw new Error("Verkauf oder Rechnung fehlt.");
+    }
+
+    const { data, error } = await supabase
+        .from("invoices")
+        .select(
+            `
+      id,
+      sale_id,
+      invoice_number,
+      invoice_type,
+      pdf_document_id,
+      documents:pdf_document_id (
+        id,
+        file_path,
+        mime_type
+      )
+    `,
+        )
+        .eq("id", invoiceId)
+        .eq("sale_id", saleId)
+        .eq("company_id", companyId)
+        .single();
+
+    if (error || !data) {
+        console.error("[email] DATEV invoice lookup failed", error);
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "sendFailed"));
+    }
+
+    const invoice = data as unknown as InvoiceEmailQueryRow;
+    const document = getSingleRelation(invoice.documents);
+
+    if (invoice.invoice_type !== "standard") {
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
+    }
+
+    if (!invoice.pdf_document_id || !document?.file_path) {
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "missingPdf"));
+    }
+
+    try {
+        const sender = await getInvoiceMailSender(companyId);
+        const actorId = await getOptionalCurrentAuthUserId();
+        const template = getDatevInvoiceEmailTemplate(invoice.invoice_number);
+        const sendEmail = await createSendEmailUseCase();
+
+        await sendEmail.execute({
+            companyId,
+            actorId,
+            contextType: "INVOICE",
+            contextId: invoiceId,
+            templateKey: "invoice.send.datev",
+            senderName: sender.senderName,
+            senderEmail: sender.senderEmail,
+            toRecipients: [{ email: DATEV_INVOICE_UPLOAD_EMAIL, name: "DATEV" }],
+            subject: template.subject,
+            bodyText: template.text,
+            bodyHtml: template.html,
+            documentAttachments: [
+                {
+                    documentId: invoice.pdf_document_id,
+                    attachmentType: "invoice_pdf_datev",
+                },
+            ],
+            relations: [
+                { relationType: "INVOICE", relationId: invoiceId },
+                { relationType: "SALE", relationId: saleId },
+            ],
+            idempotencyKey: `datev-invoice-email:${companyId}:${invoiceId}`,
+            metadata: {
+                recipient: DATEV_INVOICE_UPLOAD_EMAIL,
+                invoiceNumber: invoice.invoice_number,
+            },
+        });
+    } catch (sendError) {
+        console.error("[email] DATEV invoice delivery failed", sendError);
+        const errorCode = sendError instanceof EmailConfigurationError
+            ? "mailNotConfigured"
+            : "sendFailed";
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, errorCode));
+    }
+
+    await logActivity({
+        action: `Rechnung ${invoice.invoice_number} separat an DATEV gesendet`,
+        entityType: "invoice",
+        entityId: invoiceId,
+    });
+
+    revalidateInvoiceEmailPaths(saleId);
+    redirect(getDatevInvoiceSuccessRedirect(saleId, invoiceId));
 }
 
 export async function createZugferdInvoiceAction(formData: FormData) {
