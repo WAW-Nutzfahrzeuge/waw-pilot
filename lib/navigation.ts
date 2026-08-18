@@ -8,6 +8,7 @@ import {
     CreditCard,
     FileArchive,
     FileText,
+    Landmark,
     LayoutDashboard,
     Route,
     Settings,
@@ -78,6 +79,16 @@ export const mainNavigation = [
         title: "Aktivitäten",
         href: "/dashboard/activities",
         icon: Activity,
+    },
+    {
+        title: "Buchhaltung WAW",
+        href: "/dashboard/accounting/waw",
+        icon: Landmark,
+    },
+    {
+        title: "Buchhaltung WBT",
+        href: "/dashboard/accounting/wbt",
+        icon: Landmark,
     },
 ];
 
