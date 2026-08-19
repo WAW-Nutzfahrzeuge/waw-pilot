@@ -22,26 +22,3 @@ export const DATEV_ACCOUNTING_COMPANIES = {
 } as const;
 
 export type DatevAccountingCompany = keyof typeof DATEV_ACCOUNTING_COMPANIES;
-
-export type DatevExportPreparation = {
-    company: DatevAccountingCompany;
-    fileName: string;
-    fileSizeBytes: number;
-    preparedAt: string;
-};
-
-/**
- * Local preparation seam for the future n8n integration.
- * It deliberately does not upload or process the file yet.
- */
-export function processDatevExport(
-    file: Pick<File, "name" | "size">,
-    company: DatevAccountingCompany,
-): DatevExportPreparation {
-    return {
-        company,
-        fileName: file.name,
-        fileSizeBytes: file.size,
-        preparedAt: new Date().toISOString(),
-    };
-}

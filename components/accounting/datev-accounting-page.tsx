@@ -1,12 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import { CheckCircle2, FileSpreadsheet, FileUp, Loader2, X } from "lucide-react";
 
 import {
-    processDatevExport,
     type DatevAccountingCompany,
 } from "@/lib/accounting/datev-export";
+import { DATEV_EXPORT_MAX_UPLOAD_BYTES } from "@/lib/accounting/datev-export-limits";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/tables/empty-state";
@@ -34,7 +34,7 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
 
     const companyLabel = company;
 
-    function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
         const file = event.target.files?.[0] ?? null;
         setSuccessMessage(null);
 
@@ -46,6 +46,17 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
         if (!file.name.toLowerCase().endsWith(ACCEPTED_FILE_EXTENSION)) {
             setSelectedFile(null);
             setErrorMessage("Bitte wähle eine DATEV-Datei im CSV-Format aus.");
+            event.target.value = "";
+            return;
+        }
+
+        if (file.size <= 0 || file.size > DATEV_EXPORT_MAX_UPLOAD_BYTES) {
+            setSelectedFile(null);
+            setErrorMessage(
+                file.size <= 0
+                    ? "Die ausgewählte CSV-Datei ist leer."
+                    : "Die CSV-Datei darf maximal 10 MB groß sein.",
+            );
             event.target.value = "";
             return;
         }
@@ -64,20 +75,49 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
         }
     }
 
-    function handleProcess() {
+    async function handleProcess() {
         if (!selectedFile) return;
 
         setIsPreparing(true);
         setErrorMessage(null);
         setSuccessMessage(null);
 
-        window.setTimeout(() => {
-            processDatevExport(selectedFile, company);
-            setIsPreparing(false);
-            setSuccessMessage(
-                `DATEV-Export wurde für ${companyLabel} zur Verarbeitung vorbereitet.`,
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+
+        try {
+            const response = await fetch(
+                `/api/accounting/${company.toLowerCase()}/datev-import`,
+                {
+                    method: "POST",
+                    body: formData,
+                },
             );
-        }, 150);
+            const result = (await response.json().catch(() => null)) as {
+                success?: boolean;
+                message?: string;
+            } | null;
+
+            if (!response.ok || !result?.success) {
+                throw new Error(
+                    result?.message ??
+                        "DATEV-Export konnte nicht verarbeitet werden. Bitte erneut versuchen.",
+                );
+            }
+
+            setSuccessMessage(
+                result.message ??
+                    `DATEV-Export wurde für ${companyLabel} erfolgreich an die Verarbeitung übergeben.`,
+            );
+        } catch (error) {
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "DATEV-Export konnte nicht verarbeitet werden. Bitte erneut versuchen.",
+            );
+        } finally {
+            setIsPreparing(false);
+        }
     }
 
     return (
@@ -95,7 +135,7 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
                         DATEV-Export hochladen
                     </CardTitle>
                     <CardDescription>
-                        Wähle zunächst eine CSV-Datei aus. Die Verarbeitung wird im nächsten Schritt an den passenden n8n-Workflow angebunden.
+                        Wähle eine CSV-Datei aus. Sie wird anschließend an den passenden n8n-Workflow übergeben.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -180,7 +220,7 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
                         ) : (
                             <FileSpreadsheet className="mr-2 size-4" />
                         )}
-                        {isPreparing ? "Wird vorbereitet..." : "DATEV-Export verarbeiten"}
+                        {isPreparing ? "Wird an n8n gesendet..." : "DATEV-Export verarbeiten"}
                     </Button>
                 </CardContent>
             </Card>

@@ -48,10 +48,10 @@ export function SidebarContent({
 
                 <div className="relative flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-300/20 bg-white shadow-lg shadow-cyan-950/40">
                     <Image
-                        src="/software-logo.png"
+                        src="/logo.svg"
                         alt="WAW Pilot Logo"
                         fill
-                        className="object-contain p-1.5"
+                        className="scale-[1.3] object-contain"
                         priority
                     />
                 </div>

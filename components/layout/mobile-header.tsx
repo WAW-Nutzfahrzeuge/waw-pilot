@@ -80,14 +80,16 @@ export function MobileHeader({ role }: { role: UserRole }) {
                     className="flex items-center gap-2 rounded-2xl px-1 py-1 transition hover:bg-cyan-50/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-cyan-100"
                     aria-label="Zum Dashboard"
                 >
-                    <Image
-                        src="/software-logo.png"
-                        alt="WAW Pilot"
-                        width={40}
-                        height={40}
-                        className="order-2 h-10 w-10 rounded-full border border-slate-200 bg-white object-contain p-1.5 shadow-sm"
-                        priority
-                    />
+                    <span className="order-2 flex size-10 shrink-0 overflow-hidden rounded-full border border-slate-200 bg-white shadow-sm">
+                        <Image
+                            src="/logo.svg"
+                            alt="WAW Pilot"
+                            width={40}
+                            height={40}
+                            className="h-full w-full scale-[1.3] object-contain"
+                            priority
+                        />
+                    </span>
                     <span className="leading-none">
                         <span className="block bg-gradient-to-r from-cyan-700 via-slate-950 to-emerald-700 bg-clip-text text-sm font-black uppercase tracking-[0.18em] text-transparent">
                             WAW

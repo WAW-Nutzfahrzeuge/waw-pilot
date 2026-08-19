@@ -1,0 +1,3 @@
+export const DATEV_EXPORT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+
+export type DatevAccountingCompany = "WAW" | "WBT";
