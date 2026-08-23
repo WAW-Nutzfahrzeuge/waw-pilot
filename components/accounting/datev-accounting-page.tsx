@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/tables/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
+import { WawAccountingReport } from "@/components/accounting/waw-accounting-report";
 
 type DatevAccountingPageProps = {
     company: DatevAccountingCompany;
@@ -225,20 +226,24 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Belegstatus</CardTitle>
-                    <CardDescription>
-                        Hier werden später die Ergebnisse der DATEV-Verarbeitung angezeigt.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <EmptyState
-                        title="Noch keine DATEV-Daten verarbeitet."
-                        description="Nach der späteren n8n-Anbindung erscheinen hier Lieferanten, Rechnungen, Beträge und Bearbeitungsstatus."
-                    />
-                </CardContent>
-            </Card>
+            {company === "WAW" ? (
+                <WawAccountingReport />
+            ) : (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Belegstatus</CardTitle>
+                        <CardDescription>
+                            Hier werden später die Ergebnisse der DATEV-Verarbeitung angezeigt.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <EmptyState
+                            title="Noch keine DATEV-Daten verarbeitet."
+                            description="Nach der späteren n8n-Anbindung erscheinen hier Lieferanten, Rechnungen, Beträge und Bearbeitungsstatus."
+                        />
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
