@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { EmptyState } from "@/components/tables/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { WawAccountingReport } from "@/components/accounting/waw-accounting-report";
+import { WawAccountingReview } from "@/components/accounting/waw-accounting-review";
 
 type DatevAccountingPageProps = {
     company: DatevAccountingCompany;
@@ -227,7 +228,10 @@ export function DatevAccountingPage({ company }: DatevAccountingPageProps) {
             </Card>
 
             {company === "WAW" ? (
-                <WawAccountingReport />
+                <>
+                    <WawAccountingReview />
+                    <WawAccountingReport />
+                </>
             ) : (
                 <Card>
                     <CardHeader>
