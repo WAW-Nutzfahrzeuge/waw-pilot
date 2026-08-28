@@ -115,7 +115,7 @@ export function WawAccountingReview() {
         try {
             await requestReview();
         } catch {
-            setErrorMessage("Buchhaltungsdaten konnten nicht geladen werden.");
+            setErrorMessage("Manuelle Prüfungsfälle konnten nicht geladen werden.");
         } finally {
             setIsLoading(false);
         }

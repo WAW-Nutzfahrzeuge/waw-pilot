@@ -85,9 +85,26 @@ export function normalizeAccountingReportItems(
     payload: unknown,
     expectedCompany: string,
 ): AccountingReportItem[] | null {
-    if (!Array.isArray(payload)) return null;
+    let rawItems: unknown[];
 
-    return payload.map((rawItem, index) => {
+    if (Array.isArray(payload)) {
+        rawItems = payload;
+    } else if (payload && typeof payload === "object") {
+        const wrappedPayload = payload as Record<string, unknown>;
+        if (wrappedPayload.success !== undefined && wrappedPayload.success !== true) return null;
+
+        const payloadCompany = stringValue(wrappedPayload.company);
+        if (payloadCompany && payloadCompany.toUpperCase() !== expectedCompany.toUpperCase()) {
+            throw new Error("Report enthält einen unerwarteten Firmenkontext.");
+        }
+
+        if (!Array.isArray(wrappedPayload.items)) return null;
+        rawItems = wrappedPayload.items;
+    } else {
+        return null;
+    }
+
+    return rawItems.map((rawItem, index) => {
         const item = rawItem && typeof rawItem === "object"
             ? rawItem as Record<string, unknown>
             : {};

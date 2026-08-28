@@ -65,6 +65,8 @@ export async function fetchWawAccountingReport(): Promise<AccountingReportItem[]
             signal: controller.signal,
         });
 
+        console.log("[accounting-report] WAW report response", { status: response.status });
+
         if (!response.ok) {
             console.error("[accounting-report] WAW report request failed", {
                 status: response.status,
@@ -78,7 +80,19 @@ export async function fetchWawAccountingReport(): Promise<AccountingReportItem[]
         let payload: unknown;
         try {
             payload = await response.json();
+            const responseObject = payload && typeof payload === "object" && !Array.isArray(payload)
+                ? payload as Record<string, unknown>
+                : null;
+            console.log("[accounting-report] WAW report JSON parsed", {
+                jsonParsed: true,
+                success: responseObject?.success ?? null,
+                responseShape: Array.isArray(payload) ? "array" : typeof payload,
+            });
         } catch {
+            console.log("[accounting-report] WAW report JSON parsed", {
+                jsonParsed: false,
+                success: null,
+            });
             throw new AccountingReportRequestError(
                 "INVALID_RESPONSE",
                 "Der WAW-Buchhaltungsreport hat keine gültige Antwort geliefert.",
@@ -90,6 +104,10 @@ export async function fetchWawAccountingReport(): Promise<AccountingReportItem[]
             if (!items) {
                 throw new Error("Erwartet wurde ein Array von Reporteinträgen.");
             }
+
+            console.log("[accounting-report] WAW report items normalized", {
+                itemCount: items.length,
+            });
 
             return items;
         } catch (error) {
