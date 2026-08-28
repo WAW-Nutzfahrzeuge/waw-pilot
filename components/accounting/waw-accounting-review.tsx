@@ -99,6 +99,7 @@ export function WawAccountingReview() {
 
         setCounts(result.counts);
         setItems(result.items);
+        setErrorMessage(null);
         setEmails((current) => {
             const next = { ...current };
             for (const item of result.items ?? []) {

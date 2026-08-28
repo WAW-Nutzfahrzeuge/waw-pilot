@@ -33,6 +33,8 @@ export type AccountingReviewReport = {
     items: AccountingReviewItem[];
 };
 
+const reviewStatuses = new Set(["REVIEW", "CONTACT_REVIEW", "NO_MATCH"]);
+
 function stringValue(value: unknown): string | null {
     if (typeof value !== "string") return null;
 
@@ -121,6 +123,6 @@ export function normalizeAccountingReviewPayload(
             contactReview: countValue(counts.contactReview),
             noMatch: countValue(counts.noMatch),
         },
-        items,
+        items: items.filter((item) => reviewStatuses.has(item.status)),
     };
 }

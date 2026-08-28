@@ -56,6 +56,10 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === "AbortError";
 }
 
+function unwrapN8nPayload(payload: unknown): unknown {
+    return Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
+}
+
 export async function fetchWawAccountingReview(): Promise<AccountingReviewReport> {
     const reviewUrl = getReviewUrl("N8N_ACCOUNTING_WAW_REVIEW_URL");
     const reportSecret = getReportSecret();
@@ -73,6 +77,8 @@ export async function fetchWawAccountingReview(): Promise<AccountingReviewReport
             signal: controller.signal,
         });
 
+        console.log("[accounting-review] WAW review n8n response", { status: response.status });
+
         if (!response.ok) {
             console.error("[accounting-review] WAW review request failed", { status: response.status });
             throw new AccountingReviewRequestError(
@@ -84,14 +90,20 @@ export async function fetchWawAccountingReview(): Promise<AccountingReviewReport
         let payload: unknown;
         try {
             payload = await response.json();
+            console.log("[accounting-review] WAW review JSON parsed", { success: true });
         } catch {
+            console.log("[accounting-review] WAW review JSON parsed", { success: false });
             throw new AccountingReviewRequestError(
                 "INVALID_RESPONSE",
                 "Der WAW-Review-Service hat keine gültige Antwort geliefert.",
             );
         }
 
-        const report = normalizeAccountingReviewPayload(payload, "WAW");
+        const report = normalizeAccountingReviewPayload(unwrapN8nPayload(payload), "WAW");
+        console.log("[accounting-review] WAW review response processed", {
+            success: Boolean(report),
+            reviewItemCount: report?.items.length ?? 0,
+        });
         if (!report) {
             throw new AccountingReviewRequestError(
                 "INVALID_RESPONSE",
@@ -165,6 +177,8 @@ export async function saveWawSupplierEmail(input: SaveWawSupplierEmailInput): Pr
             signal: controller.signal,
         });
 
+        console.log("[accounting-review] WAW review action n8n response", { status: response.status });
+
         if (!response.ok) {
             console.error("[accounting-review] WAW review action failed", { status: response.status });
             throw new AccountingReviewRequestError(
@@ -173,17 +187,34 @@ export async function saveWawSupplierEmail(input: SaveWawSupplierEmailInput): Pr
             );
         }
 
-        let payload: unknown;
+        let payload: unknown = null;
+        let jsonParsed = false;
         try {
-            payload = await response.json();
+            const rawResponse = await response.text();
+            if (rawResponse.trim()) {
+                payload = JSON.parse(rawResponse) as unknown;
+                jsonParsed = true;
+            }
+            console.log("[accounting-review] WAW review action JSON parsed", { success: jsonParsed });
         } catch {
+            console.log("[accounting-review] WAW review action JSON parsed", { success: false });
             throw new AccountingReviewRequestError(
                 "INVALID_RESPONSE",
                 "Der Review-Service hat keine gültige Bestätigung geliefert.",
             );
         }
 
-        if (!payload || typeof payload !== "object" || (payload as Record<string, unknown>).success !== true) {
+        const actionPayload = unwrapN8nPayload(payload);
+        const successFlag = actionPayload === null
+            ? true
+            : actionPayload !== null
+                && typeof actionPayload === "object"
+                && (actionPayload as Record<string, unknown>).success === true;
+        console.log("[accounting-review] WAW review action response processed", {
+            success: successFlag,
+        });
+
+        if (!successFlag) {
             throw new AccountingReviewRequestError(
                 "INVALID_RESPONSE",
                 "Der Review-Service hat die Speicherung nicht bestätigt.",
