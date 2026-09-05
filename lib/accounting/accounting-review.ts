@@ -1,4 +1,4 @@
-export type AccountingReviewStatus = "REVIEW" | "CONTACT_REVIEW" | "NO_MATCH" | string;
+export type AccountingReviewStatus = "REVIEW" | "CONTACT_REVIEW" | "NO_MATCH" | "PAYMENT_REVIEW" | string;
 
 export type AccountingReviewItem = {
     id: number;
@@ -26,6 +26,7 @@ export type AccountingReviewCounts = {
     review: number;
     contactReview: number;
     noMatch: number;
+    paymentReview: number;
 };
 
 export type AccountingReviewReport = {
@@ -33,7 +34,7 @@ export type AccountingReviewReport = {
     items: AccountingReviewItem[];
 };
 
-const reviewStatuses = new Set(["REVIEW", "CONTACT_REVIEW", "NO_MATCH"]);
+const reviewStatuses = new Set(["REVIEW", "CONTACT_REVIEW", "NO_MATCH", "PAYMENT_REVIEW"]);
 
 function stringValue(value: unknown): string | null {
     if (typeof value !== "string") return null;
@@ -116,13 +117,17 @@ export function normalizeAccountingReviewPayload(
         });
     }
 
+    const reviewItems = items.filter((item) => reviewStatuses.has(item.status));
+    const paymentReviewFromApi = countValue(counts.paymentReview);
+
     return {
         counts: {
             total: countValue(counts.total),
             review: countValue(counts.review),
             contactReview: countValue(counts.contactReview),
             noMatch: countValue(counts.noMatch),
+            paymentReview: paymentReviewFromApi || reviewItems.filter((item) => item.status === "PAYMENT_REVIEW").length,
         },
-        items: items.filter((item) => reviewStatuses.has(item.status)),
+        items: reviewItems,
     };
 }

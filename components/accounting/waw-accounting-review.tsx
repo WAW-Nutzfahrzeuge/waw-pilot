@@ -16,12 +16,13 @@ import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/tables/empty-state";
 
-type ReviewFilter = "all" | "contact" | "review" | "no-match";
+type ReviewFilter = "all" | "contact" | "review" | "no-match" | "payment";
 
 const statusLabels: Record<string, string> = {
     CONTACT_REVIEW: "Kontakt fehlt",
     REVIEW: "Prüfung erforderlich",
     NO_MATCH: "Kein Beleg gefunden",
+    PAYMENT_REVIEW: "Zahlung prüfen",
 };
 
 function getStatusLabel(status: AccountingReviewStatus): string {
@@ -35,6 +36,8 @@ function getStatusTone(status: AccountingReviewStatus): "warning" | "error" | "n
             return "warning";
         case "REVIEW":
             return "error";
+        case "PAYMENT_REVIEW":
+            return "warning";
         default:
             return "neutral";
     }
@@ -45,6 +48,7 @@ function matchesFilter(status: AccountingReviewStatus, filter: ReviewFilter): bo
     if (filter === "contact") return normalized === "CONTACT_REVIEW";
     if (filter === "review") return normalized === "REVIEW";
     if (filter === "no-match") return normalized === "NO_MATCH";
+    if (filter === "payment") return normalized === "PAYMENT_REVIEW";
     return true;
 }
 
@@ -72,7 +76,7 @@ function getSearchText(item: AccountingReviewItem): string {
         .toLowerCase();
 }
 
-const emptyCounts: AccountingReviewCounts = { total: 0, review: 0, contactReview: 0, noMatch: 0 };
+const emptyCounts: AccountingReviewCounts = { total: 0, review: 0, contactReview: 0, noMatch: 0, paymentReview: 0 };
 
 export function WawAccountingReview() {
     const [items, setItems] = useState<AccountingReviewItem[]>([]);
@@ -132,7 +136,13 @@ export function WawAccountingReview() {
             .filter((item) => !normalizedQuery || getSearchText(item).includes(normalizedQuery))
             .sort((left, right) => {
                 const priority = (status: AccountingReviewStatus) =>
-                    status.toUpperCase() === "CONTACT_REVIEW" ? 3 : status.toUpperCase() === "REVIEW" ? 2 : 1;
+                    status.toUpperCase() === "CONTACT_REVIEW"
+                        ? 4
+                        : status.toUpperCase() === "REVIEW"
+                            ? 3
+                            : status.toUpperCase() === "PAYMENT_REVIEW"
+                                ? 2
+                                : 1;
                 return priority(right.status) - priority(left.status) || getDateSortValue(right.bookingDate) - getDateSortValue(left.bookingDate);
             });
     }, [filter, items, query]);
@@ -188,11 +198,12 @@ export function WawAccountingReview() {
                 </div>
             </CardHeader>
             <CardContent className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                     <SummaryCard label="Gesamt offen" value={counts.total} />
                     <SummaryCard label="Kontakt fehlt" value={counts.contactReview} tone="warning" />
                     <SummaryCard label="Prüfung erforderlich" value={counts.review} tone="error" />
                     <SummaryCard label="Kein Beleg gefunden" value={counts.noMatch} />
+                    <SummaryCard label="Zahlung prüfen" value={counts.paymentReview} tone="warning" />
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
@@ -202,6 +213,7 @@ export function WawAccountingReview() {
                         <option value="contact">Kontakt fehlt</option>
                         <option value="review">Prüfung</option>
                         <option value="no-match">Kein Match</option>
+                        <option value="payment">Zahlung prüfen</option>
                     </select>
                 </div>
 
