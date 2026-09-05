@@ -374,7 +374,7 @@ export async function SaleDetail({
                             </p>
                             <p className="mt-1 text-sm font-semibold text-red-800">
                                 Zielort, Zielland, Gelangensmonat, Gelangensjahr,
-                                Übergabedatum, Art der Verbringung und Empfänger sind erforderlich.
+                                Übergabedatum und Art der Verbringung sind erforderlich.
                             </p>
                         </div>
                     </div>

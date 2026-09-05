@@ -1012,7 +1012,6 @@ export async function createSaleAction(
     const exportArrivalYear = getStringValue(formData, "export_arrival_year");
     const exportTransportDate = getStringValue(formData, "export_transport_date");
     const exportTransportType = getStringValue(formData, "export_transport_type");
-    const exportReceiverName = getStringValue(formData, "export_receiver_name");
 
     const shouldCreateInvoice =
         getStringValue(formData, "create_invoice") === "yes";
@@ -1364,8 +1363,7 @@ export async function createSaleAction(
             !exportArrivalMonth ||
             !exportArrivalYear ||
             !exportTransportDate ||
-            !exportTransportType ||
-            !exportReceiverName)
+            !exportTransportType)
     ) {
         await cleanupInlineSaleCreation({
             supabase,
@@ -1467,7 +1465,6 @@ export async function createSaleAction(
             export_arrival_year: exportArrivalYear,
             export_transport_date: exportTransportDate,
             export_transport_type: exportTransportType,
-            export_receiver_name: exportReceiverName,
         })
         .select("id")
         .single();

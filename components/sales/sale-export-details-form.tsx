@@ -190,16 +190,6 @@ export function SaleExportDetailsForm({ details }: SaleExportDetailsFormProps) {
                             </select>
                         </div>
 
-                        <FormField
-                            label={getRequiredLabel(
-                                "Empfänger / Unterzeichner",
-                                requiresExportDetails,
-                            )}
-                            name="export_receiver_name"
-                            defaultValue={details.export_receiver_name ?? ""}
-                            placeholder="Name der unterschreibenden Person"
-                            required={requiresExportDetails}
-                        />
                     </div>
 
                     <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">

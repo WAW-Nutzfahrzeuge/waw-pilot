@@ -849,15 +849,6 @@ export function SaleForm({
                                 </select>
                             </div>
 
-                            <FormField
-                                label={getRequiredLabel(
-                                    "Empfänger / Unterzeichner",
-                                    requiresExportDetails,
-                                )}
-                                name="export_receiver_name"
-                                required={requiresExportDetails}
-                                placeholder="Name der unterschreibenden Person"
-                            />
                         </div>
                     </CardContent>
                 </Card>
@@ -1033,7 +1024,11 @@ export function SaleForm({
                                 </span>
                             </p>
                             <p>Verkaufstyp: {getSaleTypeLabel(saleType)}</p>
-                            <p>Brutto: {formatCurrency(previewGrossAmount)}</p>
+                            <p>
+                                {saleType === "inland" ? "Brutto" : "Netto"}: {formatCurrency(
+                                    saleType === "inland" ? previewGrossAmount : previewNetAmount,
+                                )}
+                            </p>
                         </div>
                     </CardContent>
                 </Card>

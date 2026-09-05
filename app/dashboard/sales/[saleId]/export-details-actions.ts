@@ -75,7 +75,6 @@ export async function updateSaleExportDetailsAction(formData: FormData) {
     const arrivalYear = getStringValue(formData, "export_arrival_year");
     const transportDate = getStringValue(formData, "export_transport_date");
     const transportType = getStringValue(formData, "export_transport_type");
-    const receiverName = getStringValue(formData, "export_receiver_name");
     const requiresExportDetails =
         saleData.sale_type === "eu" ||
         saleData.sale_type === "export_third_country";
@@ -92,8 +91,7 @@ export async function updateSaleExportDetailsAction(formData: FormData) {
             !arrivalMonth ||
             !arrivalYear ||
             !transportDate ||
-            !transportType ||
-            !receiverName)
+            !transportType)
     ) {
         redirect(`/dashboard/sales/${saleId}?exportDataError=1#export-details`);
     }
@@ -118,7 +116,6 @@ export async function updateSaleExportDetailsAction(formData: FormData) {
             export_arrival_year: arrivalYear,
             export_transport_date: transportDate,
             export_transport_type: transportType,
-            export_receiver_name: receiverName,
         })
         .eq("id", saleId)
         .eq("company_id", companyId)
