@@ -63,9 +63,9 @@ export async function getCompanySignatureStampAssetPaths(): Promise<CompanyAsset
 export async function assertCompanySignatureStampConfigured() {
     const paths = await getCompanySignatureStampAssetPaths();
 
-    if (!paths.signature_image_path || !paths.stamp_image_path) {
+    if (!paths.signature_image_path && !paths.stamp_image_path) {
         throw new Error(
-            "Bitte hinterlege zuerst Unterschrift und Firmenstempel in den Einstellungen.",
+            "Bitte hinterlege zuerst die gemeinsame Unterschrift- und Stempeldatei in den Einstellungen.",
         );
     }
 }
@@ -81,6 +81,31 @@ export async function getCompanySignatureStampAssets(
     }
 
     const paths = await getCompanySignatureStampAssetPaths();
+
+    if (paths.signature_image_path && !paths.stamp_image_path) {
+        return {
+            signatureImage: await downloadAsset(paths.signature_image_path),
+            stampImage: null,
+        };
+    }
+
+    if (!paths.signature_image_path && paths.stamp_image_path) {
+        return {
+            signatureImage: null,
+            stampImage: await downloadAsset(paths.stamp_image_path),
+        };
+    }
+
+    if (
+        paths.signature_image_path &&
+        paths.stamp_image_path &&
+        paths.signature_image_path === paths.stamp_image_path
+    ) {
+        return {
+            signatureImage: await downloadAsset(paths.signature_image_path),
+            stampImage: null,
+        };
+    }
 
     const [signatureImage, stampImage] = await Promise.all([
         downloadAsset(paths.signature_image_path),

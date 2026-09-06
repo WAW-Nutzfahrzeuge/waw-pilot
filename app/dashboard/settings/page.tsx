@@ -6,8 +6,8 @@ import { getCompanySettings } from "@/lib/settings/company-settings-queries";
 
 type SettingsPageProps = {
     searchParams: Promise<{
-        signatureUploaded?: string;
-        stampUploaded?: string;
+        assetUploaded?: string;
+        assetRemoved?: string;
         companySaved?: string;
         assetUploadError?: string;
         termsUploaded?: string;
@@ -28,8 +28,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             company={company}
             userEmail={userContext.email ?? ""}
             companySaved={resolvedSearchParams.companySaved === "1"}
-            signatureUploaded={resolvedSearchParams.signatureUploaded === "1"}
-            stampUploaded={resolvedSearchParams.stampUploaded === "1"}
+            assetUploaded={resolvedSearchParams.assetUploaded === "1"}
+            assetRemoved={resolvedSearchParams.assetRemoved === "1"}
             assetUploadError={resolvedSearchParams.assetUploadError}
             termsUploaded={resolvedSearchParams.termsUploaded === "1"}
             termsRemoved={resolvedSearchParams.termsRemoved === "1"}

@@ -993,7 +993,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             sale.include_damage_notes_on_invoice,
         ),
         has_signature_stamp_assets: Boolean(
-            sale.companies?.signature_image_path && sale.companies?.stamp_image_path,
+            sale.companies?.signature_image_path || sale.companies?.stamp_image_path,
         ),
 
         net_amount: netAmount,

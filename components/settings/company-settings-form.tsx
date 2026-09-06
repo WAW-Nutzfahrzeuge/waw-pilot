@@ -14,17 +14,16 @@ import {
     Landmark,
     Save,
     ShieldCheck,
-    Stamp,
     Trash2,
     Upload,
 } from "lucide-react";
 
 import {
-    removeCompanySignatureAssetAction,
+    removeCompanySignatureStampAssetAction,
     removeCompanyTermsPdfAction,
     updateCompanySettingsAction,
     updateUserPasswordAction,
-    uploadCompanySignatureAssetAction,
+    uploadCompanySignatureStampAssetAction,
     uploadCompanyTermsPdfAction,
     type UpdateCompanySettingsState,
     type UpdateUserPasswordState,
@@ -53,8 +52,8 @@ type CompanySettingsFormProps = {
     company: CompanySettings;
     userEmail: string;
     companySaved?: boolean;
-    signatureUploaded?: boolean;
-    stampUploaded?: boolean;
+    assetUploaded?: boolean;
+    assetRemoved?: boolean;
     assetUploadError?: string;
     termsUploaded?: boolean;
     termsRemoved?: boolean;
@@ -98,8 +97,8 @@ export function CompanySettingsForm({
     company,
     userEmail,
     companySaved = false,
-    signatureUploaded = false,
-    stampUploaded = false,
+    assetUploaded = false,
+    assetRemoved = false,
     assetUploadError,
     termsUploaded = false,
     termsRemoved = false,
@@ -232,12 +231,12 @@ export function CompanySettingsForm({
                 </div>
             ) : null}
 
-            {signatureUploaded ? (
-                <FlashMessage message="Digitale Unterschrift wurde hochgeladen." />
+            {assetUploaded ? (
+                <FlashMessage message="Kombinierte Unterschrift und Firmenstempel wurden hochgeladen." />
             ) : null}
 
-            {stampUploaded ? (
-                <FlashMessage message="Firmenstempel wurde hochgeladen." />
+            {assetRemoved ? (
+                <FlashMessage message="Kombinierte Unterschrift und Firmenstempel wurden entfernt." />
             ) : null}
 
             {termsUploaded ? (
@@ -489,25 +488,10 @@ export function CompanySettingsForm({
                     <SectionTitle
                         icon={FileSignature}
                         title="Unterschrift & Stempel"
-                        description="Lade hier die digitale Unterschrift und den Firmenstempel hoch. Beide können später optional in Rechnungen und Dokumente eingefügt werden."
+                        description="Lade hier eine gemeinsame Datei mit digitaler Unterschrift und Firmenstempel hoch. Sie kann später optional in Rechnungen und Dokumente eingefügt werden."
                     />
 
-                    <div className="grid gap-4 lg:grid-cols-2">
-                        <CompanyAssetUploadCard
-                            assetType="signature"
-                            title="Unterschrift"
-                            description="Digitale Unterschrift als PNG, JPG oder WEBP."
-                            icon={FileSignature}
-                            imagePath={company.signature_image_path}
-                        />
-                        <CompanyAssetUploadCard
-                            assetType="stamp"
-                            title="Firmenstempel"
-                            description="Firmenstempel als PNG, JPG oder WEBP."
-                            icon={Stamp}
-                            imagePath={company.stamp_image_path}
-                        />
-                    </div>
+                    <CompanyAssetUploadCard imagePath={company.signature_image_path} />
                 </CardContent>
             </Card>
 
@@ -744,18 +728,11 @@ function PasswordField({
 }
 
 function CompanyAssetUploadCard({
-                                    assetType,
-                                    title,
-                                    description,
-                                    icon: Icon,
                                     imagePath,
                                 }: {
-    assetType: "signature" | "stamp";
-    title: string;
-    description: string;
-    icon: typeof FileSignature;
     imagePath: string | null;
 }) {
+    const title = "Unterschrift & Firmenstempel";
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -788,12 +765,12 @@ function CompanyAssetUploadCard({
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex items-start gap-3">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700">
-                    <Icon className="size-5" />
+                    <FileSignature className="size-5" />
                 </div>
                 <div className="min-w-0">
                     <h3 className="font-extrabold text-slate-950">{title}</h3>
                     <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
-                        {description}
+                        Eine gemeinsame PNG-, JPG- oder WEBP-Datei mit Unterschrift und Firmenstempel.
                     </p>
                 </div>
             </div>
@@ -802,10 +779,10 @@ function CompanyAssetUploadCard({
                 {imagePath ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                        src={`/api/company-assets/${assetType}?refresh=${encodeURIComponent(
+                        src={`/api/company-assets/signature?refresh=${encodeURIComponent(
                             imagePath,
                         )}`}
-                        alt={title}
+                        alt="Gemeinsame Unterschrift und Firmenstempel"
                         className="max-h-28 max-w-full object-contain"
                     />
                 ) : (
@@ -819,11 +796,10 @@ function CompanyAssetUploadCard({
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-                <form action={uploadCompanySignatureAssetAction}>
-                    <input type="hidden" name="asset_type" value={assetType} />
+                <form action={uploadCompanySignatureStampAssetAction}>
                     <label className="inline-flex h-10 cursor-pointer items-center rounded-xl bg-cyan-700 px-4 text-sm font-extrabold text-white transition hover:bg-cyan-800">
                         <Upload className="mr-2 size-4" />
-                        {imagePath ? "Ersetzen" : `${title} hochladen`}
+                        {imagePath ? "Ersetzen" : "Datei hochladen"}
                         <input
                             name="file"
                             type="file"
@@ -836,8 +812,7 @@ function CompanyAssetUploadCard({
                 </form>
 
                 {imagePath ? (
-                    <form action={removeCompanySignatureAssetAction}>
-                        <input type="hidden" name="asset_type" value={assetType} />
+                    <form action={removeCompanySignatureStampAssetAction}>
                         <Button
                             type="submit"
                             variant="outline"
@@ -872,7 +847,7 @@ function getAssetUploadErrorMessage(errorCode: string): string {
         return "Bitte wähle eine Datei aus.";
     }
 
-    return "Unterschrift oder Stempel konnte nicht hochgeladen werden. Bitte versuche es erneut.";
+    return "Unterschrift und Firmenstempel konnten nicht hochgeladen werden. Bitte versuche es erneut.";
 }
 
 function getTermsUploadErrorMessage(errorCode: string): string {

@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { PDFDocument } from "pdf-lib";
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
@@ -138,26 +137,6 @@ function getFileExtension(fileName: string): string {
     const extension = parts.length > 1 ? parts.pop() : null;
 
     return extension ? `.${extension}` : "";
-}
-
-function getAssetField(assetType: string | null) {
-    if (assetType === "signature") {
-        return {
-            fieldName: "signature_image_path",
-            folderName: "signature",
-            redirectFlag: "signatureUploaded",
-        } as const;
-    }
-
-    if (assetType === "stamp") {
-        return {
-            fieldName: "stamp_image_path",
-            folderName: "stamp",
-            redirectFlag: "stampUploaded",
-        } as const;
-    }
-
-    return null;
 }
 
 function isValidEmailAddress(email: string): boolean {
@@ -357,16 +336,11 @@ export async function updateUserPasswordAction(
     };
 }
 
-export async function uploadCompanySignatureAssetAction(formData: FormData) {
+export async function uploadCompanySignatureStampAssetAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const asset = getAssetField(getStringValue(formData, "asset_type"));
     const fileValue = formData.get("file");
-
-    if (!asset) {
-        throw new Error("Ungültiger Upload-Typ.");
-    }
 
     if (!(fileValue instanceof File) || fileValue.size <= 0) {
         redirectWithAssetUploadError("missingFile");
@@ -382,7 +356,7 @@ export async function uploadCompanySignatureAssetAction(formData: FormData) {
 
     const { data: companyData, error: companyError } = await supabase
         .from("companies")
-        .select(asset.fieldName)
+        .select("signature_image_path, stamp_image_path")
         .eq("id", companyId)
         .single();
 
@@ -395,22 +369,15 @@ export async function uploadCompanySignatureAssetAction(formData: FormData) {
     }
 
     const companyAssetPaths = companyData as CompanyAssetPathRow;
-    const oldPath = companyAssetPaths[asset.fieldName];
+    const oldPaths = [
+        companyAssetPaths.signature_image_path,
+        companyAssetPaths.stamp_image_path,
+    ].filter((path): path is string => Boolean(path));
     const originalFileName = sanitizeFileName(fileValue.name);
-    const filePath = `company-assets/${companyId}/${asset.folderName}/${Date.now()}${getFileExtension(
+    const filePath = `company-assets/${companyId}/signature-stamp/${Date.now()}${getFileExtension(
         originalFileName,
     )}`;
     const fileBuffer = Buffer.from(await fileValue.arrayBuffer());
-
-    try {
-        const pdfDocument = await PDFDocument.load(fileBuffer);
-
-        if (pdfDocument.getPageCount() < 1) {
-            redirectWithTermsUploadError("invalidFile");
-        }
-    } catch {
-        redirectWithTermsUploadError("invalidFile");
-    }
 
     const { error: uploadError } = await supabase.storage
         .from("documents")
@@ -437,7 +404,8 @@ export async function uploadCompanySignatureAssetAction(formData: FormData) {
     const { error: updateError } = await supabase
         .from("companies")
         .update({
-            [asset.fieldName]: filePath,
+            signature_image_path: filePath,
+            stamp_image_path: null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", companyId);
@@ -446,32 +414,28 @@ export async function uploadCompanySignatureAssetAction(formData: FormData) {
         await supabase.storage.from("documents").remove([filePath]);
         console.error("[settings] company signature/stamp path update failed", updateError);
         throw new Error(
-            "Unterschrift oder Stempel konnte nicht gespeichert werden. Bitte versuche es erneut.",
+            "Unterschrift und Firmenstempel konnten nicht gespeichert werden. Bitte versuche es erneut.",
         );
     }
 
-    if (oldPath && oldPath !== filePath) {
-        await supabase.storage.from("documents").remove([oldPath]);
+    const pathsToRemove = [...new Set(oldPaths)].filter((path) => path !== filePath);
+    if (pathsToRemove.length > 0) {
+        await supabase.storage.from("documents").remove(pathsToRemove);
     }
 
     revalidateCompanyPdfAssetPaths();
 
-    redirect(`/dashboard/settings?${asset.redirectFlag}=1`);
+    redirect("/dashboard/settings?assetUploaded=1");
 }
 
-export async function removeCompanySignatureAssetAction(formData: FormData) {
+export async function removeCompanySignatureStampAssetAction(_formData: FormData) {
+    void _formData;
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const asset = getAssetField(getStringValue(formData, "asset_type"));
-
-    if (!asset) {
-        throw new Error("Ungültiger Upload-Typ.");
-    }
-
     const { data: companyData, error: companyError } = await supabase
         .from("companies")
-        .select(asset.fieldName)
+        .select("signature_image_path, stamp_image_path")
         .eq("id", companyId)
         .single();
 
@@ -484,24 +448,28 @@ export async function removeCompanySignatureAssetAction(formData: FormData) {
     }
 
     const companyAssetPaths = companyData as CompanyAssetPathRow;
-    const oldPath = companyAssetPaths[asset.fieldName];
+    const oldPaths = [
+        companyAssetPaths.signature_image_path,
+        companyAssetPaths.stamp_image_path,
+    ].filter((path): path is string => Boolean(path));
 
     const { error: updateError } = await supabase
         .from("companies")
         .update({
-            [asset.fieldName]: null,
+            signature_image_path: null,
+            stamp_image_path: null,
             updated_at: new Date().toISOString(),
         })
         .eq("id", companyId);
 
     if (updateError) {
         throw new Error(
-            "Unterschrift oder Stempel konnte nicht entfernt werden. Bitte versuche es erneut.",
+            "Unterschrift und Firmenstempel konnten nicht entfernt werden. Bitte versuche es erneut.",
         );
     }
 
-    if (oldPath) {
-        await supabase.storage.from("documents").remove([oldPath]);
+    if (oldPaths.length > 0) {
+        await supabase.storage.from("documents").remove([...new Set(oldPaths)]);
     }
 
     revalidateCompanyPdfAssetPaths();

@@ -269,7 +269,25 @@ async function drawSignatureStampImages(
 
     if (!signatureImage && !stampImage) return;
 
-    if (signatureImage) {
+    if (signatureImage && !stampImage) {
+        // Combined signature/stamp uploads need a wider frame so the stamp
+        // remains visible on the right and is not vertically compressed.
+        const maxWidth = 180;
+        const maxHeight = 64;
+        const scale = Math.min(
+            maxWidth / signatureImage.width,
+            maxHeight / signatureImage.height,
+        );
+        const width = signatureImage.width * scale;
+        const height = signatureImage.height * scale;
+
+        page.drawImage(signatureImage, {
+            x: 350,
+            y: 58,
+            width,
+            height,
+        });
+    } else if (signatureImage) {
         const width = 112;
         const height = Math.min(
             34,
@@ -285,12 +303,12 @@ async function drawSignatureStampImages(
     }
 
     if (stampImage) {
-        const width = 68;
-        const height = Math.min(50, (stampImage.height / stampImage.width) * width);
+        const width = 78;
+        const height = Math.min(62, (stampImage.height / stampImage.width) * width);
 
         page.drawImage(stampImage, {
-            x: 476,
-            y: 66,
+            x: 490,
+            y: 60,
             width,
             height,
         });
