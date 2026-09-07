@@ -48,6 +48,16 @@ type SaleInvoiceVehicleRelation = {
     show_damage_on_invoice: boolean | null;
 };
 
+type RegenerateInvoiceOptionsRow = {
+    id: string;
+    sale_id: string;
+    invoice_type: InvoiceType | null;
+    invoice_number: string;
+    include_signature_stamp: boolean | null;
+    include_terms_pdf?: boolean | null;
+    pdf_document_id: string | null;
+};
+
 type SaleInvoiceSourceRow = {
     id: string;
     company_id: string;
@@ -152,6 +162,15 @@ function getStringValue(formData: FormData, key: string): string | null {
     const trimmedValue = value.trim();
 
     return trimmedValue.length > 0 ? trimmedValue : null;
+}
+
+function isMissingIncludeTermsPdfColumn(error: { message?: string; code?: string } | null): boolean {
+    if (!error) return false;
+
+    return (
+        error.code === "42703" ||
+        Boolean(error.message?.includes("invoices.include_terms_pdf"))
+    );
 }
 
 function getSingleRelation<T>(relation: T | T[] | null): T | null {
@@ -615,7 +634,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         await assertCompanySignatureStampConfigured();
     }
 
-    const { data: invoiceData, error: invoiceError } = await supabase
+    const { data: invoiceDataWithTerms, error: invoiceErrorWithTerms } = await supabase
         .from("invoices")
         .select(
             `
@@ -631,6 +650,38 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         .eq("id", invoiceId)
         .eq("company_id", companyId)
         .single();
+
+    let invoiceData = invoiceDataWithTerms as RegenerateInvoiceOptionsRow | null;
+    let invoiceError = invoiceErrorWithTerms;
+
+    if (invoiceErrorWithTerms && isMissingIncludeTermsPdfColumn(invoiceErrorWithTerms)) {
+        const fallback = await supabase
+            .from("invoices")
+            .select(
+                `
+      id,
+      sale_id,
+      invoice_type,
+      invoice_number,
+      include_signature_stamp,
+      pdf_document_id
+    `,
+            )
+            .eq("id", invoiceId)
+            .eq("company_id", companyId)
+            .single();
+
+        invoiceData = fallback.data
+            ? {
+                  ...(fallback.data as Omit<
+                      RegenerateInvoiceOptionsRow,
+                      "include_terms_pdf"
+                  >),
+                  include_terms_pdf: true,
+              }
+            : null;
+        invoiceError = fallback.error;
+    }
 
     if (invoiceError || !invoiceData) {
         throw new Error(

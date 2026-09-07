@@ -148,8 +148,22 @@ const invoicePdfBaseSelect = `
       )
 `;
 
+const invoicePdfLegacyBaseSelect = invoicePdfBaseSelect.replace(
+    "      include_terms_pdf,\n",
+    "",
+);
+
 const invoicePdfSelect = `
       ${invoicePdfBaseSelect},
+      original_invoice_number,
+      original_invoice_date,
+      correction_reason_code,
+      correction_reason_text,
+      customer_visible_reason
+`;
+
+const invoicePdfLegacySelect = `
+      ${invoicePdfLegacyBaseSelect},
       original_invoice_number,
       original_invoice_date,
       correction_reason_code,
@@ -203,11 +217,12 @@ function isMissingInvoiceCorrectionColumn(error: SupabaseErrorLike | null | unde
         error.message.includes("invoices.original_invoice_date") ||
         error.message.includes("invoices.correction_reason_code") ||
         error.message.includes("invoices.correction_reason_text") ||
-        error.message.includes("invoices.customer_visible_reason")
+        error.message.includes("invoices.customer_visible_reason") ||
+        error.message.includes("invoices.include_terms_pdf")
     );
 }
 
-function withEmptyCorrectionFields(row: unknown): InvoiceQueryResult {
+function withInvoiceFallbackFields(row: unknown): InvoiceQueryResult {
     return {
         ...(row as Omit<
             InvoiceQueryResult,
@@ -216,12 +231,14 @@ function withEmptyCorrectionFields(row: unknown): InvoiceQueryResult {
             | "correction_reason_code"
             | "correction_reason_text"
             | "customer_visible_reason"
+            | "include_terms_pdf"
         >),
         original_invoice_number: null,
         original_invoice_date: null,
         correction_reason_code: null,
         correction_reason_text: null,
         customer_visible_reason: null,
+        include_terms_pdf: true,
     };
 }
 
@@ -244,12 +261,12 @@ export async function getInvoicePdfData(
     if (loadError && isMissingInvoiceCorrectionColumn(loadError)) {
         const fallback = await supabase
             .from("invoices")
-            .select(invoicePdfBaseSelect)
+            .select(invoicePdfLegacySelect)
             .eq("id", invoiceId)
             .eq("company_id", companyId)
             .single();
 
-        invoice = fallback.data ? withEmptyCorrectionFields(fallback.data) : null;
+        invoice = fallback.data ? withInvoiceFallbackFields(fallback.data) : null;
         loadError = fallback.error;
     }
 
