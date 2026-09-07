@@ -695,7 +695,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         Boolean(invoiceData.include_signature_stamp) !== includeSignatureStamp ||
         (invoiceData.include_terms_pdf !== false) !== includeTermsPdf
     ) {
-        const { error: invoiceUpdateError } = await supabase
+        const invoiceUpdate = await supabase
             .from("invoices")
             .update({
                 include_signature_stamp: includeSignatureStamp,
@@ -704,9 +704,27 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
             .eq("id", invoiceId)
             .eq("company_id", companyId);
 
-        if (invoiceUpdateError) {
+        if (
+            invoiceUpdate.error &&
+            isMissingIncludeTermsPdfColumn(invoiceUpdate.error) &&
+            includeTermsPdf
+        ) {
+            const fallbackUpdate = await supabase
+                .from("invoices")
+                .update({
+                    include_signature_stamp: includeSignatureStamp,
+                })
+                .eq("id", invoiceId)
+                .eq("company_id", companyId);
+
+            if (fallbackUpdate.error) {
+                throw new Error(
+                    `Rechnungsoption konnte nicht gespeichert werden: ${fallbackUpdate.error.message}`,
+                );
+            }
+        } else if (invoiceUpdate.error) {
             throw new Error(
-                `Rechnungsoption konnte nicht gespeichert werden: ${invoiceUpdateError.message}`,
+                `Rechnungsoption konnte nicht gespeichert werden: ${invoiceUpdate.error.message}`,
             );
         }
     }
@@ -716,6 +734,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         .select(
             `
       invoice_notes,
+      include_damage_notes_on_invoice,
       vehicles (
         damage_notes,
         show_damage_on_invoice
@@ -734,41 +753,34 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         );
     }
 
-    const sale = saleData as Pick<SaleInvoiceSourceRow, "invoice_notes" | "vehicles">;
+    const sale = saleData as Pick<
+        SaleInvoiceSourceRow,
+        "invoice_notes" | "include_damage_notes_on_invoice" | "vehicles"
+    >;
     const saleVehicle = getSingleRelation(sale.vehicles);
     const includeDamageNotesOnInvoice =
         requestedIncludeDamageNotesOnInvoice &&
         canIncludeVehicleDamageNotes(saleVehicle);
     const nextInvoiceNotes = removePlannedNetSalePriceNote(sale.invoice_notes);
 
-    if ((nextInvoiceNotes ?? null) !== (sale.invoice_notes ?? null)) {
-        const { error: saleNotesUpdateError } = await supabase
+    if (
+        (nextInvoiceNotes ?? null) !== (sale.invoice_notes ?? null) ||
+        Boolean(sale.include_damage_notes_on_invoice) !== includeDamageNotesOnInvoice
+    ) {
+        const { error: saleUpdateError } = await supabase
             .from("sales")
             .update({
                 invoice_notes: nextInvoiceNotes,
+                include_damage_notes_on_invoice: includeDamageNotesOnInvoice,
             })
             .eq("id", saleId)
             .eq("company_id", companyId);
 
-        if (saleNotesUpdateError) {
+        if (saleUpdateError) {
             throw new Error(
-                `Rechnungsnotiz konnte nicht gespeichert werden: ${saleNotesUpdateError.message}`,
+                `Rechnungsoption konnte nicht gespeichert werden: ${saleUpdateError.message}`,
             );
         }
-    }
-
-    const { error: saleOptionUpdateError } = await supabase
-        .from("sales")
-        .update({
-            include_damage_notes_on_invoice: includeDamageNotesOnInvoice,
-        })
-        .eq("id", saleId)
-        .eq("company_id", companyId);
-
-    if (saleOptionUpdateError) {
-        throw new Error(
-            `Rechnungsoption konnte nicht gespeichert werden: ${saleOptionUpdateError.message}`,
-        );
     }
 
     const storedPdf = await generateAndStoreInvoicePdf(invoiceId);

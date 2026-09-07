@@ -6,6 +6,7 @@ import {
     getInvoiceTypeDocumentType,
 } from "@/lib/invoices/invoice-numbering";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
+import type { InvoicePdfData } from "@/lib/pdf/invoice-pdf";
 
 export type StoredInvoicePdfResult = {
     fileName: string;
@@ -13,13 +14,16 @@ export type StoredInvoicePdfResult = {
     fileSize: number;
 };
 
-export async function generateAndStoreInvoicePdf(
+export type RenderedInvoicePdfResult = {
+    pdfData: InvoicePdfData;
+    pdfBytes: Uint8Array;
+};
+
+export async function renderInvoicePdfBytes(
     invoiceId: string,
-): Promise<StoredInvoicePdfResult> {
-    const supabase = createServerSupabaseClient();
+): Promise<RenderedInvoicePdfResult> {
     const pdfData = await getInvoicePdfData(invoiceId);
     const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
-
     const invoicePdfBytes = await generateInvoicePdf({
         ...pdfData,
         termsAttached: Boolean(termsPdf),
@@ -28,6 +32,15 @@ export async function generateAndStoreInvoicePdf(
         invoicePdf: invoicePdfBytes,
         termsPdf: termsPdf?.bytes ?? null,
     });
+
+    return { pdfData, pdfBytes };
+}
+
+export async function generateAndStoreInvoicePdf(
+    invoiceId: string,
+): Promise<StoredInvoicePdfResult> {
+    const supabase = createServerSupabaseClient();
+    const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
 
     const fileName = new ExportFileNamePolicy().createDocumentFileName({
         saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,

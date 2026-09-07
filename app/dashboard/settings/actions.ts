@@ -13,6 +13,7 @@ import {
     maxImageAssetFileSizeBytes,
     maxTermsPdfFileSizeBytes,
 } from "@/lib/documents/upload-validation";
+import { clearCompanyTermsPdfCache } from "@/lib/pdf/company-terms";
 import { isValidBic, isValidIban, normalizeBic, normalizeIban } from "@/lib/settings/company-bank-details";
 import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -544,6 +545,7 @@ export async function uploadCompanyTermsPdfAction(formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
+    clearCompanyTermsPdfCache(companyId);
     revalidateCompanyPdfAssetPaths();
 
     redirect("/dashboard/settings?termsUploaded=1");
@@ -588,6 +590,7 @@ export async function removeCompanyTermsPdfAction(_formData: FormData) {
         await supabase.storage.from("documents").remove([oldPath]);
     }
 
+    clearCompanyTermsPdfCache(companyId);
     revalidateCompanyPdfAssetPaths();
 
     redirect("/dashboard/settings?termsRemoved=1");

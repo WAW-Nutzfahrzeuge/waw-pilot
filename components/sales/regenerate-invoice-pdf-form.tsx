@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { RefreshCcw } from "lucide-react";
+import { useFormStatus } from "react-dom";
+import { Loader2, RefreshCcw } from "lucide-react";
 
 import { regenerateSaleInvoicePdfAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import { Button } from "@/components/ui/button";
@@ -78,14 +79,28 @@ export function RegenerateInvoicePdfForm({
                 name="include_terms_pdf"
                 value="yes"
             />
-            <Button
-                type="submit"
-                variant="outline"
-                className="rounded-2xl bg-white font-bold"
-            >
-                <RefreshCcw className="mr-2 size-4" />
-                PDF neu generieren
-            </Button>
+            <RegenerateInvoicePdfButton />
         </form>
+    );
+}
+
+function RegenerateInvoicePdfButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <Button
+            type="submit"
+            variant="outline"
+            disabled={pending}
+            aria-busy={pending}
+            className="min-w-44 rounded-2xl bg-white font-bold"
+        >
+            {pending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+                <RefreshCcw className="mr-2 size-4" />
+            )}
+            {pending ? "PDF wird erstellt..." : "PDF neu generieren"}
+        </Button>
     );
 }
