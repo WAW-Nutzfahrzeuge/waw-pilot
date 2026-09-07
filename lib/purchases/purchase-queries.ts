@@ -139,7 +139,7 @@ export async function getPurchaseCases(): Promise<PurchaseCaseRow[]> {
     `,
         )
         .eq("company_id", companyId)
-        .order("created_at", { ascending: false });
+        .order("purchase_date", { ascending: false });
 
     if (error) {
         throw new Error(`Ankaufsakten konnten nicht geladen werden: ${error.message}`);

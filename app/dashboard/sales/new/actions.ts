@@ -330,31 +330,11 @@ async function getNextSaleNumber(
         return rpcSaleNumber;
     }
 
-    const { data, error } = await supabase
-        .from("sales")
-        .select("sale_number")
-        .eq("company_id", companyId)
-        .not("sale_number", "is", null);
-
-    if (error) {
-        throw new Error(`Verkaufsnummer konnte nicht geprüft werden: ${error.message}`);
-    }
-
-    const highestNumber = (data ?? []).reduce((highest, sale) => {
-        if (typeof sale.sale_number !== "string") return highest;
-
-        const match = sale.sale_number.match(/^VK\s+(\d+)$/i);
-
-        if (!match) return highest;
-
-        const numberValue = Number(match[1]);
-
-        if (!Number.isFinite(numberValue)) return highest;
-
-        return Math.max(highest, numberValue);
-    }, 0);
-
-    return `VK ${highestNumber + 1}`;
+    throw new Error(
+        `Verkaufsnummer konnte nicht erzeugt werden: ${
+            rpcSaleNumberError?.message ?? "Keine Nummer erhalten"
+        }`,
+    );
 }
 
 async function createBuyerCustomerFromSaleForm(

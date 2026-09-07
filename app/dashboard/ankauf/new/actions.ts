@@ -98,26 +98,11 @@ async function getNextPurchaseNumber(companyId: string): Promise<string> {
     });
 
     if (error || typeof data !== "string") {
-        const { data: purchases, error: purchaseError } = await supabase
-            .from("purchase_cases")
-            .select("purchase_number")
-            .eq("company_id", companyId)
-            .not("purchase_number", "is", null);
-
-        if (purchaseError) {
-            throw new Error(`Einkaufsnummer konnte nicht geprüft werden: ${purchaseError.message}`);
-        }
-
-        const highestNumber = (purchases ?? []).reduce((highest, purchase) => {
-            if (typeof purchase.purchase_number !== "string") return highest;
-
-            const numberText = purchase.purchase_number.match(/^EK\s+(\d+)$/i)?.[1];
-            const numberValue = numberText ? Number(numberText) : NaN;
-
-            return Number.isFinite(numberValue) ? Math.max(highest, numberValue) : highest;
-        }, 0);
-
-        return `EK ${highestNumber + 1}`;
+        throw new Error(
+            `Einkaufsnummer konnte nicht erzeugt werden: ${
+                error?.message ?? "Keine Nummer erhalten"
+            }`,
+        );
     }
 
     return data;

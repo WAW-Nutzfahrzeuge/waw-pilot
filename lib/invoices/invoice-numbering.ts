@@ -14,10 +14,6 @@ type GetNextInvoiceNumberParams = {
     invoiceDate?: string;
 };
 
-type InvoiceNumberRow = {
-    invoice_number: string;
-};
-
 export function getInvoiceTypeLabel(invoiceType: InvoiceType): string {
     const labels: Record<InvoiceType, string> = {
         standard: "Rechnung",
@@ -40,67 +36,6 @@ export function getInvoiceTypeDocumentType(invoiceType: InvoiceType): string {
     };
 
     return documentTypes[invoiceType];
-}
-
-function getInvoiceYearPrefix(invoiceDate?: string): string {
-    const date = invoiceDate ? new Date(invoiceDate) : new Date();
-    const year = date.getFullYear();
-
-    if (!Number.isFinite(year)) {
-        const fallbackYear = new Date().getFullYear();
-
-        return `0${String(fallbackYear).slice(-2)}`;
-    }
-
-    return `0${String(year).slice(-2)}`;
-}
-
-function getInvoiceNumberPrefix(
-    invoiceType: InvoiceType,
-    invoiceDate?: string,
-): string {
-    const yearPrefix = getInvoiceYearPrefix(invoiceDate);
-
-    if (invoiceType === "proforma") {
-        return `PRO-${yearPrefix}-`;
-    }
-
-    if (invoiceType === "down_payment") {
-        return `AZ-${yearPrefix}-`;
-    }
-
-    if (invoiceType === "credit_note") {
-        return `GS-${yearPrefix}-`;
-    }
-
-    return `${yearPrefix}-`;
-}
-
-function parseInvoiceCounter(
-    invoiceNumber: string,
-    invoiceType: InvoiceType,
-    invoiceDate?: string,
-): number | null {
-    const prefix = getInvoiceNumberPrefix(invoiceType, invoiceDate);
-
-    if (!invoiceNumber.startsWith(prefix)) {
-        return null;
-    }
-
-    const counterPart = invoiceNumber.slice(prefix.length);
-    const counter = Number(counterPart);
-
-    return Number.isInteger(counter) && counter > 0 ? counter : null;
-}
-
-function buildInvoiceNumber(
-    invoiceType: InvoiceType,
-    counter: number,
-    invoiceDate?: string,
-): string {
-    const prefix = getInvoiceNumberPrefix(invoiceType, invoiceDate);
-
-    return `${prefix}${String(counter).padStart(3, "0")}`;
 }
 
 async function invoiceNumberExists({
@@ -128,69 +63,6 @@ async function invoiceNumberExists({
     return Boolean(data);
 }
 
-async function getNextInvoiceNumberFallback({
-                                                companyId,
-                                                invoiceType,
-                                                invoiceDate,
-                                            }: {
-    companyId: string;
-    invoiceType: InvoiceType;
-    invoiceDate?: string;
-}): Promise<string> {
-    const supabase = createServerSupabaseClient();
-    const prefix = getInvoiceNumberPrefix(invoiceType, invoiceDate);
-
-    const { data, error } = await supabase
-        .from("invoices")
-        .select("invoice_number")
-        .eq("company_id", companyId)
-        .like("invoice_number", `${prefix}%`);
-
-    if (error) {
-        throw new Error(
-            `Rechnungsnummern konnten nicht geladen werden: ${error.message}`,
-        );
-    }
-
-    const highestCounter = ((data ?? []) as InvoiceNumberRow[]).reduce(
-        (highest, invoice) => {
-            const counter = parseInvoiceCounter(
-                invoice.invoice_number,
-                invoiceType,
-                invoiceDate,
-            );
-
-            if (counter === null) return highest;
-
-            return Math.max(highest, counter);
-        },
-        0,
-    );
-
-    let nextCounter = highestCounter + 1;
-    let nextInvoiceNumber = buildInvoiceNumber(
-        invoiceType,
-        nextCounter,
-        invoiceDate,
-    );
-
-    while (
-        await invoiceNumberExists({
-            companyId,
-            invoiceNumber: nextInvoiceNumber,
-        })
-        ) {
-        nextCounter += 1;
-        nextInvoiceNumber = buildInvoiceNumber(
-            invoiceType,
-            nextCounter,
-            invoiceDate,
-        );
-    }
-
-    return nextInvoiceNumber;
-}
-
 export async function getNextInvoiceNumber({
                                                invoiceType = "standard",
                                                invoiceDate,
@@ -207,11 +79,11 @@ export async function getNextInvoiceNumber({
     });
 
     if (error || !data) {
-        return getNextInvoiceNumberFallback({
-            companyId,
-            invoiceType,
-            invoiceDate: resolvedInvoiceDate,
-        });
+        throw new Error(
+            `Rechnungsnummer konnte nicht erzeugt werden: ${
+                error?.message ?? "Keine Nummer erhalten"
+            }`,
+        );
     }
 
     const candidateInvoiceNumber = String(data);
@@ -225,9 +97,7 @@ export async function getNextInvoiceNumber({
         return candidateInvoiceNumber;
     }
 
-    return getNextInvoiceNumberFallback({
-        companyId,
-        invoiceType,
-        invoiceDate: resolvedInvoiceDate,
-    });
+    throw new Error(
+        `Rechnungsnummer ${candidateInvoiceNumber} ist bereits vergeben. Bitte Counter in Supabase prüfen.`,
+    );
 }
