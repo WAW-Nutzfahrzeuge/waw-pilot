@@ -598,7 +598,7 @@ function ModeCard({
             className={
                 active
                     ? "rounded-3xl border border-cyan-300 bg-cyan-50 p-4 text-left font-extrabold text-cyan-900 ring-4 ring-cyan-100"
-                    : "rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left font-extrabold text-slate-700 hover:border-cyan-200 hover:bg-cyan-50"
+                    : "rounded-3xl border border-slate-200 bg-slate-50 p-4 text-left font-extrabold text-cyan-900 hover:border-cyan-200 hover:bg-cyan-50"
             }
         >
             <span className="flex items-center gap-2">

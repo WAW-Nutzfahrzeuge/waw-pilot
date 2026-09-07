@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
-import { FileUp, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { FileUp, ScanLine, X } from "lucide-react";
 
+import { DocumentScannerDialog } from "@/components/documents/document-scanner-dialog";
 import { Button } from "@/components/ui/button";
 import {
     getDocumentTooLargeMessage,
@@ -42,6 +43,31 @@ function VehicleDocumentUploadField({
     const inputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [scannerOpen, setScannerOpen] = useState(false);
+    const [cameraAvailable, setCameraAvailable] = useState(false);
+
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setCameraAvailable(Boolean(navigator.mediaDevices?.getUserMedia));
+        }, 0);
+
+        return () => window.clearTimeout(timeoutId);
+    }, []);
+
+    function validateFile(file: File): boolean {
+        if (!isAllowedVehicleDocumentFile(file)) {
+            setErrorMessage(getUnsupportedVehicleDocumentTypeMessage());
+            return false;
+        }
+
+        if (file.size > maxDocumentFileSizeBytes) {
+            setErrorMessage(getDocumentTooLargeMessage());
+            return false;
+        }
+
+        setErrorMessage(null);
+        return true;
+    }
 
     function handleFileChange() {
         const file = inputRef.current?.files?.[0] ?? null;
@@ -52,20 +78,23 @@ function VehicleDocumentUploadField({
             return;
         }
 
-        if (!isAllowedVehicleDocumentFile(file)) {
+        if (!validateFile(file)) {
             resetFileInput();
-            setErrorMessage(getUnsupportedVehicleDocumentTypeMessage());
-            return;
-        }
-
-        if (file.size > maxDocumentFileSizeBytes) {
-            resetFileInput();
-            setErrorMessage(getDocumentTooLargeMessage());
             return;
         }
 
         setSelectedFile(file);
-        setErrorMessage(null);
+    }
+
+    function handleScanComplete(file: File) {
+        const input = inputRef.current;
+
+        if (!input || !validateFile(file)) return;
+
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        setSelectedFile(file);
     }
 
     function resetFileInput() {
@@ -110,6 +139,18 @@ function VehicleDocumentUploadField({
                         Entfernen
                     </Button>
                 ) : null}
+
+                {cameraAvailable ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                        onClick={() => setScannerOpen(true)}
+                    >
+                        <ScanLine className="mr-2 size-4" />
+                        Scannen
+                    </Button>
+                ) : null}
             </div>
 
             <input
@@ -137,6 +178,12 @@ function VehicleDocumentUploadField({
                     {errorMessage}
                 </p>
             ) : null}
+
+            <DocumentScannerDialog
+                open={scannerOpen}
+                onOpenChange={setScannerOpen}
+                onScanComplete={handleScanComplete}
+            />
         </div>
     );
 }
