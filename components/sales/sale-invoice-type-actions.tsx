@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
-import { CheckCircle2, FileSignature, FileText, Loader2, Receipt } from "lucide-react";
+import {
+    CheckCircle2,
+    FileSignature,
+    FileText,
+    Loader2,
+    Receipt,
+    ScrollText,
+} from "lucide-react";
 
 import { createSaleInvoiceAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
@@ -16,6 +23,7 @@ type SaleInvoiceTypeActionsProps = {
     includeDamageNotesOnInvoice?: boolean;
     hasSignatureStampAssets?: boolean;
     initialIncludeSignatureStamp?: boolean;
+    initialIncludeTermsPdf?: boolean;
 };
 
 export function SaleInvoiceTypeActions({
@@ -26,6 +34,7 @@ export function SaleInvoiceTypeActions({
                                            includeDamageNotesOnInvoice = false,
                                            hasSignatureStampAssets = false,
                                            initialIncludeSignatureStamp = false,
+                                           initialIncludeTermsPdf = true,
                                        }: SaleInvoiceTypeActionsProps) {
     const hasStandard = existingInvoiceTypes.includes("standard");
     const hasProforma = existingInvoiceTypes.includes("proforma");
@@ -37,6 +46,7 @@ export function SaleInvoiceTypeActions({
     const [includeSignatureStamp, setIncludeSignatureStamp] = useState(
         hasSignatureStampAssets && initialIncludeSignatureStamp,
     );
+    const [includeTermsPdf, setIncludeTermsPdf] = useState(initialIncludeTermsPdf);
 
     return (
         <div className="mt-5 space-y-3">
@@ -102,6 +112,28 @@ export function SaleInvoiceTypeActions({
                 </span>
             </label>
 
+            <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+                <input
+                    id={`sale-${saleId}-include-terms-pdf`}
+                    type="checkbox"
+                    checked={includeTermsPdf}
+                    onChange={(event) =>
+                        setIncludeTermsPdf(event.currentTarget.checked)
+                    }
+                    className="mt-1 size-4 rounded border-slate-300 text-cyan-700"
+                />
+                <span>
+                    <span className="flex items-center gap-2 font-extrabold text-slate-950">
+                        <ScrollText className="size-4 text-cyan-700" />
+                        AGB in Rechnung einfügen
+                    </span>
+                    <span className="mt-1 block text-sm font-medium leading-6 text-slate-600">
+                        Hängt die in den Einstellungen hinterlegte AGB-PDF an die
+                        erzeugte Rechnung an.
+                    </span>
+                </span>
+            </label>
+
             <div className="grid gap-3 lg:grid-cols-2">
                 <form action={createSaleInvoiceAction}>
                     <input type="hidden" name="sale_id" value={saleId} />
@@ -115,6 +147,11 @@ export function SaleInvoiceTypeActions({
                         type="hidden"
                         name="include_signature_stamp"
                         value={includeSignatureStamp ? "yes" : "no"}
+                    />
+                    <input
+                        type="hidden"
+                        name="include_terms_pdf"
+                        value={includeTermsPdf ? "yes" : "no"}
                     />
 
                     <InvoiceSubmitButton
@@ -142,6 +179,11 @@ export function SaleInvoiceTypeActions({
                         type="hidden"
                         name="include_signature_stamp"
                         value={includeSignatureStamp ? "yes" : "no"}
+                    />
+                    <input
+                        type="hidden"
+                        name="include_terms_pdf"
+                        value={includeTermsPdf ? "yes" : "no"}
                     />
 
                     <InvoiceSubmitButton

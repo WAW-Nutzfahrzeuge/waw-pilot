@@ -110,10 +110,8 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     try {
-        const [pdfData, termsPdf] = await Promise.all([
-            getInvoicePdfData(invoiceId),
-            getCompanyTermsPdf(),
-        ]);
+        const pdfData = await getInvoicePdfData(invoiceId);
+        const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
         const invoicePdfBytes = await generateInvoicePdf({
             ...pdfData,
             termsAttached: Boolean(termsPdf),

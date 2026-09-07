@@ -75,6 +75,7 @@ type InvoiceQueryResult = {
     correction_reason_text: string | null;
     customer_visible_reason: string | null;
     include_signature_stamp: boolean | null;
+    include_terms_pdf: boolean | null;
     companies: SupabaseRelation<CompanyRelation>;
     customers: SupabaseRelation<CustomerRelation>;
     vehicles: SupabaseRelation<VehicleRelation>;
@@ -96,6 +97,7 @@ const invoicePdfBaseSelect = `
       vat_amount,
       gross_amount,
       include_signature_stamp,
+      include_terms_pdf,
       companies (
         legal_name,
         street,
@@ -294,6 +296,7 @@ export async function getInvoicePdfData(
                 Boolean(invoice.include_signature_stamp),
             )),
         },
+        termsAttached: invoice.include_terms_pdf !== false,
         company: {
             legalName: company.legal_name,
             street: company.street,

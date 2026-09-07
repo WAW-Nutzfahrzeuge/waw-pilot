@@ -45,6 +45,7 @@ type InvoiceRelation = {
     original_invoice_number: string | null;
     original_invoice_date: string | null;
     include_signature_stamp: boolean | null;
+    include_terms_pdf: boolean | null;
     pdf_document_id: string | null;
     email_sent_at: string | null;
     email_sent_to: string | null;
@@ -236,6 +237,7 @@ export type SaleDetailInvoice = {
     original_invoice_number: string | null;
     original_invoice_date: string | null;
     include_signature_stamp: boolean;
+    include_terms_pdf: boolean;
     pdf_document_id: string | null;
     email_sent_at: string | null;
     email_sent_to: string | null;
@@ -440,6 +442,7 @@ function mapLegacyInvoice(invoice: LegacyInvoiceRelation): InvoiceRelation {
         original_invoice_number: null,
         original_invoice_date: null,
         include_signature_stamp: false,
+        include_terms_pdf: true,
         pdf_document_id: null,
         email_sent_at: null,
         email_sent_to: null,
@@ -554,6 +557,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         original_invoice_number,
         original_invoice_date,
         include_signature_stamp,
+        include_terms_pdf,
         pdf_document_id,
         email_sent_at,
         email_sent_to,
@@ -765,6 +769,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             original_invoice_number: invoice.original_invoice_number,
             original_invoice_date: invoice.original_invoice_date,
             include_signature_stamp: Boolean(invoice.include_signature_stamp),
+            include_terms_pdf: invoice.include_terms_pdf !== false,
             pdf_document_id: invoice.pdf_document_id,
             email_sent_at: invoice.email_sent_at,
             email_sent_to: invoice.email_sent_to,

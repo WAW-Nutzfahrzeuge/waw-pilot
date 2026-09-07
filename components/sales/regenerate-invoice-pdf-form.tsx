@@ -17,6 +17,7 @@ export function RegenerateInvoicePdfForm({
                                          }: RegenerateInvoicePdfFormProps) {
     const includeSignatureStampInputRef = useRef<HTMLInputElement>(null);
     const includeDamageNotesInputRef = useRef<HTMLInputElement>(null);
+    const includeTermsPdfInputRef = useRef<HTMLInputElement>(null);
 
     function handleSubmit() {
         const signatureCheckbox = document.getElementById(
@@ -25,12 +26,18 @@ export function RegenerateInvoicePdfForm({
         const damageNotesCheckbox = document.getElementById(
             `sale-${saleId}-include-damage-notes`,
         );
+        const termsPdfCheckbox = document.getElementById(
+            `sale-${saleId}-include-terms-pdf`,
+        );
         const includeSignatureStamp =
             signatureCheckbox instanceof HTMLInputElement &&
             signatureCheckbox.checked;
         const includeDamageNotes =
             damageNotesCheckbox instanceof HTMLInputElement &&
             damageNotesCheckbox.checked;
+        const includeTermsPdf =
+            !(termsPdfCheckbox instanceof HTMLInputElement) ||
+            termsPdfCheckbox.checked;
 
         if (includeSignatureStampInputRef.current) {
             includeSignatureStampInputRef.current.value = includeSignatureStamp
@@ -44,6 +51,9 @@ export function RegenerateInvoicePdfForm({
                 : "no";
         }
 
+        if (includeTermsPdfInputRef.current) {
+            includeTermsPdfInputRef.current.value = includeTermsPdf ? "yes" : "no";
+        }
     }
 
     return (
@@ -61,6 +71,12 @@ export function RegenerateInvoicePdfForm({
                 type="hidden"
                 name="include_damage_notes_on_invoice"
                 value="no"
+            />
+            <input
+                ref={includeTermsPdfInputRef}
+                type="hidden"
+                name="include_terms_pdf"
+                value="yes"
             />
             <Button
                 type="submit"

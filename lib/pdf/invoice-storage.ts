@@ -17,11 +17,9 @@ export async function generateAndStoreInvoicePdf(
     invoiceId: string,
 ): Promise<StoredInvoicePdfResult> {
     const supabase = createServerSupabaseClient();
+    const pdfData = await getInvoicePdfData(invoiceId);
+    const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
 
-    const [pdfData, termsPdf] = await Promise.all([
-        getInvoicePdfData(invoiceId),
-        getCompanyTermsPdf(),
-    ]);
     const invoicePdfBytes = await generateInvoicePdf({
         ...pdfData,
         termsAttached: Boolean(termsPdf),

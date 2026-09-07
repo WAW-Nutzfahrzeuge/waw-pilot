@@ -356,6 +356,8 @@ export async function createSaleInvoiceAction(formData: FormData) {
         getStringValue(formData, "include_damage_notes_on_invoice") === "yes";
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
+    const includeTermsPdf =
+        getStringValue(formData, "include_terms_pdf") !== "no";
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
@@ -478,6 +480,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
             payment_status: "open",
             datev_status: "not_sent",
             include_signature_stamp: includeSignatureStamp,
+            include_terms_pdf: includeTermsPdf,
             paid_at: null,
         })
         .select("id")
@@ -595,6 +598,8 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
     const invoiceId = getStringValue(formData, "invoice_id");
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
+    const includeTermsPdf =
+        getStringValue(formData, "include_terms_pdf") !== "no";
     const requestedIncludeDamageNotesOnInvoice =
         getStringValue(formData, "include_damage_notes_on_invoice") === "yes";
 
@@ -619,6 +624,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
       invoice_type,
       invoice_number,
       include_signature_stamp,
+      include_terms_pdf,
       pdf_document_id
     `,
         )
@@ -634,11 +640,15 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
         );
     }
 
-    if (Boolean(invoiceData.include_signature_stamp) !== includeSignatureStamp) {
+    if (
+        Boolean(invoiceData.include_signature_stamp) !== includeSignatureStamp ||
+        (invoiceData.include_terms_pdf !== false) !== includeTermsPdf
+    ) {
         const { error: invoiceUpdateError } = await supabase
             .from("invoices")
             .update({
                 include_signature_stamp: includeSignatureStamp,
+                include_terms_pdf: includeTermsPdf,
             })
             .eq("id", invoiceId)
             .eq("company_id", companyId);
@@ -1055,10 +1065,8 @@ export async function createZugferdInvoiceAction(formData: FormData) {
     } | null = null;
 
     try {
-        const [pdfData, termsPdf] = await Promise.all([
-            getInvoicePdfData(invoiceId),
-            getCompanyTermsPdf(),
-        ]);
+        const pdfData = await getInvoicePdfData(invoiceId);
+        const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
         const canonicalInvoice = buildCanonicalInvoiceData(pdfData);
         const invoicePdfBytes = await generateInvoicePdf({
             ...pdfData,

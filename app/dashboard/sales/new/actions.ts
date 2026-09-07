@@ -979,6 +979,8 @@ export async function createSaleAction(
         getStringValue(formData, "include_damage_notes_on_invoice") === "yes";
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
+    const includeTermsPdf =
+        getStringValue(formData, "include_terms_pdf") !== "no";
 
     const exportDestinationCity = getStringValue(
         formData,
@@ -1541,6 +1543,7 @@ export async function createSaleAction(
                 payment_status: shouldCreateCashbookEntry ? "paid" : "open",
                 datev_status: "not_sent",
                 include_signature_stamp: includeSignatureStamp,
+                include_terms_pdf: includeTermsPdf,
                 paid_at: shouldCreateCashbookEntry ? new Date().toISOString() : null,
             })
             .select("id")

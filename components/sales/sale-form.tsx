@@ -942,6 +942,25 @@ export function SaleForm({
                             </div>
                         </label>
 
+                        <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4">
+                            <input
+                                type="checkbox"
+                                name="include_terms_pdf"
+                                value="yes"
+                                defaultChecked
+                                className="mt-1 size-4 rounded border-slate-300 text-cyan-700"
+                            />
+                            <div>
+                                <p className="font-extrabold text-slate-950">
+                                    AGB in Rechnung einfügen
+                                </p>
+                                <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
+                                    Hängt die in den Einstellungen hinterlegte AGB-PDF
+                                    an die automatisch erzeugte Rechnung an.
+                                </p>
+                            </div>
+                        </label>
+
                         <div className="grid gap-4 md:grid-cols-[1fr_0.6fr]">
                             <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
                                 <input
