@@ -659,6 +659,7 @@ function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
             ...invoiceNoteLines,
             "",
             "Steuerfreie Ausfuhrlieferung gemäß § 4 Nr. 1a UStG. | Export delivery exempt from VAT according to § 4 No. 1a German VAT Act.",
+            "Lieferdatum = Rechnungsdatum",
         ];
     }
 
