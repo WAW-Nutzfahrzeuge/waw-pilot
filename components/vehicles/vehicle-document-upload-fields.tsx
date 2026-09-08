@@ -6,6 +6,10 @@ import { FileUp, ScanLine, X } from "lucide-react";
 import { DocumentScannerDialog } from "@/components/documents/document-scanner-dialog";
 import { Button } from "@/components/ui/button";
 import {
+    convertVehicleDocumentImageToPdf,
+    isConvertibleVehicleDocumentImage,
+} from "@/lib/documents/client-image-compression";
+import {
     getDocumentTooLargeMessage,
     getUnsupportedVehicleDocumentTypeMessage,
     isAllowedVehicleDocumentFile,
@@ -57,6 +61,8 @@ function VehicleDocumentUploadField({
     const inputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [infoMessage, setInfoMessage] = useState<string | null>(null);
+    const [isCompressing, setIsCompressing] = useState(false);
     const [scannerOpen, setScannerOpen] = useState(false);
     const [cameraAvailable, setCameraAvailable] = useState(false);
 
@@ -83,32 +89,88 @@ function VehicleDocumentUploadField({
         return true;
     }
 
-    function handleFileChange() {
+    function writeFileToInput(file: File) {
+        const input = inputRef.current;
+
+        if (!input) return;
+
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+    }
+
+    async function prepareSelectedFile(file: File): Promise<File | null> {
+        if (!isAllowedVehicleDocumentFile(file)) {
+            setErrorMessage(getUnsupportedVehicleDocumentTypeMessage());
+            return null;
+        }
+
+        if (!isConvertibleVehicleDocumentImage(file) && file.size <= maxFileSizeBytes) {
+            setInfoMessage(null);
+            return file;
+        }
+
+        setIsCompressing(true);
+        setInfoMessage(
+            isConvertibleVehicleDocumentImage(file)
+                ? "Bild wird in PDF umgewandelt..."
+                : null,
+        );
+
+        try {
+            const convertedFile = await convertVehicleDocumentImageToPdf(file, {
+                maxSizeBytes: maxFileSizeBytes,
+            });
+
+            if (convertedFile.type === "application/pdf" && convertedFile.name !== file.name) {
+                setInfoMessage(
+                    `Bild wurde als PDF gespeichert (${formatFileSize(convertedFile.size)}).`,
+                );
+            } else {
+                setInfoMessage(null);
+            }
+
+            return convertedFile;
+        } catch {
+            setInfoMessage(null);
+            return file;
+        } finally {
+            setIsCompressing(false);
+        }
+    }
+
+    async function handleFileChange() {
         const file = inputRef.current?.files?.[0] ?? null;
 
         if (!file) {
             setSelectedFile(null);
             setErrorMessage(null);
+            setInfoMessage(null);
             return;
         }
 
-        if (!validateFile(file)) {
+        const preparedFile = await prepareSelectedFile(file);
+
+        if (!preparedFile || !validateFile(preparedFile)) {
             resetFileInput();
             return;
         }
 
-        setSelectedFile(file);
+        writeFileToInput(preparedFile);
+        setSelectedFile(preparedFile);
     }
 
-    function handleScanComplete(file: File) {
+    async function handleScanComplete(file: File) {
         const input = inputRef.current;
 
-        if (!input || !validateFile(file)) return;
+        if (!input) return;
 
-        const transfer = new DataTransfer();
-        transfer.items.add(file);
-        input.files = transfer.files;
-        setSelectedFile(file);
+        const preparedFile = await prepareSelectedFile(file);
+
+        if (!preparedFile || !validateFile(preparedFile)) return;
+
+        writeFileToInput(preparedFile);
+        setSelectedFile(preparedFile);
     }
 
     function resetFileInput() {
@@ -117,6 +179,7 @@ function VehicleDocumentUploadField({
         }
 
         setSelectedFile(null);
+        setInfoMessage(null);
     }
 
     return (
@@ -137,9 +200,10 @@ function VehicleDocumentUploadField({
                 <Button
                     type="button"
                     className="h-10 rounded-2xl bg-slate-950 font-bold text-white hover:bg-slate-800"
+                    disabled={isCompressing}
                     onClick={() => inputRef.current?.click()}
                 >
-                    Hochladen
+                    {isCompressing ? "Wandelt um..." : "Hochladen"}
                 </Button>
 
                 {selectedFile ? (
@@ -147,6 +211,7 @@ function VehicleDocumentUploadField({
                         type="button"
                         variant="outline"
                         className="h-10 rounded-2xl border-slate-200 bg-white font-bold"
+                        disabled={isCompressing}
                         onClick={resetFileInput}
                     >
                         <X className="mr-2 size-4" />
@@ -159,6 +224,7 @@ function VehicleDocumentUploadField({
                         type="button"
                         variant="outline"
                         className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                        disabled={isCompressing}
                         onClick={() => setScannerOpen(true)}
                     >
                         <ScanLine className="mr-2 size-4" />
@@ -183,13 +249,19 @@ function VehicleDocumentUploadField({
                 </p>
             ) : (
                 <p className="mt-3 text-xs font-semibold text-slate-500">
-                    PDF, JPG, JPEG oder PNG bis {formatFileSize(maxFileSizeBytes)}.
+                    PDF bleibt PDF. JPG und PNG werden als PDF gespeichert. Max. {formatFileSize(maxFileSizeBytes)}.
                 </p>
             )}
 
             {errorMessage ? (
                 <p className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
                     {errorMessage}
+                </p>
+            ) : null}
+
+            {infoMessage ? (
+                <p className="mt-3 rounded-2xl border border-cyan-100 bg-cyan-50 px-4 py-3 text-sm font-bold text-cyan-800">
+                    {infoMessage}
                 </p>
             ) : null}
 

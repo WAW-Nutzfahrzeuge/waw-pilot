@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+    isConvertibleVehicleDocumentImage,
+} from "../lib/documents/client-image-compression.ts";
+import {
     getPurchaseCreateUploadTooLargeMessage,
     getUnsupportedVehicleDocumentTypeMessage,
     isAllowedVehicleDocumentFile,
@@ -37,6 +40,25 @@ describe("purchase create upload validation", () => {
         assert.equal(
             getUnsupportedVehicleDocumentTypeMessage(),
             "Dieser Dateityp wird nicht unterstützt. Bitte wähle PDF, JPG oder PNG.",
+        );
+    });
+
+    it("converts only browser-safe vehicle document images to PDF", () => {
+        assert.equal(
+            isConvertibleVehicleDocumentImage({ type: "image/jpeg" } as File),
+            true,
+        );
+        assert.equal(
+            isConvertibleVehicleDocumentImage({ type: "image/png" } as File),
+            true,
+        );
+        assert.equal(
+            isConvertibleVehicleDocumentImage({ type: "application/pdf" } as File),
+            false,
+        );
+        assert.equal(
+            isConvertibleVehicleDocumentImage({ type: "image/heic" } as File),
+            false,
         );
     });
 
