@@ -1,7 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 
+import { getOptionalCurrentUserContext } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
@@ -15,9 +17,11 @@ import {
 import {
     getDocumentTooLargeMessage,
     getDocumentUploadFailedMessage,
+    getPurchaseCreateUploadTooLargeMessage,
     getUnsupportedVehicleDocumentTypeMessage,
     isAllowedVehicleDocumentFile,
     maxDocumentFileSizeBytes,
+    maxPurchaseCreateUploadPayloadBytes,
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
@@ -32,6 +36,49 @@ type CreatePurchaseCaseState = {
 };
 
 type VehicleDocumentType = "vehicle_registration" | "purchase_invoice";
+
+type PurchaseWorkflowLogMeta = Record<string, unknown>;
+
+function logPurchaseWorkflow(
+    requestId: string,
+    event: string,
+    meta: PurchaseWorkflowLogMeta = {},
+) {
+    console.info(
+        JSON.stringify({
+            scope: "purchase_create",
+            requestId,
+            event,
+            ...meta,
+        }),
+    );
+}
+
+function logPurchaseWorkflowError(
+    requestId: string,
+    event: string,
+    error: unknown,
+    meta: PurchaseWorkflowLogMeta = {},
+) {
+    const normalizedError =
+        error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : error;
+
+    console.error(
+        JSON.stringify({
+            scope: "purchase_create",
+            requestId,
+            event,
+            error: normalizedError,
+            ...meta,
+        }),
+    );
+}
+
+function getFailureMessage(requestId: string, reason: string): string {
+    return `${reason}\nFehler-ID: ${requestId}`;
+}
 
 function getStringValue(formData: FormData, key: string): string | null {
     const value = formData.get(key);
@@ -132,6 +179,7 @@ async function storePurchaseVehicleDocument({
     documentType,
     label,
     file,
+    requestId,
 }: {
     companyId: string;
     vehicleId: string;
@@ -141,7 +189,11 @@ async function storePurchaseVehicleDocument({
     documentType: VehicleDocumentType;
     label: string;
     file: File;
-}): Promise<{ success: true } | { success: false; message: string }> {
+    requestId: string;
+}): Promise<
+    | { success: true; documentId: string; filePath: string }
+    | { success: false; message: string; filePath?: string }
+> {
     const supabase = createServerSupabaseClient();
 
     if (!isAllowedVehicleDocumentFile(file)) {
@@ -158,33 +210,37 @@ async function storePurchaseVehicleDocument({
         };
     }
 
-    const { data: existingDocument } = await supabase
-        .from("documents")
-        .select("id, file_path")
-        .eq("company_id", companyId)
-        .eq("vehicle_id", vehicleId)
-        .eq("document_type", documentType)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
     const originalFileName = sanitizeFileName(file.name);
     const fileExtension = getFileExtension(originalFileName);
     const fileName = `${documentType}-${Date.now()}${fileExtension}`;
     const filePath = `purchases/${purchaseCaseId}/${fileName}`;
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    logPurchaseWorkflow(requestId, "document_upload_start", {
+        documentType,
+        fileSize: file.size,
+        mimeType: file.type || null,
+    });
 
     const { error: uploadError } = await supabase.storage
         .from("documents")
-        .upload(filePath, fileBuffer, {
+        .upload(filePath, file, {
             contentType: file.type || "application/octet-stream",
             upsert: false,
         });
 
     if (uploadError) {
-        console.error("[purchase-upload] storage upload failed", uploadError);
-        return { success: false, message: getDocumentUploadFailedMessage(uploadError) };
+        logPurchaseWorkflowError(requestId, "document_upload_failed", uploadError, {
+            documentType,
+            fileSize: file.size,
+            mimeType: file.type || null,
+        });
+        return { success: false, message: getDocumentUploadFailedMessage(uploadError), filePath };
     }
+
+    logPurchaseWorkflow(requestId, "document_upload_complete", {
+        documentType,
+        filePath,
+    });
 
     const payload = {
         document_type: documentType,
@@ -202,41 +258,25 @@ async function storePurchaseVehicleDocument({
         generated_by_system: false,
     };
 
-    if (existingDocument) {
-        const { error: updateError } = await supabase
-            .from("documents")
-            .update(payload)
-            .eq("company_id", companyId)
-            .eq("id", existingDocument.id);
-
-        if (updateError) {
-            await supabase.storage.from("documents").remove([filePath]);
-            console.error("[purchase-upload] document update failed", updateError);
-            return {
-                success: false,
-                message: `${label} konnte nicht gespeichert werden.`,
-            };
-        }
-
-        if (existingDocument.file_path && existingDocument.file_path !== filePath) {
-            await supabase.storage
-                .from("documents")
-                .remove([existingDocument.file_path]);
-        }
-    } else {
-        const { error: insertError } = await supabase.from("documents").insert({
+    const { data: document, error: insertError } = await supabase
+        .from("documents")
+        .insert({
             company_id: companyId,
             ...payload,
-        });
+        })
+        .select("id")
+        .single();
 
-        if (insertError) {
-            await supabase.storage.from("documents").remove([filePath]);
-            console.error("[purchase-upload] document insert failed", insertError);
-            return {
-                success: false,
-                message: `${label} konnte nicht gespeichert werden.`,
-            };
-        }
+    if (insertError || !document) {
+        await supabase.storage.from("documents").remove([filePath]);
+        logPurchaseWorkflowError(requestId, "document_insert_failed", insertError, {
+            documentType,
+            filePath,
+        });
+        return {
+            success: false,
+            message: `${label} konnte nicht gespeichert werden.`,
+        };
     }
 
     await logActivity({
@@ -245,7 +285,7 @@ async function storePurchaseVehicleDocument({
         entityId: purchaseCaseId,
     });
 
-    return { success: true };
+    return { success: true, documentId: document.id as string, filePath };
 }
 
 async function updatePurchaseDocumentStatus({
@@ -286,6 +326,106 @@ async function updatePurchaseDocumentStatus({
         })
         .eq("id", purchaseCaseId)
         .eq("company_id", companyId);
+}
+
+async function cleanupFailedPurchaseCreate({
+    companyId,
+    requestId,
+    createdSellerCustomerId,
+    createdVehicleId,
+    purchaseCaseId,
+    documentIds,
+    filePaths,
+}: {
+    companyId: string;
+    requestId: string;
+    createdSellerCustomerId: string | null;
+    createdVehicleId: string | null;
+    purchaseCaseId: string | null;
+    documentIds: string[];
+    filePaths: string[];
+}) {
+    const supabase = createServerSupabaseClient();
+
+    logPurchaseWorkflow(requestId, "cleanup_start", {
+        createdSellerCustomerId,
+        createdVehicleId,
+        purchaseCaseId,
+        documentCount: documentIds.length,
+        fileCount: filePaths.length,
+    });
+
+    if (documentIds.length > 0) {
+        await supabase
+            .from("documents")
+            .update({ active_version_id: null })
+            .eq("company_id", companyId)
+            .in("id", documentIds);
+
+        await supabase
+            .from("document_audit_log")
+            .delete()
+            .eq("company_id", companyId)
+            .in("document_id", documentIds);
+
+        await supabase
+            .from("document_relations")
+            .delete()
+            .eq("company_id", companyId)
+            .in("document_id", documentIds);
+
+        const { data: versions } = await supabase
+            .from("document_versions")
+            .select("id")
+            .eq("company_id", companyId)
+            .in("document_id", documentIds);
+
+        const versionIds = (versions ?? []).map((version) => version.id as string);
+
+        if (versionIds.length > 0) {
+            await supabase
+                .from("document_versions")
+                .delete()
+                .eq("company_id", companyId)
+                .in("id", versionIds);
+        }
+
+        await supabase
+            .from("documents")
+            .delete()
+            .eq("company_id", companyId)
+            .in("id", documentIds);
+    }
+
+    if (filePaths.length > 0) {
+        await supabase.storage.from("documents").remove(Array.from(new Set(filePaths)));
+    }
+
+    if (purchaseCaseId) {
+        await supabase
+            .from("purchase_cases")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("id", purchaseCaseId);
+    }
+
+    if (createdVehicleId) {
+        await supabase
+            .from("vehicles")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("id", createdVehicleId);
+    }
+
+    if (createdSellerCustomerId) {
+        await supabase
+            .from("customers")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("id", createdSellerCustomerId);
+    }
+
+    logPurchaseWorkflow(requestId, "cleanup_complete");
 }
 
 async function resolveSellerCustomerId(formData: FormData, companyId: string) {
@@ -550,14 +690,58 @@ export async function createPurchaseCaseAction(
     _previousState: CreatePurchaseCaseState,
     formData: FormData,
 ): Promise<CreatePurchaseCaseState> {
+    const requestId = randomUUID().slice(0, 8).toUpperCase();
+    const startedAt = performance.now();
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
+    const userContext = await getOptionalCurrentUserContext();
+    let createdSellerCustomerId: string | null = null;
+    let createdVehicleId: string | null = null;
+    let purchaseCaseId: string | null = null;
+    const uploadedDocumentIds: string[] = [];
+    const uploadedFilePaths: string[] = [];
+
+    logPurchaseWorkflow(requestId, "start", {
+        companyId,
+        authUserId: userContext?.authUserId ?? null,
+        role: userContext?.profile.role ?? null,
+        userAgent: typeof formData.get("user_agent") === "string"
+            ? formData.get("user_agent")
+            : null,
+    });
 
     const purchaseDate = getStringValue(formData, "purchase_date");
     const netAmount = getNumberValue(formData, "net_amount");
     const vatRate = getNumberValue(formData, "vat_rate") ?? 19;
     const paymentStatus = getStringValue(formData, "payment_status") ?? "open";
     const notes = getStringValue(formData, "notes");
+    const documentUploads = [
+        getFileValue(formData, "vehicle_registration_file")
+            ? {
+                  file: getFileValue(formData, "vehicle_registration_file") as File,
+                  documentType: "vehicle_registration" as const,
+                  label: "Fahrzeugschein",
+              }
+            : null,
+        getFileValue(formData, "purchase_invoice_file")
+            ? {
+                  file: getFileValue(formData, "purchase_invoice_file") as File,
+                  documentType: "purchase_invoice" as const,
+                  label: "Einkaufsrechnung",
+              }
+            : null,
+    ].filter((upload): upload is NonNullable<typeof upload> => Boolean(upload));
+    const totalUploadSize = documentUploads.reduce(
+        (total, upload) => total + upload.file.size,
+        0,
+    );
+
+    logPurchaseWorkflow(requestId, "validated_initial_payload", {
+        purchaseDate,
+        paymentStatus,
+        documentCount: documentUploads.length,
+        totalUploadSize,
+    });
 
     if (!purchaseDate) {
         return { success: false, message: "Bitte wähle ein Ankaufsdatum aus." };
@@ -578,11 +762,27 @@ export async function createPurchaseCaseAction(
         return { success: false, message: "Bitte wähle einen gültigen Zahlungsstatus aus." };
     }
 
+    if (totalUploadSize > maxPurchaseCreateUploadPayloadBytes) {
+        return {
+            success: false,
+            message: `${getPurchaseCreateUploadTooLargeMessage()} Der Fahrzeugschein muss erneut ausgewählt werden.`,
+        };
+    }
+
     const sellerResult = await resolveSellerCustomerId(formData, companyId);
 
     if (!sellerResult.success) {
+        logPurchaseWorkflow(requestId, "seller_failed", { message: sellerResult.message });
         return { success: false, message: sellerResult.message };
     }
+
+    if (sellerResult.created) {
+        createdSellerCustomerId = sellerResult.id;
+    }
+
+    logPurchaseWorkflow(requestId, "seller_resolved", {
+        created: sellerResult.created,
+    });
 
     const vehicleResult = await resolveVehicleId({
         formData,
@@ -592,12 +792,55 @@ export async function createPurchaseCaseAction(
     });
 
     if (!vehicleResult.success) {
+        logPurchaseWorkflow(requestId, "vehicle_failed", { message: vehicleResult.message });
+        await cleanupFailedPurchaseCreate({
+            companyId,
+            requestId,
+            createdSellerCustomerId,
+            createdVehicleId,
+            purchaseCaseId,
+            documentIds: uploadedDocumentIds,
+            filePaths: uploadedFilePaths,
+        });
         return { success: false, message: vehicleResult.message };
     }
 
+    if (vehicleResult.created) {
+        createdVehicleId = vehicleResult.id;
+    }
+
+    logPurchaseWorkflow(requestId, "vehicle_resolved", {
+        created: vehicleResult.created,
+    });
+
     const vatAmount = roundMoney(netAmount * (vatRate / 100));
     const grossAmount = roundMoney(netAmount + vatAmount);
-    const purchaseNumber = await getNextPurchaseNumber(companyId);
+    let purchaseNumber: string;
+
+    try {
+        purchaseNumber = await getNextPurchaseNumber(companyId);
+    } catch (error) {
+        logPurchaseWorkflowError(requestId, "numbering_failed", error);
+        await cleanupFailedPurchaseCreate({
+            companyId,
+            requestId,
+            createdSellerCustomerId,
+            createdVehicleId,
+            purchaseCaseId,
+            documentIds: uploadedDocumentIds,
+            filePaths: uploadedFilePaths,
+        });
+
+        return {
+            success: false,
+            message: getFailureMessage(
+                requestId,
+                "Einkaufsnummer konnte nicht erzeugt werden. Bitte versuche es erneut.",
+            ),
+        };
+    }
+
+    logPurchaseWorkflow(requestId, "number_created", { purchaseNumber });
 
     const { data: purchaseCase, error: purchaseError } = await supabase
         .from("purchase_cases")
@@ -620,15 +863,29 @@ export async function createPurchaseCaseAction(
         .single();
 
     if (purchaseError || !purchaseCase) {
-        console.error("[purchase] purchase case create failed", purchaseError);
+        logPurchaseWorkflowError(requestId, "purchase_insert_failed", purchaseError);
+        await cleanupFailedPurchaseCreate({
+            companyId,
+            requestId,
+            createdSellerCustomerId,
+            createdVehicleId,
+            purchaseCaseId,
+            documentIds: uploadedDocumentIds,
+            filePaths: uploadedFilePaths,
+        });
         return {
             success: false,
-            message: "Der Ankauf wurde nicht vollständig gespeichert.",
+            message: getFailureMessage(
+                requestId,
+                "Der Ankauf wurde nicht gespeichert. Bitte versuche es erneut.",
+            ),
         };
     }
 
-    const purchaseCaseId = purchaseCase.id as string;
+    purchaseCaseId = purchaseCase.id as string;
     const vehicleActivityName = getVehicleActivityName(vehicleResult.vehicle);
+
+    logPurchaseWorkflow(requestId, "purchase_inserted", { purchaseCaseId });
 
     const { error: vehicleUpdateError } = await supabase
         .from("vehicles")
@@ -641,12 +898,26 @@ export async function createPurchaseCaseAction(
         .eq("company_id", companyId);
 
     if (vehicleUpdateError) {
-        console.error("[purchase] vehicle link update failed", vehicleUpdateError);
+        logPurchaseWorkflowError(requestId, "vehicle_update_failed", vehicleUpdateError, {
+            vehicleId: vehicleResult.id,
+        });
+        await cleanupFailedPurchaseCreate({
+            companyId,
+            requestId,
+            createdSellerCustomerId,
+            createdVehicleId,
+            purchaseCaseId,
+            documentIds: uploadedDocumentIds,
+            filePaths: uploadedFilePaths,
+        });
         return {
             success: false,
-            message: `Ankaufsakte wurde gespeichert, aber ${translateVehicleDatabaseError(
-                vehicleUpdateError,
-            )}`,
+            message: getFailureMessage(
+                requestId,
+                `Der Ankauf wurde nicht vollständig gespeichert. ${translateVehicleDatabaseError(
+                    vehicleUpdateError,
+                )}`,
+            ),
         };
     }
 
@@ -672,23 +943,6 @@ export async function createPurchaseCaseAction(
         });
     }
 
-    const documentUploads = [
-        getFileValue(formData, "vehicle_registration_file")
-            ? {
-                  file: getFileValue(formData, "vehicle_registration_file") as File,
-                  documentType: "vehicle_registration" as const,
-                  label: "Fahrzeugschein",
-              }
-            : null,
-        getFileValue(formData, "purchase_invoice_file")
-            ? {
-                  file: getFileValue(formData, "purchase_invoice_file") as File,
-                  documentType: "purchase_invoice" as const,
-                  label: "Einkaufsrechnung",
-              }
-            : null,
-    ].filter((upload): upload is NonNullable<typeof upload> => Boolean(upload));
-
     for (const upload of documentUploads) {
         const uploadResult = await storePurchaseVehicleDocument({
             companyId,
@@ -699,15 +953,35 @@ export async function createPurchaseCaseAction(
             documentType: upload.documentType,
             label: upload.label,
             file: upload.file,
+            requestId,
         });
 
         if (!uploadResult.success) {
-            redirect(
-                `/dashboard/ankauf/${purchaseCaseId}?purchaseCreated=1&purchaseDocumentUploadError=${encodeURIComponent(
-                    uploadResult.message,
-                )}`,
-            );
+            if (uploadResult.filePath) {
+                uploadedFilePaths.push(uploadResult.filePath);
+            }
+
+            await cleanupFailedPurchaseCreate({
+                companyId,
+                requestId,
+                createdSellerCustomerId,
+                createdVehicleId,
+                purchaseCaseId,
+                documentIds: uploadedDocumentIds,
+                filePaths: uploadedFilePaths,
+            });
+
+            return {
+                success: false,
+                message: getFailureMessage(
+                    requestId,
+                    `${uploadResult.message} Der Fahrzeugschein muss erneut ausgewählt werden.`,
+                ),
+            };
         }
+
+        uploadedDocumentIds.push(uploadResult.documentId);
+        uploadedFilePaths.push(uploadResult.filePath);
     }
 
     await updatePurchaseDocumentStatus({
@@ -723,6 +997,11 @@ export async function createPurchaseCaseAction(
             entityId: purchaseCaseId,
         });
     }
+
+    logPurchaseWorkflow(requestId, "success", {
+        purchaseCaseId,
+        durationMs: Math.round(performance.now() - startedAt),
+    });
 
     redirect(`/dashboard/ankauf/${purchaseCaseId}?purchaseCreated=1`);
 }

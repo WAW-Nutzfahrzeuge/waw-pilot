@@ -20,15 +20,24 @@ type VehicleDocumentUploadFieldsProps = {
         label: string;
         description: string;
     }[];
+    maxFileSizeBytes?: number;
+    maxFileSizeMessage?: string;
 };
 
 export function VehicleDocumentUploadFields({
                                                 fields,
+                                                maxFileSizeBytes = maxDocumentFileSizeBytes,
+                                                maxFileSizeMessage = getDocumentTooLargeMessage(),
                                             }: VehicleDocumentUploadFieldsProps) {
     return (
         <div className="grid gap-4 md:grid-cols-2">
             {fields.map((field) => (
-                <VehicleDocumentUploadField key={field.name} {...field} />
+                <VehicleDocumentUploadField
+                    key={field.name}
+                    {...field}
+                    maxFileSizeBytes={maxFileSizeBytes}
+                    maxFileSizeMessage={maxFileSizeMessage}
+                />
             ))}
         </div>
     );
@@ -38,7 +47,12 @@ function VehicleDocumentUploadField({
                                         name,
                                         label,
                                         description,
-                                    }: VehicleDocumentUploadFieldsProps["fields"][number]) {
+                                        maxFileSizeBytes,
+                                        maxFileSizeMessage,
+                                    }: VehicleDocumentUploadFieldsProps["fields"][number] & {
+    maxFileSizeBytes: number;
+    maxFileSizeMessage: string;
+}) {
     const inputId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -60,8 +74,8 @@ function VehicleDocumentUploadField({
             return false;
         }
 
-        if (file.size > maxDocumentFileSizeBytes) {
-            setErrorMessage(getDocumentTooLargeMessage());
+        if (file.size > maxFileSizeBytes) {
+            setErrorMessage(maxFileSizeMessage);
             return false;
         }
 
@@ -169,7 +183,7 @@ function VehicleDocumentUploadField({
                 </p>
             ) : (
                 <p className="mt-3 text-xs font-semibold text-slate-500">
-                    PDF, JPG, JPEG oder PNG bis 5 MB.
+                    PDF, JPG, JPEG oder PNG bis {formatFileSize(maxFileSizeBytes)}.
                 </p>
             )}
 

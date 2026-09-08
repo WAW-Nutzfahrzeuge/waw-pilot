@@ -3,16 +3,19 @@
 import Link from "next/link";
 import {
     useActionState,
+    useEffect,
     useMemo,
     useRef,
     useState,
     type ChangeEventHandler,
+    type FormEvent,
 } from "react";
 import {
     ArrowLeft,
     CalendarDays,
     ClipboardList,
     FileText,
+    Loader2,
     Plus,
     Save,
     Truck,
@@ -24,6 +27,12 @@ import { updatePurchaseCaseAction } from "@/app/dashboard/ankauf/[purchaseId]/ed
 import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    getPurchaseCreateUploadTooLargeMessage,
+    getUnsupportedVehicleDocumentTypeMessage,
+    isAllowedVehicleDocumentFile,
+    maxPurchaseCreateUploadPayloadBytes,
+} from "@/lib/documents/upload-validation";
 import { getTodayDateOnly } from "@/lib/format/date";
 import {
     captureFormSnapshot,
@@ -82,6 +91,9 @@ export function PurchaseForm({
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
+    const submitLockedRef = useRef(false);
+    const userAgentInputRef = useRef<HTMLInputElement | null>(null);
+    const [clientErrorMessage, setClientErrorMessage] = useState<string | null>(null);
     const today = getTodayDateOnly();
     const backHref =
         mode === "edit" && initialValues?.id
@@ -147,6 +159,76 @@ export function PurchaseForm({
         },
     });
 
+    function getSelectedCreateFiles(form: HTMLFormElement): File[] {
+        return ["vehicle_registration_file", "purchase_invoice_file"]
+            .flatMap((name) => {
+                const field = form.elements.namedItem(name);
+
+                if (!(field instanceof HTMLInputElement) || field.type !== "file") {
+                    return [];
+                }
+
+                return Array.from(field.files ?? []);
+            })
+            .filter((file) => file.size > 0);
+    }
+
+    function handleSubmit(event: FormEvent<HTMLFormElement>) {
+        const form = event.currentTarget;
+
+        setClientErrorMessage(null);
+        if (userAgentInputRef.current) {
+            userAgentInputRef.current.value = window.navigator.userAgent;
+        }
+
+        if (submitLockedRef.current) {
+            event.preventDefault();
+            return;
+        }
+
+        if (!form.checkValidity()) {
+            return;
+        }
+
+        if (mode === "create") {
+            const selectedFiles = getSelectedCreateFiles(form);
+            const invalidFile = selectedFiles.find(
+                (file) => !isAllowedVehicleDocumentFile(file),
+            );
+
+            if (invalidFile) {
+                event.preventDefault();
+                setClientErrorMessage(
+                    `${invalidFile.name}: ${getUnsupportedVehicleDocumentTypeMessage()}`,
+                );
+                return;
+            }
+
+            const totalFileSize = selectedFiles.reduce(
+                (total, file) => total + file.size,
+                0,
+            );
+
+            if (totalFileSize > maxPurchaseCreateUploadPayloadBytes) {
+                event.preventDefault();
+                setClientErrorMessage(getPurchaseCreateUploadTooLargeMessage());
+                return;
+            }
+        }
+
+        submitLockedRef.current = true;
+        lastSubmittedSnapshotRef.current = captureFormSnapshot(form);
+    }
+
+    useEffect(() => {
+        if (!isPending && state.message) {
+            submitLockedRef.current = false;
+        }
+    }, [isPending, state.message]);
+
+    const visibleMessage = clientErrorMessage ?? state.message;
+    const isSubmitting = isPending;
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -175,23 +257,20 @@ export function PurchaseForm({
                 ref={formRef}
                 action={formAction}
                 className="space-y-6"
-                onSubmit={(event) => {
-                    lastSubmittedSnapshotRef.current = captureFormSnapshot(
-                        event.currentTarget,
-                    );
-                }}
+                onSubmit={handleSubmit}
             >
                 {initialValues?.id ? (
                     <input type="hidden" name="purchase_id" value={initialValues.id} />
                 ) : null}
                 <input type="hidden" name="vehicle_mode" value={vehicleMode} />
                 <input type="hidden" name="seller_mode" value={sellerMode} />
+                <input ref={userAgentInputRef} type="hidden" name="user_agent" />
 
-                {state.message ? (
+                {visibleMessage ? (
                     <ActionMessage
                         ref={messageRef}
-                        title={state.message}
-                        tone={state.success ? "success" : "danger"}
+                        title={visibleMessage}
+                        tone={clientErrorMessage ? "danger" : state.success ? "success" : "danger"}
                     />
                 ) : null}
 
@@ -342,6 +421,8 @@ export function PurchaseForm({
                                 description="Fahrzeugschein und Einkaufsrechnung werden mit Ankauf und Fahrzeug verknüpft."
                             />
                             <VehicleDocumentUploadFields
+                                maxFileSizeBytes={maxPurchaseCreateUploadPayloadBytes}
+                                maxFileSizeMessage={getPurchaseCreateUploadTooLargeMessage()}
                                 fields={[
                                     {
                                         name: "vehicle_registration_file",
@@ -395,9 +476,15 @@ export function PurchaseForm({
                             disabled={isPending}
                             className="h-12 rounded-2xl bg-cyan-700 px-6 font-extrabold text-white hover:bg-cyan-800"
                         >
-                            <Save className="mr-2 size-4" />
-                            {isPending
-                                ? "Speichert..."
+                            {isSubmitting ? (
+                                <Loader2 className="mr-2 size-4 animate-spin" />
+                            ) : (
+                                <Save className="mr-2 size-4" />
+                            )}
+                            {isSubmitting
+                                ? mode === "edit"
+                                    ? "Änderungen werden gespeichert..."
+                                    : "Ankauf wird gespeichert..."
                                 : mode === "edit"
                                   ? "Änderungen speichern"
                                   : "Ankauf speichern"}

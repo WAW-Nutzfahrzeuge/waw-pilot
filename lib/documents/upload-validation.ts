@@ -7,6 +7,7 @@ export const maxImageAssetFileSizeBytes = 5 * 1024 * 1024;
 export const maxTermsPdfFileSizeBytes = 10 * 1024 * 1024;
 export const maxDocumentFileSizeBytes = 5 * 1024 * 1024;
 export const maxBzstVerificationFileSizeBytes = 10 * 1024 * 1024;
+export const maxPurchaseCreateUploadPayloadBytes = 3.5 * 1024 * 1024;
 
 const allowedDocumentMimeTypes = new Set([
     "application/pdf",
@@ -77,6 +78,10 @@ export function getUnsupportedDocumentTypeMessage(): string {
 
 export function getDocumentTooLargeMessage(): string {
     return "Die Datei ist zu groß. Bitte wähle ein Dokument bis maximal 5 MB aus.";
+}
+
+export function getPurchaseCreateUploadTooLargeMessage(): string {
+    return "Die Datei ist zu groß. Bitte wähle für den Ankauf Dokumente mit zusammen maximal 3,5 MB aus.";
 }
 
 export function getBzstVerificationTooLargeMessage(): string {
