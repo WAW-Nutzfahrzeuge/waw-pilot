@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { FileUp, ScanLine, X } from "lucide-react";
+import { Crop, FileUp, X } from "lucide-react";
 
-import { DocumentScannerDialog } from "@/components/documents/document-scanner-dialog";
+import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
 import { Button } from "@/components/ui/button";
 import {
     convertVehicleDocumentImageToPdf,
@@ -59,20 +59,19 @@ function VehicleDocumentUploadField({
 }) {
     const inputId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
+    const cropInputRef = useRef<HTMLInputElement>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [infoMessage, setInfoMessage] = useState<string | null>(null);
     const [isCompressing, setIsCompressing] = useState(false);
-    const [scannerOpen, setScannerOpen] = useState(false);
-    const [cameraAvailable, setCameraAvailable] = useState(false);
+    const [cropOpen, setCropOpen] = useState(false);
+    const [cropImageFile, setCropImageFile] = useState<File | null>(null);
 
     useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-            setCameraAvailable(Boolean(navigator.mediaDevices?.getUserMedia));
-        }, 0);
-
-        return () => window.clearTimeout(timeoutId);
-    }, []);
+        if (!cropOpen && cropInputRef.current) {
+            cropInputRef.current.value = "";
+        }
+    }, [cropOpen]);
 
     function validateFile(file: File): boolean {
         if (!isAllowedVehicleDocumentFile(file)) {
@@ -160,7 +159,23 @@ function VehicleDocumentUploadField({
         setSelectedFile(preparedFile);
     }
 
-    async function handleScanComplete(file: File) {
+    function handleCropFileChange() {
+        const file = cropInputRef.current?.files?.[0] ?? null;
+
+        if (!file) return;
+
+        if (!isConvertibleVehicleDocumentImage(file)) {
+            setErrorMessage("Bitte wähle zum Zuschneiden ein JPG- oder PNG-Bild aus.");
+            setCropImageFile(null);
+            return;
+        }
+
+        setErrorMessage(null);
+        setCropImageFile(file);
+        setCropOpen(true);
+    }
+
+    async function handleCropComplete(file: File) {
         const input = inputRef.current;
 
         if (!input) return;
@@ -219,18 +234,16 @@ function VehicleDocumentUploadField({
                     </Button>
                 ) : null}
 
-                {cameraAvailable ? (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
-                        disabled={isCompressing}
-                        onClick={() => setScannerOpen(true)}
-                    >
-                        <ScanLine className="mr-2 size-4" />
-                        Scannen
-                    </Button>
-                ) : null}
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    disabled={isCompressing}
+                    onClick={() => cropInputRef.current?.click()}
+                >
+                    <Crop className="mr-2 size-4" />
+                    Bild auswählen & zuschneiden
+                </Button>
             </div>
 
             <input
@@ -241,6 +254,13 @@ function VehicleDocumentUploadField({
                 accept={vehicleDocumentAcceptMimeTypes}
                 className="sr-only"
                 onChange={handleFileChange}
+            />
+            <input
+                ref={cropInputRef}
+                type="file"
+                accept="image/jpeg,image/png"
+                className="sr-only"
+                onChange={handleCropFileChange}
             />
 
             {selectedFile ? (
@@ -265,10 +285,11 @@ function VehicleDocumentUploadField({
                 </p>
             ) : null}
 
-            <DocumentScannerDialog
-                open={scannerOpen}
-                onOpenChange={setScannerOpen}
-                onScanComplete={handleScanComplete}
+            <DocumentCropDialog
+                open={cropOpen}
+                imageFile={cropImageFile}
+                onOpenChange={setCropOpen}
+                onCropComplete={handleCropComplete}
             />
         </div>
     );

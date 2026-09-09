@@ -161,8 +161,6 @@ function extractReferenceNumber(fileName: string): string | null {
 
 function cleanTechnicalFileName(fileName: string): string {
     return getFileNameWithoutExtension(fileName)
-        .replace(/^scan-\d{4}-\d{2}-\d{2}[-_\d]*$/i, "Scan")
-        .replace(/scan-\d{4}-\d{2}-\d{2}[-_\d]*/gi, "")
         .replace(/\b[a-f0-9]{8,}\b/gi, "")
         .replace(/[-_]+/g, " ")
         .replace(/\s+/g, " ")
@@ -213,7 +211,6 @@ function getMimeTypeLabel(mimeType: string | null): string {
 }
 
 function getDocumentSourceDisplay(document: DocumentRow): string {
-    if (/scan/i.test(document.file_name)) return "Scan";
     if (document.generated_by_system || document.source === "generated") {
         return "Automatisch erzeugt";
     }

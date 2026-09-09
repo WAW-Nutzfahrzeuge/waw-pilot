@@ -178,7 +178,7 @@ export async function SaleDetail({
     );
 
     return (
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
             <PageHeader
                 eyebrow="Verkaufsakte"
                 title={`Verkauf ${sale.sale_number ?? sale.invoice?.invoice_number ?? sale.vehicle.name}`}
@@ -433,7 +433,7 @@ export async function SaleDetail({
                 </div>
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <DetailStatCard
                     label="Verkaufstyp"
                     value={getSaleTypeLabel(sale.sale_type)}
@@ -468,9 +468,9 @@ export async function SaleDetail({
                 />
             </section>
 
-            <section className="space-y-6">
-                <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-                    <div className="space-y-6">
+            <section className="min-w-0 space-y-6">
+                <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <div className="min-w-0 space-y-6">
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -607,7 +607,7 @@ export async function SaleDetail({
                     </Card>
                     </div>
 
-                    <div className="space-y-6">
+                    <div className="min-w-0 space-y-6">
                         <Card
                             id="invoice-payments"
                             className="scroll-mt-24 rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm"
@@ -705,7 +705,7 @@ export async function SaleDetail({
                     </div>
                 </div>
 
-                <div className="mx-auto w-full space-y-6">
+                <div className="mx-auto min-w-0 w-full space-y-6">
 
                     <SaleExportDetailsForm details={exportDetails} />
 
@@ -1342,13 +1342,13 @@ function SectionTitle({
     description: string;
 }) {
     return (
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
             <div className="flex size-11 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">
                 <Icon className="size-5" />
             </div>
-            <div>
+            <div className="min-w-0">
                 <h2 className="text-xl font-extrabold text-slate-950">{title}</h2>
-                <p className="mt-1 text-sm font-medium text-slate-500">
+                <p className="mt-1 break-words text-sm font-medium text-slate-500">
                     {description}
                 </p>
             </div>
@@ -1366,13 +1366,13 @@ function InfoRow({
     strong?: boolean;
 }) {
     return (
-        <div className="flex items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-sm font-bold text-slate-500">{label}</p>
+        <div className="flex min-w-0 items-start justify-between gap-4 rounded-2xl bg-slate-50 px-4 py-3">
+            <p className="min-w-0 shrink text-sm font-bold text-slate-500">{label}</p>
             <p
                 className={
                     strong
-                        ? "text-right text-sm font-extrabold text-emerald-700"
-                        : "text-right text-sm font-extrabold text-slate-950"
+                        ? "min-w-0 max-w-[68%] break-words text-right text-sm font-extrabold text-emerald-700"
+                        : "min-w-0 max-w-[68%] break-words text-right text-sm font-extrabold text-slate-950"
                 }
             >
                 {value || "—"}

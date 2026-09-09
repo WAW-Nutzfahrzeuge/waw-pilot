@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
-import { CheckCircle2, FileUp, Loader2, ScanLine } from "lucide-react";
+import { CheckCircle2, Crop, FileUp, Loader2 } from "lucide-react";
 
 import { uploadSaleDocumentAction } from "@/app/dashboard/sales/[saleId]/actions";
-import { DocumentScannerDialog } from "@/components/documents/document-scanner-dialog";
+import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
 import { Button } from "@/components/ui/button";
+import { isConvertibleVehicleDocumentImage } from "@/lib/documents/client-image-compression";
 import {
     documentAcceptMimeTypes,
     getUnsupportedDocumentTypeMessage,
@@ -45,22 +46,21 @@ export function SaleDocumentUploadForm({
     const inputId = useId();
     const formRef = useRef<HTMLFormElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const cropInputRef = useRef<HTMLInputElement>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
-    const [scannerOpen, setScannerOpen] = useState(false);
-    const [cameraAvailable, setCameraAvailable] = useState(false);
+    const [cropOpen, setCropOpen] = useState(false);
+    const [cropImageFile, setCropImageFile] = useState<File | null>(null);
     const [isPending, startTransition] = useTransition();
 
     const hasExistingDocument = Boolean(existingDocumentId);
     const displayFileName = selectedFileName ?? existingFileName;
 
     useEffect(() => {
-        const timeoutId = window.setTimeout(() => {
-            setCameraAvailable(Boolean(navigator.mediaDevices?.getUserMedia));
-        }, 0);
-
-        return () => window.clearTimeout(timeoutId);
-    }, []);
+        if (!cropOpen && cropInputRef.current) {
+            cropInputRef.current.value = "";
+        }
+    }, [cropOpen]);
 
     function uploadFile(file: File) {
         const formElement = formRef.current;
@@ -106,6 +106,22 @@ export function SaleDocumentUploadForm({
         }
 
         uploadFile(file);
+    }
+
+    function handleCropFileChange() {
+        const file = cropInputRef.current?.files?.[0] ?? null;
+
+        if (!file) return;
+
+        if (!isConvertibleVehicleDocumentImage(file)) {
+            setErrorMessage("Bitte wähle zum Zuschneiden ein JPG- oder PNG-Bild aus.");
+            setCropImageFile(null);
+            return;
+        }
+
+        setErrorMessage(null);
+        setCropImageFile(file);
+        setCropOpen(true);
     }
 
     return (
@@ -204,18 +220,24 @@ export function SaleDocumentUploadForm({
             </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
-                {cameraAvailable ? (
-                    <Button
-                        type="button"
-                        variant="outline"
-                        disabled={isPending}
-                        className="h-10 rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
-                        onClick={() => setScannerOpen(true)}
-                    >
-                        <ScanLine className="size-4" />
-                        Dokument scannen
-                    </Button>
-                ) : null}
+                <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isPending}
+                    className="h-10 rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    onClick={() => cropInputRef.current?.click()}
+                >
+                    <Crop className="size-4" />
+                    Bild auswählen & zuschneiden
+                </Button>
+                <input
+                    ref={cropInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="sr-only"
+                    disabled={isPending}
+                    onChange={handleCropFileChange}
+                />
             </div>
 
             {errorMessage ? (
@@ -224,10 +246,11 @@ export function SaleDocumentUploadForm({
                 </p>
             ) : null}
 
-            <DocumentScannerDialog
-                open={scannerOpen}
-                onOpenChange={setScannerOpen}
-                onScanComplete={uploadFile}
+            <DocumentCropDialog
+                open={cropOpen}
+                imageFile={cropImageFile}
+                onOpenChange={setCropOpen}
+                onCropComplete={uploadFile}
             />
         </form>
     );
