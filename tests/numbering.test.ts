@@ -44,3 +44,16 @@ test("number counter migration uses atomic counters for purchase, sale and invoi
     assert.doesNotMatch(nextFunctionsSql, /\bmax\s*\(/i);
     assert.doesNotMatch(nextFunctionsSql, /\bcount\s*\(/i);
 });
+
+test("purchase migration prevents two active purchase cases for one vehicle", () => {
+    const sql = readFileSync(
+        new URL(
+            "../supabase/migrations/20260914120000_prevent_duplicate_purchase_per_vehicle.sql",
+            import.meta.url,
+        ),
+        "utf8",
+    );
+
+    assert.match(sql, /create unique index if not exists purchase_cases_company_vehicle_key/);
+    assert.match(sql, /on public\.purchase_cases\(company_id, vehicle_id\)/);
+});

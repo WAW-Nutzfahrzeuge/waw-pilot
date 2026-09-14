@@ -76,6 +76,33 @@ function logPurchaseWorkflowError(
     );
 }
 
+async function measurePurchaseStep<T>(
+    requestId: string,
+    step: string,
+    operation: () => Promise<T>,
+    meta: PurchaseWorkflowLogMeta = {},
+): Promise<T> {
+    const startedAt = performance.now();
+
+    try {
+        const result = await operation();
+
+        logPurchaseWorkflow(requestId, "step_complete", {
+            step,
+            durationMs: Math.round(performance.now() - startedAt),
+            ...meta,
+        });
+
+        return result;
+    } catch (error) {
+        logPurchaseWorkflowError(requestId, "step_failed", error, {
+            step,
+            durationMs: Math.round(performance.now() - startedAt),
+        });
+        throw error;
+    }
+}
+
 function getFailureMessage(requestId: string, reason: string): string {
     return `${reason}\nFehler-ID: ${requestId}`;
 }
@@ -279,11 +306,17 @@ async function storePurchaseVehicleDocument({
         };
     }
 
-    await logActivity({
-        action: `${label} für Ankauf ${purchaseNumber} hochgeladen`,
-        entityType: "purchase",
-        entityId: purchaseCaseId,
-    });
+    try {
+        await logActivity({
+            action: `${label} für Ankauf ${purchaseNumber} hochgeladen`,
+            entityType: "purchase",
+            entityId: purchaseCaseId,
+        });
+    } catch (activityError) {
+        logPurchaseWorkflowError(requestId, "document_activity_log_failed_non_blocking", activityError, {
+            documentType,
+        });
+    }
 
     return { success: true, documentId: document.id as string, filePath };
 }
@@ -439,15 +472,26 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
             return { success: false as const, message: "Bitte wähle einen Verkäufer aus." };
         }
 
-        const { data: seller } = await supabase
+        const { data: seller, error: sellerError } = await supabase
             .from("customers")
             .select("id")
             .eq("company_id", companyId)
             .eq("id", sellerCustomerId)
             .maybeSingle();
 
+        if (sellerError) {
+            console.error("[purchase] seller lookup failed", sellerError);
+            return {
+                success: false as const,
+                message: "Der bestehende Verkäufer konnte nicht geprüft werden. Bitte versuche es erneut.",
+            };
+        }
+
         if (!seller) {
-            return { success: false as const, message: "Der Verkäufer wurde nicht gefunden." };
+            return {
+                success: false as const,
+                message: "Der ausgewählte Verkäufer existiert nicht mehr. Bitte wähle ihn erneut aus.",
+            };
         }
 
         return { success: true as const, id: sellerCustomerId, created: false };
@@ -539,11 +583,15 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
         }
     }
 
-    await logActivity({
-        action: "Verkäufer im Ankauf neu angelegt",
-        entityType: "customer",
-        entityId: customer.id as string,
-    });
+    try {
+        await logActivity({
+            action: "Verkäufer im Ankauf neu angelegt",
+            entityType: "customer",
+            entityId: customer.id as string,
+        });
+    } catch (activityError) {
+        console.error("[purchase] seller activity log failed", activityError);
+    }
 
     return { success: true as const, id: customer.id as string, created: true };
 }
@@ -672,11 +720,15 @@ async function resolveVehicleId({
         };
     }
 
-    await logActivity({
-        action: `Fahrzeug ${getVehicleActivityName(vehicle)} im Ankauf neu angelegt`,
-        entityType: "vehicle",
-        entityId: vehicle.id as string,
-    });
+    try {
+        await logActivity({
+            action: `Fahrzeug ${getVehicleActivityName(vehicle)} im Ankauf neu angelegt`,
+            entityType: "vehicle",
+            entityId: vehicle.id as string,
+        });
+    } catch (activityError) {
+        console.error("[purchase] vehicle activity log failed", activityError);
+    }
 
     return {
         success: true as const,
@@ -702,12 +754,7 @@ export async function createPurchaseCaseAction(
     const uploadedFilePaths: string[] = [];
 
     logPurchaseWorkflow(requestId, "start", {
-        companyId,
-        authUserId: userContext?.authUserId ?? null,
-        role: userContext?.profile.role ?? null,
-        userAgent: typeof formData.get("user_agent") === "string"
-            ? formData.get("user_agent")
-            : null,
+        hasAuthenticatedUser: Boolean(userContext),
     });
 
     const purchaseDate = getStringValue(formData, "purchase_date");
@@ -769,7 +816,11 @@ export async function createPurchaseCaseAction(
         };
     }
 
-    const sellerResult = await resolveSellerCustomerId(formData, companyId);
+    const sellerResult = await measurePurchaseStep(
+        requestId,
+        "customer_resolve",
+        () => resolveSellerCustomerId(formData, companyId),
+    );
 
     if (!sellerResult.success) {
         logPurchaseWorkflow(requestId, "seller_failed", { message: sellerResult.message });
@@ -784,12 +835,17 @@ export async function createPurchaseCaseAction(
         created: sellerResult.created,
     });
 
-    const vehicleResult = await resolveVehicleId({
-        formData,
-        companyId,
-        sellerCustomerId: sellerResult.id,
-        netAmount,
-    });
+    const vehicleResult = await measurePurchaseStep(
+        requestId,
+        "vehicle_resolve_or_create",
+        () =>
+            resolveVehicleId({
+                formData,
+                companyId,
+                sellerCustomerId: sellerResult.id,
+                netAmount,
+            }),
+    );
 
     if (!vehicleResult.success) {
         logPurchaseWorkflow(requestId, "vehicle_failed", { message: vehicleResult.message });
@@ -818,7 +874,11 @@ export async function createPurchaseCaseAction(
     let purchaseNumber: string;
 
     try {
-        purchaseNumber = await getNextPurchaseNumber(companyId);
+        purchaseNumber = await measurePurchaseStep(
+            requestId,
+            "purchase_number",
+            () => getNextPurchaseNumber(companyId),
+        );
     } catch (error) {
         logPurchaseWorkflowError(requestId, "numbering_failed", error);
         await cleanupFailedPurchaseCreate({
@@ -842,25 +902,30 @@ export async function createPurchaseCaseAction(
 
     logPurchaseWorkflow(requestId, "number_created", { purchaseNumber });
 
-    const { data: purchaseCase, error: purchaseError } = await supabase
-        .from("purchase_cases")
-        .insert({
-            company_id: companyId,
-            vehicle_id: vehicleResult.id,
-            seller_customer_id: sellerResult.id,
-            purchase_number: purchaseNumber,
-            purchase_date: purchaseDate,
-            net_amount: netAmount,
-            vat_rate: vatRate,
-            vat_amount: vatAmount,
-            gross_amount: grossAmount,
-            status: "active",
-            payment_status: paymentStatus,
-            document_check_status: "missing",
-            notes,
-        })
-        .select("id")
-        .single();
+    const { data: purchaseCase, error: purchaseError } = await measurePurchaseStep(
+        requestId,
+        "purchase_insert",
+        async () =>
+            supabase
+                .from("purchase_cases")
+                .insert({
+                    company_id: companyId,
+                    vehicle_id: vehicleResult.id,
+                    seller_customer_id: sellerResult.id,
+                    purchase_number: purchaseNumber,
+                    purchase_date: purchaseDate,
+                    net_amount: netAmount,
+                    vat_rate: vatRate,
+                    vat_amount: vatAmount,
+                    gross_amount: grossAmount,
+                    status: "active",
+                    payment_status: paymentStatus,
+                    document_check_status: "missing",
+                    notes,
+                })
+                .select("id")
+                .single(),
+    );
 
     if (purchaseError || !purchaseCase) {
         logPurchaseWorkflowError(requestId, "purchase_insert_failed", purchaseError);
@@ -877,7 +942,10 @@ export async function createPurchaseCaseAction(
             success: false,
             message: getFailureMessage(
                 requestId,
-                "Der Ankauf wurde nicht gespeichert. Bitte versuche es erneut.",
+                purchaseError?.code === "23505" &&
+                    purchaseError.message.includes("purchase_cases_company_vehicle_key")
+                    ? "Für dieses Fahrzeug existiert bereits ein Ankauf. Bitte öffne den bestehenden Ankauf."
+                    : "Der Ankauf wurde nicht gespeichert. Bitte versuche es erneut.",
             ),
         };
     }
@@ -887,15 +955,20 @@ export async function createPurchaseCaseAction(
 
     logPurchaseWorkflow(requestId, "purchase_inserted", { purchaseCaseId });
 
-    const { error: vehicleUpdateError } = await supabase
-        .from("vehicles")
-        .update({
-            seller_customer_id: sellerResult.id,
-            purchase_price_net: netAmount,
-            status: "in_stock",
-        })
-        .eq("id", vehicleResult.id)
-        .eq("company_id", companyId);
+    const { error: vehicleUpdateError } = await measurePurchaseStep(
+        requestId,
+        "vehicle_update",
+        async () =>
+            supabase
+                .from("vehicles")
+                .update({
+                    seller_customer_id: sellerResult.id,
+                    purchase_price_net: netAmount,
+                    status: "in_stock",
+                })
+                .eq("id", vehicleResult.id)
+                .eq("company_id", companyId),
+    );
 
     if (vehicleUpdateError) {
         logPurchaseWorkflowError(requestId, "vehicle_update_failed", vehicleUpdateError, {
@@ -921,46 +994,71 @@ export async function createPurchaseCaseAction(
         };
     }
 
-    await logActivity({
-        action: `Ankauf ${purchaseNumber} für ${vehicleActivityName} angelegt`,
-        entityType: "purchase",
-        entityId: purchaseCaseId,
-    });
+    try {
+        await measurePurchaseStep(requestId, "activity_log", async () => {
+            const activities = [
+                logActivity({
+                    action: `Ankauf ${purchaseNumber} für ${vehicleActivityName} angelegt`,
+                    entityType: "purchase",
+                    entityId: purchaseCaseId,
+                }),
+                logActivity({
+                    action: vehicleResult.created
+                        ? `Fahrzeug ${vehicleActivityName} durch neuen Ankauf in Bestand aufgenommen`
+                        : `Bestehendes Fahrzeug ${vehicleActivityName} mit Ankauf ${purchaseNumber} verknüpft`,
+                    entityType: "vehicle",
+                    entityId: vehicleResult.id,
+                }),
+            ];
 
-    await logActivity({
-        action: vehicleResult.created
-            ? `Fahrzeug ${vehicleActivityName} durch neuen Ankauf in Bestand aufgenommen`
-            : `Bestehendes Fahrzeug ${vehicleActivityName} mit Ankauf ${purchaseNumber} verknüpft`,
-        entityType: "vehicle",
-        entityId: vehicleResult.id,
-    });
-
-    if (!sellerResult.created) {
-        await logActivity({
-            action: `Bestehender Verkäufer mit Ankauf ${purchaseNumber} verknüpft`,
-            entityType: "customer",
-            entityId: sellerResult.id,
-        });
-    }
-
-    for (const upload of documentUploads) {
-        const uploadResult = await storePurchaseVehicleDocument({
-            companyId,
-            vehicleId: vehicleResult.id,
-            purchaseCaseId,
-            sellerCustomerId: sellerResult.id,
-            purchaseNumber,
-            documentType: upload.documentType,
-            label: upload.label,
-            file: upload.file,
-            requestId,
-        });
-
-        if (!uploadResult.success) {
-            if (uploadResult.filePath) {
-                uploadedFilePaths.push(uploadResult.filePath);
+            if (!sellerResult.created) {
+                activities.push(
+                    logActivity({
+                        action: `Bestehender Verkäufer mit Ankauf ${purchaseNumber} verknüpft`,
+                        entityType: "customer",
+                        entityId: sellerResult.id,
+                    }),
+                );
             }
 
+            await Promise.all(activities);
+        });
+    } catch (error) {
+        logPurchaseWorkflowError(requestId, "activity_log_failed_non_blocking", error);
+    }
+
+    const uploadResults = await measurePurchaseStep(
+        requestId,
+        "document_uploads",
+        () =>
+            Promise.all(
+                documentUploads.map((upload) =>
+                    storePurchaseVehicleDocument({
+                        companyId,
+                        vehicleId: vehicleResult.id,
+                        purchaseCaseId,
+                        sellerCustomerId: sellerResult.id,
+                        purchaseNumber,
+                        documentType: upload.documentType,
+                        label: upload.label,
+                        file: upload.file,
+                        requestId,
+                    }),
+                ),
+            ),
+        { fileCount: documentUploads.length },
+    );
+
+    for (const uploadResult of uploadResults) {
+        if (uploadResult.success) {
+            uploadedDocumentIds.push(uploadResult.documentId);
+            uploadedFilePaths.push(uploadResult.filePath);
+        }
+    }
+
+    for (const uploadResult of uploadResults) {
+
+        if (!uploadResult.success) {
             await cleanupFailedPurchaseCreate({
                 companyId,
                 requestId,
@@ -979,16 +1077,15 @@ export async function createPurchaseCaseAction(
                 ),
             };
         }
-
-        uploadedDocumentIds.push(uploadResult.documentId);
-        uploadedFilePaths.push(uploadResult.filePath);
     }
 
-    await updatePurchaseDocumentStatus({
-        companyId,
-        purchaseCaseId,
-        vehicleId: vehicleResult.id,
-    });
+    await measurePurchaseStep(requestId, "document_status_update", () =>
+        updatePurchaseDocumentStatus({
+            companyId,
+            purchaseCaseId,
+            vehicleId: vehicleResult.id,
+        }),
+    );
 
     if (paymentStatus === "paid") {
         await logActivity({
@@ -1002,6 +1099,11 @@ export async function createPurchaseCaseAction(
         purchaseCaseId,
         durationMs: Math.round(performance.now() - startedAt),
     });
+    console.info(
+        `[purchase-create][${requestId}] completed total=${Math.round(
+            performance.now() - startedAt,
+        )}ms`,
+    );
 
     redirect(`/dashboard/ankauf/${purchaseCaseId}?purchaseCreated=1`);
 }

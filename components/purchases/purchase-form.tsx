@@ -92,7 +92,6 @@ export function PurchaseForm({
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
     const submitLockedRef = useRef(false);
-    const userAgentInputRef = useRef<HTMLInputElement | null>(null);
     const [clientErrorMessage, setClientErrorMessage] = useState<string | null>(null);
     const today = getTodayDateOnly();
     const backHref =
@@ -177,10 +176,6 @@ export function PurchaseForm({
         const form = event.currentTarget;
 
         setClientErrorMessage(null);
-        if (userAgentInputRef.current) {
-            userAgentInputRef.current.value = window.navigator.userAgent;
-        }
-
         if (submitLockedRef.current) {
             event.preventDefault();
             return;
@@ -264,7 +259,6 @@ export function PurchaseForm({
                 ) : null}
                 <input type="hidden" name="vehicle_mode" value={vehicleMode} />
                 <input type="hidden" name="seller_mode" value={sellerMode} />
-                <input ref={userAgentInputRef} type="hidden" name="user_agent" />
 
                 {visibleMessage ? (
                     <ActionMessage
