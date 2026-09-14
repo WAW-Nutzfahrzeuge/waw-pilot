@@ -65,6 +65,7 @@ type InvoiceQueryResult = {
     invoice_type: InvoiceType | null;
     invoice_number: string;
     invoice_date: string;
+    due_date: string | null;
     net_amount: number | string;
     vat_rate: number | string;
     vat_amount: number | string;
@@ -92,6 +93,7 @@ const invoicePdfBaseSelect = `
       invoice_type,
       invoice_number,
       invoice_date,
+      due_date,
       net_amount,
       vat_rate,
       vat_amount,
@@ -295,6 +297,7 @@ export async function getInvoicePdfData(
         invoiceNumber: invoice.invoice_number,
         saleNumber: sale?.sale_number ?? null,
         invoiceDate: invoice.invoice_date,
+        dueDate: invoice.due_date,
         correction: invoice.original_invoice_number
             ? {
                   originalInvoiceNumber: invoice.original_invoice_number,

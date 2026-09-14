@@ -23,6 +23,7 @@ export type InvoicePdfData = {
     invoiceNumber: string;
     saleNumber: string | null;
     invoiceDate: string;
+    dueDate: string | null;
     correction?: {
         originalInvoiceNumber: string | null;
         originalInvoiceDate: string | null;
@@ -915,10 +916,16 @@ export async function generateInvoicePdf(
         maxLines: 1,
     });
 
-    drawText(page, `Rechnungs-Datum: ${formatDate(data.invoiceDate)}`, 48, 507, {
+    drawText(
+        page,
+        `Rechnungs-Datum: ${formatDate(data.invoiceDate)} | Fällig: ${formatDate(data.dueDate)}`,
+        48,
+        507,
+        {
         font: helveticaBold,
         size: 8,
-    });
+        },
+    );
 
     /**
      * Gebrauchte Box - bewusst mit Abstand zur Fahrzeugtabelle

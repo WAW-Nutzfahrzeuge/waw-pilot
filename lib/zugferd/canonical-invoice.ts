@@ -1,5 +1,10 @@
 import { getInvoiceTypeLabel } from "@/lib/invoices/invoice-numbering";
 import type { InvoicePdfData } from "@/lib/pdf/invoice-pdf";
+import {
+    DEFAULT_PAYMENT_TERMS_DAYS,
+    getPaymentTermsDays,
+    getPaymentTermsText,
+} from "@/lib/invoices/payment-terms";
 
 export type ZugferdValidationIssue = {
     source?: "FACTUR_X" | "EN16931" | "XRECHNUNG" | "PDF_A";
@@ -14,6 +19,8 @@ export type CanonicalInvoiceData = {
     invoiceNumber: string;
     invoiceDate: string;
     deliveryDate: string;
+    dueDate: string;
+    paymentTermsDays: number;
     currency: "EUR";
     invoiceType: "380";
     standardVersion: "ZUGFeRD 2.5 / Factur-X 1.09";
@@ -278,6 +285,7 @@ export function buildCanonicalInvoiceData(
 
     if (!isPresent(data.invoiceNumber)) missingFields.push("Rechnungsnummer fehlt");
     if (!isPresent(data.invoiceDate)) missingFields.push("Rechnungsdatum fehlt");
+    if (!isPresent(data.dueDate)) missingFields.push("Fälligkeitsdatum fehlt");
     if (!isFiniteAmount(data.amounts.netAmount)) missingFields.push("Netto-Betrag fehlt");
     if (!isFiniteAmount(data.amounts.vatAmount)) missingFields.push("Umsatzsteuerbetrag fehlt");
     if (!isFiniteAmount(data.amounts.grossAmount)) missingFields.push("Brutto-Betrag fehlt");
@@ -298,11 +306,17 @@ export function buildCanonicalInvoiceData(
     }
 
     const taxCategory = getTaxCategoryCode(data);
+    const paymentTermsDays =
+        getPaymentTermsDays(data.invoiceDate, data.dueDate) ?? DEFAULT_PAYMENT_TERMS_DAYS;
 
     return {
         invoiceNumber: data.invoiceNumber,
         invoiceDate: data.invoiceDate,
+        // The current invoice model has no separate delivery/performance date.
+        // Keep PDF and structured invoice aligned until that field exists.
         deliveryDate: data.invoiceDate,
+        dueDate: data.dueDate ?? "",
+        paymentTermsDays,
         currency: "EUR",
         invoiceType: "380",
         standardVersion: "ZUGFeRD 2.5 / Factur-X 1.09",
@@ -356,7 +370,7 @@ export function buildCanonicalInvoiceData(
             duePayable: roundMoney(data.amounts.grossAmount),
         },
         payment: {
-            terms: "Zahlbar innerhalb von 7 Tagen ohne Abzug.",
+            terms: getPaymentTermsText(paymentTermsDays),
             iban: data.company.bankIban ?? "",
             bic: data.company.bankBic ?? "",
             bankName: data.company.bankName ?? "",

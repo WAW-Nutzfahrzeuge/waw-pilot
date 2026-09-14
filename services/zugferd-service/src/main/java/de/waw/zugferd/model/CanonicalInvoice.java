@@ -11,6 +11,8 @@ public record CanonicalInvoice(
         @NotBlank String invoiceNumber,
         @NotBlank String invoiceDate,
         @NotBlank String deliveryDate,
+        @NotBlank String dueDate,
+        @NotNull Integer paymentTermsDays,
         @NotBlank String currency,
         @NotBlank String invoiceType,
         @NotBlank String standardVersion,

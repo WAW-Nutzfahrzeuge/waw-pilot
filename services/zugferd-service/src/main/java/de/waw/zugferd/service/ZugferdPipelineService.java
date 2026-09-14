@@ -35,6 +35,7 @@ import org.mustangproject.LegalOrganisation;
 import org.mustangproject.Product;
 import org.mustangproject.TradeParty;
 import org.mustangproject.ZUGFeRD.IZUGFeRDExporter;
+import org.mustangproject.ZUGFeRD.IZUGFeRDPaymentTerms;
 import org.mustangproject.ZUGFeRD.PDFAConformanceLevel;
 import org.mustangproject.ZUGFeRD.Profiles;
 import org.mustangproject.ZUGFeRD.ZUGFeRD2PullProvider;
@@ -259,12 +260,28 @@ public class ZugferdPipelineService {
     private byte[] generateXml(CanonicalInvoice canonicalInvoice) {
         Invoice invoice = new Invoice()
                 .setIssueDate(toDate(canonicalInvoice.invoiceDate()))
-                .setDueDate(toDate(canonicalInvoice.invoiceDate()))
+                .setDueDate(toDate(canonicalInvoice.dueDate()))
                 .setDeliveryDate(toDate(canonicalInvoice.deliveryDate()))
                 .setSender(toTradeParty(canonicalInvoice.seller(), true, canonicalInvoice.payment()))
                 .setRecipient(toTradeParty(canonicalInvoice.buyer(), false, canonicalInvoice.payment()))
                 .setNumber(canonicalInvoice.invoiceNumber())
-                .setCurrency(canonicalInvoice.currency());
+                .setCurrency(canonicalInvoice.currency())
+                .setPaymentTerms(new IZUGFeRDPaymentTerms() {
+                    @Override
+                    public String getDescription() {
+                        return canonicalInvoice.payment().terms();
+                    }
+
+                    @Override
+                    public Date getDueDate() {
+                        return toDate(canonicalInvoice.dueDate());
+                    }
+
+                    @Override
+                    public org.mustangproject.ZUGFeRD.IZUGFeRDPaymentDiscountTerms getDiscountTerms() {
+                        return null;
+                    }
+                });
 
         for (CanonicalInvoice.InvoiceLine line : canonicalInvoice.lines()) {
             Product product = new Product(
@@ -588,6 +605,24 @@ public class ZugferdPipelineService {
                     document,
                     XPathConstants.STRING
             ));
+            String invoiceDate = firstText(xpath, document,
+                    "//*[local-name()='ExchangedDocument']/*[local-name()='IssueDateTime']//*[local-name()='DateTimeString'][1]");
+            String deliveryDate = firstText(xpath, document,
+                    "//*[local-name()='SpecifiedLineTradeDeliveryEvent']//*[local-name()='OccurrenceDateTime']//*[local-name()='DateTimeString'][1]");
+            String dueDate = firstText(xpath, document,
+                    "//*[local-name()='SpecifiedTradePaymentTerms']//*[local-name()='DueDateDateTime']//*[local-name()='DateTimeString'][1]");
+            String netTotal = firstText(xpath, document,
+                    "//*[local-name()='SpecifiedTradeSettlementHeaderMonetarySummation']/*[local-name()='TaxBasisTotalAmount'][1]");
+            String vatTotal = firstText(xpath, document,
+                    "//*[local-name()='SpecifiedTradeSettlementHeaderMonetarySummation']/*[local-name()='TaxTotalAmount'][1]");
+            String vatRate = firstText(xpath, document,
+                    "//*[local-name()='ApplicableTradeTax']/*[local-name()='RateApplicablePercent'][1]");
+            String sellerName = firstText(xpath, document,
+                    "//*[local-name()='SellerTradeParty']/*[local-name()='Name'][1]");
+            String buyerName = firstText(xpath, document,
+                    "//*[local-name()='BuyerTradeParty']/*[local-name()='Name'][1]");
+            String iban = firstText(xpath, document,
+                    "//*[local-name()='SpecifiedTradeSettlementPaymentMeans']//*[local-name()='PayeePartyCreditorFinancialAccount']/*[local-name()='IBANID'][1]");
 
             boolean valid = true;
 
@@ -605,6 +640,22 @@ public class ZugferdPipelineService {
                 issues.add(error("CONSISTENCY_TOTAL", "Bruttobetrag in XML und Ausgangsdaten stimmt nicht überein."));
                 valid = false;
             }
+
+            valid &= compareText("CONSISTENCY_INVOICE_DATE", "Rechnungsdatum", invoice.invoiceDate(), normalizeDate(invoiceDate), issues);
+            valid &= compareText("CONSISTENCY_DELIVERY_DATE", "Leistungsdatum", invoice.deliveryDate(), normalizeDate(deliveryDate), issues);
+            valid &= compareText("CONSISTENCY_DUE_DATE", "Fälligkeitsdatum", invoice.dueDate(), normalizeDate(dueDate), issues);
+            valid &= compareMoney("CONSISTENCY_NET", "Nettobetrag", invoice.totals().taxBasisTotal(), netTotal, issues);
+            valid &= compareMoney("CONSISTENCY_VAT", "Steuerbetrag", invoice.totals().taxTotal(), vatTotal, issues);
+            valid &= compareMoney("CONSISTENCY_VAT_RATE", "Steuersatz", invoice.tax().rate(), vatRate, issues);
+            valid &= compareText("CONSISTENCY_SELLER", "Verkäufer", invoice.seller().name(), sellerName, issues);
+            valid &= compareText("CONSISTENCY_BUYER", "Käufer", invoice.buyer().name(), buyerName, issues);
+            valid &= compareText(
+                    "CONSISTENCY_IBAN",
+                    "IBAN",
+                    compact(invoice.payment().iban()),
+                    compact(iban),
+                    issues
+            );
 
             return valid;
         } catch (Exception error) {
@@ -829,6 +880,50 @@ public class ZugferdPipelineService {
 
     private static String text(Object value) {
         return String.valueOf(value == null ? "" : value).trim();
+    }
+
+    private static String firstText(
+            javax.xml.xpath.XPath xpath,
+            Document document,
+            String expression
+    ) throws Exception {
+        return text(xpath.evaluate(expression, document, XPathConstants.STRING));
+    }
+
+    private static String normalizeDate(String value) {
+        return value == null ? "" : value.trim().replace("-", "");
+    }
+
+    private static String compact(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", "");
+    }
+
+    private static boolean compareText(
+            String ruleId,
+            String label,
+            String expected,
+            String actual,
+            List<ValidationIssue> issues
+    ) {
+        if (actual.isBlank() || !expected.replace("-", "").equals(actual.replace("-", ""))) {
+            issues.add(error(ruleId, label + " in XML und Ausgangsdaten stimmt nicht überein."));
+            return false;
+        }
+        return true;
+    }
+
+    private static boolean compareMoney(
+            String ruleId,
+            String label,
+            BigDecimal expected,
+            String actual,
+            List<ValidationIssue> issues
+    ) {
+        if (!sameMoney(expected, actual)) {
+            issues.add(error(ruleId, label + " in XML und Ausgangsdaten stimmt nicht überein."));
+            return false;
+        }
+        return true;
     }
 
     private static boolean sameMoney(BigDecimal expected, String actual) {

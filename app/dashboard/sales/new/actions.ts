@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
-import { toDateOnlyString } from "@/lib/format/date";
+import { calculateInvoiceDueDate } from "@/lib/invoices/payment-terms";
 import {
     getInvoiceTypeDocumentType,
     getNextInvoiceNumber,
@@ -275,13 +275,6 @@ export async function updateSaleBuyerTaxDataAction(
         taxNumber,
         vatId,
     };
-}
-
-function addDays(dateString: string, days: number): string {
-    const date = new Date(dateString);
-    date.setDate(date.getDate() + days);
-
-    return toDateOnlyString(date);
 }
 
 function getCreatedCustomerName({
@@ -1534,7 +1527,7 @@ export async function createSaleAction(
                 invoice_type: "standard",
                 invoice_number: invoiceNumber,
                 invoice_date: saleDate,
-                due_date: addDays(saleDate, 7),
+                due_date: calculateInvoiceDueDate(saleDate),
                 net_amount: netAmount,
                 vat_rate: vatRate,
                 vat_amount: vatAmount,

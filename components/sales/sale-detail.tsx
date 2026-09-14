@@ -1219,6 +1219,10 @@ function getDatevInvoiceErrorMessage(errorCode: string): string {
 }
 
 function getZugferdErrorTitle(errorCode: string): string {
+    if (errorCode === "generationInProgress") {
+        return "ZUGFeRD-Erzeugung läuft bereits.";
+    }
+
     if (errorCode === "missingData") {
         return "ZUGFeRD konnte nicht erstellt werden.";
     }
@@ -1254,6 +1258,8 @@ function getZugferdErrorMessage(errorCode: string): string {
             "Der ZUGFeRD-Service ist aktuell nicht erreichbar. Bitte versuche es erneut.",
         serviceError:
             "Der ZUGFeRD-Service konnte die Rechnung nicht verarbeiten. Bitte versuche es erneut.",
+        generationInProgress:
+            "Für diese Rechnung läuft bereits eine ZUGFeRD-Erzeugung. Bitte warte kurz und versuche es danach erneut.",
         validationFailed: "ZUGFeRD konnte nicht validiert werden.",
         mailNotConfigured:
             "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
