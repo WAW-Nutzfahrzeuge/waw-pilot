@@ -31,6 +31,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
+import { selectCurrentVehicleDocument } from "@/lib/vehicles/vehicle-document-selection";
 import { Card, CardContent } from "@/components/ui/card";
 import { FlashMessage } from "@/components/shared/flash-message";
 import { DocumentCard } from "@/components/shared/document-card";
@@ -71,10 +72,7 @@ export function VehicleDetail({
     ];
     const primaryDocuments = primaryDocumentTypes.map((definition) => ({
         ...definition,
-        document:
-            vehicle.documents.find(
-                (document) => document.document_type === definition.type,
-            ) ?? null,
+        document: selectCurrentVehicleDocument(vehicle.documents, definition.type),
     }));
     const otherDocuments = vehicle.documents.filter(
         (document) =>
@@ -197,11 +195,24 @@ export function VehicleDetail({
 
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
-                            <SectionTitle
-                                icon={FileText}
-                                title="Schäden"
-                                description="Bekannte Schäden oder Mängel am Fahrzeug."
-                            />
+                            <div className="flex items-start justify-between gap-3">
+                                <SectionTitle
+                                    icon={FileText}
+                                    title="Schäden"
+                                    description="Bekannte Schäden oder Mängel am Fahrzeug."
+                                />
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    size="sm"
+                                    className="shrink-0 rounded-xl font-bold"
+                                >
+                                    <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
+                                        <Edit3 className="mr-1 size-3.5" />
+                                        Bearbeiten
+                                    </Link>
+                                </Button>
+                            </div>
 
                             <p className="mt-5 rounded-3xl bg-slate-50 p-4 text-sm font-semibold leading-7 text-slate-700">
                                 {vehicle.damage_notes?.trim() || "Keine Schäden hinterlegt."}
@@ -211,11 +222,24 @@ export function VehicleDetail({
 
                     <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
-                            <SectionTitle
-                                icon={Wallet}
-                                title="Preise & Kalkulation"
-                                description="Einkauf, Verkauf und Rohgewinn."
-                            />
+                            <div className="flex items-start justify-between gap-3">
+                                <SectionTitle
+                                    icon={Wallet}
+                                    title="Preise & Kalkulation"
+                                    description="Einkauf, Verkauf und Rohgewinn."
+                                />
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    size="sm"
+                                    className="shrink-0 rounded-xl font-bold"
+                                >
+                                    <Link href={`/dashboard/vehicles/${vehicle.id}/edit`}>
+                                        <Edit3 className="mr-1 size-3.5" />
+                                        Bearbeiten
+                                    </Link>
+                                </Button>
+                            </div>
 
                             <div className="mt-5 space-y-3">
                                 <InfoRow
@@ -242,7 +266,15 @@ export function VehicleDetail({
                             />
 
                             <div className="mt-5 grid gap-4">
-                                <CustomerBox title="Verkäufer" customer={vehicle.seller} />
+                                <CustomerBox
+                                    title="Verkäufer"
+                                    customer={vehicle.seller}
+                                    editHref={
+                                        vehicle.purchase_id
+                                            ? `/dashboard/ankauf/${vehicle.purchase_id}/edit`
+                                            : undefined
+                                    }
+                                />
                                 <CustomerBox title="Käufer" customer={vehicle.buyer} />
                             </div>
                         </CardContent>
@@ -483,9 +515,11 @@ export function VehicleDetail({
 function CustomerBox({
                          title,
                          customer,
+                         editHref,
                      }: {
     title: string;
     customer: VehicleDetailType["seller"];
+    editHref?: string;
 }) {
     if (!customer) {
         return (
@@ -499,9 +533,19 @@ function CustomerBox({
 
     return (
         <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-            <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                {title}
-            </p>
+            <div className="flex items-start justify-between gap-3">
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                    {title}
+                </p>
+                {editHref ? (
+                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                        <Link href={editHref}>
+                            <Edit3 className="mr-1 size-3.5" />
+                            Bearbeiten
+                        </Link>
+                    </Button>
+                ) : null}
+            </div>
             <p className="mt-2 font-extrabold text-slate-950">{customer.name}</p>
             <p className="mt-1 text-sm font-semibold text-slate-500">
                 {customer.address}

@@ -1,13 +1,18 @@
 "use client";
 
-import { useId, useRef, useState, useTransition } from "react";
-import { FileUp, Loader2, Trash2 } from "lucide-react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { Crop, FileUp, Loader2, Trash2 } from "lucide-react";
 
 import {
     deleteVehicleDocumentAction,
     uploadVehicleDocumentAction,
 } from "@/app/dashboard/vehicles/[vehicleId]/document-actions";
 import { Button } from "@/components/ui/button";
+import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
+import {
+    convertVehicleDocumentImageToPdf,
+    isConvertibleVehicleDocumentImage,
+} from "@/lib/documents/client-image-compression";
 import {
     getDocumentTooLargeMessage,
     getUnsupportedVehicleDocumentTypeMessage,
@@ -45,33 +50,23 @@ export function VehicleDocumentUploadForm({
     const inputId = useId();
     const formRef = useRef<HTMLFormElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const cropInputRef = useRef<HTMLInputElement>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [cropOpen, setCropOpen] = useState(false);
+    const [cropImageFile, setCropImageFile] = useState<File | null>(null);
     const [isPending, startTransition] = useTransition();
     const hasExistingDocument = Boolean(existingDocumentId);
 
-    function handleFileChange() {
+    useEffect(() => {
+        if (!cropOpen && cropInputRef.current) {
+            cropInputRef.current.value = "";
+        }
+    }, [cropOpen]);
+
+    function submitFile(file: File) {
         const formElement = formRef.current;
-        const file = inputRef.current?.files?.[0] ?? null;
-
         if (!formElement) return;
-
-        if (!(file instanceof File) || file.size <= 0) {
-            setErrorMessage("Bitte wähle eine Datei aus.");
-            return;
-        }
-
-        if (!isAllowedVehicleDocumentFile(file)) {
-            setErrorMessage(getUnsupportedVehicleDocumentTypeMessage());
-            setSelectedFileName(null);
-            return;
-        }
-
-        if (file.size > maxDocumentFileSizeBytes) {
-            setErrorMessage(getDocumentTooLargeMessage());
-            setSelectedFileName(null);
-            return;
-        }
 
         const formData = new FormData(formElement);
         formData.set("file", file);
@@ -94,6 +89,66 @@ export function VehicleDocumentUploadForm({
                 setSelectedFileName(null);
             }
         });
+    }
+
+    function handleFileChange() {
+        const file = inputRef.current?.files?.[0] ?? null;
+
+        if (!(file instanceof File) || file.size <= 0) {
+            setErrorMessage("Bitte wähle eine Datei aus.");
+            return;
+        }
+
+        if (!isAllowedVehicleDocumentFile(file)) {
+            setErrorMessage(getUnsupportedVehicleDocumentTypeMessage());
+            setSelectedFileName(null);
+            return;
+        }
+
+        if (file.size > maxDocumentFileSizeBytes) {
+            setErrorMessage(getDocumentTooLargeMessage());
+            setSelectedFileName(null);
+            return;
+        }
+
+        setErrorMessage(null);
+        setSelectedFileName(file.name);
+        submitFile(file);
+    }
+
+    function handleCropFileChange() {
+        const file = cropInputRef.current?.files?.[0] ?? null;
+
+        if (!file) return;
+
+        if (!isConvertibleVehicleDocumentImage(file)) {
+            setErrorMessage("Bitte wähle zum Zuschneiden ein JPG- oder PNG-Bild aus.");
+            setCropImageFile(null);
+            return;
+        }
+
+        setErrorMessage(null);
+        setCropImageFile(file);
+        setCropOpen(true);
+    }
+
+    async function handleCropComplete(file: File) {
+        try {
+            const preparedFile = await convertVehicleDocumentImageToPdf(file, {
+                maxSizeBytes: maxDocumentFileSizeBytes,
+            });
+
+            if (!isAllowedVehicleDocumentFile(preparedFile) || preparedFile.size > maxDocumentFileSizeBytes) {
+                setErrorMessage(getDocumentTooLargeMessage());
+                return;
+            }
+
+            setErrorMessage(null);
+            setSelectedFileName(preparedFile.name);
+            submitFile(preparedFile);
+        } catch {
+            setErrorMessage("Das zugeschnittene Dokument konnte nicht vorbereitet werden.");
+        }
     }
 
     return (
@@ -132,6 +187,25 @@ export function VehicleDocumentUploadForm({
                     )}
                     {hasExistingDocument ? "Ersetzen" : "Hochladen"}
                 </Button>
+                <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isPending}
+                    className="rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    onClick={() => cropInputRef.current?.click()}
+                >
+                    <Crop className="mr-1 size-3.5" />
+                    Bild zuschneiden
+                </Button>
+                <input
+                    ref={cropInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="sr-only"
+                    disabled={isPending}
+                    onChange={handleCropFileChange}
+                />
             </form>
 
             {existingDocumentId ? (
@@ -161,6 +235,13 @@ export function VehicleDocumentUploadForm({
                     {documentLabel}: {errorMessage}
                 </p>
             ) : null}
+
+            <DocumentCropDialog
+                open={cropOpen}
+                imageFile={cropImageFile}
+                onOpenChange={setCropOpen}
+                onCropComplete={handleCropComplete}
+            />
         </div>
     );
 }

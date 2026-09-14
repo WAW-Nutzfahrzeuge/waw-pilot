@@ -30,6 +30,12 @@ type ImageLayout = {
 type DragMode = "move" | "nw" | "ne" | "sw" | "se";
 
 const minCropSize = 12;
+const initialCropBox: CropBox = {
+    x: 2,
+    y: 2,
+    width: 96,
+    height: 96,
+};
 
 function getCroppedFileName(fileName: string): string {
     const extension = fileName.split(".").pop()?.toLowerCase();
@@ -92,12 +98,7 @@ export function DocumentCropDialog({
         startBox: CropBox;
     } | null>(null);
     const [imageUrl, setImageUrl] = useState<string | null>(null);
-    const [cropBox, setCropBox] = useState<CropBox>({
-        x: 8,
-        y: 8,
-        width: 84,
-        height: 84,
-    });
+    const [cropBox, setCropBox] = useState<CropBox>(initialCropBox);
     const [imageLayout, setImageLayout] = useState<ImageLayout | null>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -107,7 +108,7 @@ export function DocumentCropDialog({
         const objectUrl = URL.createObjectURL(imageFile);
         const timeoutId = window.setTimeout(() => {
             setImageUrl(objectUrl);
-            setCropBox({ x: 8, y: 8, width: 84, height: 84 });
+            setCropBox(initialCropBox);
             setImageLayout(null);
             setErrorMessage(null);
         }, 0);

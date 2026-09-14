@@ -69,6 +69,10 @@ type InvoiceRow = {
     gross_amount: number | string;
 };
 
+type PurchaseRow = {
+    id: string;
+};
+
 export type VehicleDetailDocument = {
     id: string;
     document_type: string;
@@ -114,6 +118,7 @@ export type VehicleDetail = {
     damage_notes: string | null;
     show_damage_on_invoice: boolean;
     created_at: string;
+    purchase_id: string | null;
 
     seller: {
         id: string;
@@ -297,11 +302,12 @@ export async function getVehicleDetail(
       mime_type,
       file_size,
       created_at
-    `,
+        `,
         )
         .eq("company_id", companyId)
         .eq("vehicle_id", vehicleId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
     const salesPromise = supabase
         .from("sales")
         .select(
@@ -318,15 +324,25 @@ export async function getVehicleDetail(
         .eq("company_id", companyId)
         .eq("vehicle_id", vehicleId)
         .order("sale_date", { ascending: false });
+    const purchasePromise = supabase
+        .from("purchase_cases")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("vehicle_id", vehicleId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
     const [
         customerById,
         { data: documentsData, error: documentsError },
         { data: salesData, error: salesError },
+        { data: purchaseData, error: purchaseError },
     ] = await Promise.all([
         customersPromise,
         documentsPromise,
         salesPromise,
+        purchasePromise,
     ]);
     const seller = vehicle.seller_customer_id
         ? customerById.get(vehicle.seller_customer_id) ?? null
@@ -358,6 +374,14 @@ export async function getVehicleDetail(
             `Fahrzeugverkäufe konnten nicht geladen werden: ${salesError.message}`,
         );
     }
+
+    if (purchaseError) {
+        throw new Error(
+            `Ankauf zum Fahrzeug konnte nicht geladen werden: ${purchaseError.message}`,
+        );
+    }
+
+    const purchase = purchaseData as PurchaseRow | null;
 
     const salesRows = (salesData ?? []) as SaleRow[];
     const saleIds = salesRows.map((sale) => sale.id);
@@ -471,6 +495,7 @@ export async function getVehicleDetail(
         damage_notes: vehicle.damage_notes,
         show_damage_on_invoice: Boolean(vehicle.show_damage_on_invoice),
         created_at: vehicle.created_at,
+        purchase_id: purchase?.id ?? null,
 
         seller: mapCustomer(seller),
         buyer: mapCustomer(buyer),

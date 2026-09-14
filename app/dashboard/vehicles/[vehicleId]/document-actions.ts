@@ -58,6 +58,7 @@ async function getLatestVehicleDocument({
         .eq("vehicle_id", vehicleId)
         .eq("document_type", documentType)
         .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
         .limit(1)
         .maybeSingle();
 
