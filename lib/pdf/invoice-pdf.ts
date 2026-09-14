@@ -254,6 +254,22 @@ function drawRightAlignedText(
     });
 }
 
+function fitTextSize(
+    text: string,
+    font: PDFFont,
+    preferredSize: number,
+    minSize: number,
+    maxWidth: number,
+): number {
+    let size = preferredSize;
+
+    while (size > minSize && font.widthOfTextAtSize(text, size) > maxWidth) {
+        size -= 0.25;
+    }
+
+    return size;
+}
+
 async function drawSignatureStampImages(
     page: PDFPage,
     pdfDoc: PDFDocument,
@@ -804,15 +820,26 @@ export async function generateInvoicePdf(
      */
     drawText(page, "Käufer | Buyer:", 42, 662, {
         font: helveticaBold,
-        size: 7.2,
+        size: 8,
         color: gray,
     });
 
-    drawWrappedLines(page, getCustomerAddressLines(data), 42, 646, {
+    const customerAddressLines = getCustomerAddressLines(data);
+    const [customerName, ...customerAddressLinesRest] = customerAddressLines;
+
+    drawWrappedText(page, customerName ?? "-", 42, 646, {
         font: helveticaBold,
-        size: 7,
+        size: 8.2,
         lineHeight: 10,
-        maxWidth: 245,
+        maxWidth: 290,
+        maxLines: 1,
+    });
+
+    drawWrappedLines(page, customerAddressLinesRest, 42, 634, {
+        font: helvetica,
+        size: 7.5,
+        lineHeight: 10,
+        maxWidth: 290,
     });
 
     drawText(page, getSaleTypeInvoiceLabel(data.saleType), 42, 586, {
@@ -824,9 +851,9 @@ export async function generateInvoicePdf(
     /**
      * Rechte Firmen- und Bankdatenbox
      */
-    const infoBoxX = 378;
+    const infoBoxX = 350;
     const infoBoxY = 468;
-    const infoBoxWidth = 178;
+    const infoBoxWidth = 206;
     const infoBoxHeight = 250;
     const infoHeaderHeight = 18;
 
@@ -840,6 +867,9 @@ export async function generateInvoicePdf(
         borderWidth: 1,
         fillColor: tableGray,
     });
+
+    const rightContentX = infoBoxX + 10;
+    const rightContentWidth = infoBoxWidth - 20;
 
     drawWrappedLines(
         page,
@@ -856,13 +886,13 @@ export async function generateInvoicePdf(
             `Steuer-Nr: ${safeText(data.company.taxNumber)}`,
             safeText(data.company.vatId),
         ].filter((line): line is string => line !== null),
-        infoBoxX + 6,
+        rightContentX,
         infoBoxY + infoBoxHeight - 35,
         {
             font: helveticaBold,
-            size: 5.7,
-            lineHeight: 11,
-            maxWidth: infoBoxWidth - 12,
+            size: 6.1,
+            lineHeight: 10,
+            maxWidth: rightContentWidth,
         },
     );
 
@@ -874,10 +904,19 @@ export async function generateInvoicePdf(
         borderWidth: 1.5,
     });
 
+    const bankContentX = rightContentX;
+    const bankContentWidth = rightContentWidth;
+    const bankTopY = bankBoxY + bankBoxHeight;
+
+    drawText(page, "Bankverbindung | bank information:", bankContentX, bankTopY - 17, {
+        font: helveticaBold,
+        size: 6.6,
+        maxWidth: bankContentWidth,
+    });
+
     drawWrappedLines(
         page,
         [
-            "Bankverbindung | bank information:",
             `Kontoinhaber: ${safeText(data.company.bankAccountHolder ?? data.company.legalName)}`,
             `Kreditinstitut/Bank: ${safeText(data.company.bankName)}`,
             data.company.bankBlz ? `BLZ: ${data.company.bankBlz}` : null,
@@ -890,13 +929,13 @@ export async function generateInvoicePdf(
                 ? "Fahrgestellnummer / vehicle identification number"
                 : "Fahrgestell-Nr. | Vehicle Identification Number (VIN)",
         ].filter((line): line is string => line !== null),
-        infoBoxX + 6,
-        bankBoxY + bankBoxHeight - 13,
+        bankContentX,
+        bankTopY - 30,
         {
             font: helveticaBold,
-            size: 5.3,
-            lineHeight: 10,
-            maxWidth: infoBoxWidth - 12,
+            size: 6.1,
+            lineHeight: 9,
+            maxWidth: bankContentWidth,
         },
     );
 
@@ -1016,47 +1055,50 @@ export async function generateInvoicePdf(
         6.2,
     );
 
-    const vehicleLabelX = tableX + 16;
-    const vehicleValueX = tableX + 72;
+    const vehicleLabelX = tableX + 12;
+    const vehicleLabelWidth = 52;
+    const vehicleValueX = vehicleLabelX + vehicleLabelWidth;
     const vehicleStartY = tableContentTopY - 12;
     const vehicleLineHeight = 25;
+    const vehicleValueMaxWidth = col1 - (vehicleValueX - tableX) - 12;
+    const vehicleTextSize = 8;
 
     drawText(page, "Marke:", vehicleLabelX, vehicleStartY, {
         font: helveticaBold,
-        size: 7,
+        size: vehicleTextSize,
     });
 
     drawWrappedText(page, safeText(data.vehicle.manufacturer), vehicleValueX, vehicleStartY, {
         font: helveticaBold,
-        size: 7,
-        lineHeight: 8,
-        maxWidth: col1 - 86,
+        size: vehicleTextSize,
+        lineHeight: 9,
+        maxWidth: vehicleValueMaxWidth,
         maxLines: 2,
     });
 
     drawText(page, "Art/Typ:", vehicleLabelX, vehicleStartY - vehicleLineHeight, {
         font: helveticaBold,
-        size: 7,
+        size: vehicleTextSize,
     });
 
     drawWrappedText(page, safeText(data.vehicle.model), vehicleValueX, vehicleStartY - vehicleLineHeight, {
         font: helveticaBold,
-        size: 7,
-        lineHeight: 8,
-        maxWidth: col1 - 86,
+        size: vehicleTextSize,
+        lineHeight: 9,
+        maxWidth: vehicleValueMaxWidth,
         maxLines: 2,
     });
 
     drawText(page, getThirdVehicleLineLabel(data.invoiceType), vehicleLabelX, vehicleStartY - vehicleLineHeight * 2, {
         font: helveticaBold,
-        size: 7,
+        size: vehicleTextSize,
     });
 
-    drawWrappedText(page, getThirdVehicleLineValue(data), vehicleValueX + 26, vehicleStartY - vehicleLineHeight * 2, {
+    drawWrappedText(page, getThirdVehicleLineValue(data), vehicleValueX, vehicleStartY - vehicleLineHeight * 2, {
         font: helveticaBold,
-        size: 7,
-        lineHeight: 8,
-        maxWidth: col1 - 112,
+        size: vehicleTextSize,
+        lineHeight: 9,
+        maxWidth: vehicleValueMaxWidth,
         maxLines: 2,
     });
 
@@ -1068,9 +1110,9 @@ export async function generateInvoicePdf(
         col2,
         {
             font: helveticaBold,
-            size: 7,
+            size: 7.5,
             lineHeight: 8,
-            paddingX: 18,
+            paddingX: 12,
             paddingTop: 14,
             maxLines: 3,
         },
@@ -1084,29 +1126,38 @@ export async function generateInvoicePdf(
         col2,
         {
             font: helveticaBold,
-            size: 7,
+            size: 7.5,
             lineHeight: 9,
-            paddingX: 28,
+            paddingX: 12,
             paddingTop: 10,
             maxLines: 3,
-            align: "center",
+            align: "left",
         },
+    );
+
+    const vehiclePrice = formatCurrency(data.amounts.netAmount);
+    const vehiclePriceSize = fitTextSize(
+        vehiclePrice,
+        helveticaBold,
+        8.2,
+        6.5,
+        col3 - 16,
     );
 
     drawCellText(
         page,
-        formatCurrency(data.amounts.netAmount),
+        vehiclePrice,
         tableX + col1 + col2,
         tableContentTopY,
         col3,
         {
             font: helveticaBold,
-            size: 6.2,
+            size: vehiclePriceSize,
             lineHeight: 7,
-            paddingX: 6,
+            paddingX: 8,
             paddingTop: 23,
-            maxLines: 2,
-            align: "right",
+            maxLines: 1,
+            align: "center",
         },
     );
 
@@ -1160,7 +1211,7 @@ export async function generateInvoicePdf(
         totalsX + totalsBoxWidth - 6,
         totalsY + 41,
         helveticaBold,
-        5.8,
+        6,
     );
 
     drawRightAlignedText(
@@ -1184,7 +1235,7 @@ export async function generateInvoicePdf(
         totalsX + totalsBoxWidth - 6,
         totalsY + 23,
         helveticaBold,
-        5.8,
+        6,
     );
 
     drawRightAlignedText(
@@ -1202,13 +1253,22 @@ export async function generateInvoicePdf(
         fillColor: lightGray,
     });
 
+    const grossAmountText = formatCurrency(data.amounts.grossAmount);
+    const grossAmountSize = fitTextSize(
+        grossAmountText,
+        helveticaBold,
+        7.4,
+        6,
+        totalsBoxWidth - 12,
+    );
+
     drawRightAlignedText(
         page,
-        formatCurrency(data.amounts.grossAmount),
+        grossAmountText,
         totalsX + totalsBoxWidth - 6,
         totalsY + 5,
         helveticaBold,
-        5.8,
+        grossAmountSize,
     );
 
     await drawSignatureStampImages(page, pdfDoc, data.signatureStamp);
