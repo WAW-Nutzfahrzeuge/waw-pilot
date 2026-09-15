@@ -13,7 +13,6 @@ import {
 } from "@/lib/documents/upload-validation";
 import {
     cleanupPrivateDocumentFile,
-    getRequiredFileFromFormData,
     uploadPrivateDocumentFile,
 } from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -49,6 +48,58 @@ function getPurchaseDocumentLabel(documentType: string): string {
     return labels[documentType] ?? documentType;
 }
 
+async function insertAdditionalPurchaseDocument({
+    supabase,
+    companyId,
+    purchaseId,
+    vehicleId,
+    sellerCustomerId,
+    documentType,
+    file,
+}: {
+    supabase: ReturnType<typeof createServerSupabaseClient>;
+    companyId: string;
+    purchaseId: string;
+    vehicleId: string | null;
+    sellerCustomerId: string | null;
+    documentType: string;
+    file: File;
+}): Promise<string | null> {
+    const uploadResult = await uploadPrivateDocumentFile({
+        supabase,
+        file,
+        directory: `purchases/${purchaseId}`,
+        documentType,
+    });
+
+    if (!uploadResult.success) return null;
+
+    const { originalFileName, filePath, mimeType, fileSize } = uploadResult.uploadedFile;
+    const { error } = await supabase.from("documents").insert({
+        company_id: companyId,
+        document_type: documentType,
+        source: "uploaded",
+        status: "available",
+        file_name: originalFileName,
+        file_path: filePath,
+        mime_type: mimeType,
+        file_size: fileSize,
+        customer_id: sellerCustomerId,
+        vehicle_id: vehicleId,
+        sale_id: null,
+        invoice_id: null,
+        purchase_case_id: purchaseId,
+        generated_by_system: false,
+    });
+
+    if (error) {
+        await cleanupPrivateDocumentFile({ supabase, filePath });
+        return null;
+    }
+
+    return filePath;
+}
+
 export async function uploadPurchaseDocumentAction(
     _previousState: UploadPurchaseDocumentState,
     formData: FormData,
@@ -59,7 +110,10 @@ export async function uploadPurchaseDocumentAction(
     const purchaseId = getStringFormValue(formData, "purchase_id");
     const documentType = getStringFormValue(formData, "document_type");
     const existingDocumentId = getStringFormValue(formData, "existing_document_id");
-    const fileValue = getRequiredFileFromFormData(formData);
+    const fileValues = formData.getAll("file").filter(
+        (value): value is File => value instanceof File && value.size > 0,
+    );
+    const fileValue = fileValues[0] ?? null;
 
     if (!purchaseId) {
         return {
@@ -82,7 +136,7 @@ export async function uploadPurchaseDocumentAction(
         };
     }
 
-    if (!isAllowedDocumentFile(fileValue)) {
+    if (fileValues.some((file) => !isAllowedDocumentFile(file))) {
         return {
             success: false,
             message: getUnsupportedDocumentTypeMessage(),
@@ -224,6 +278,39 @@ export async function uploadPurchaseDocumentAction(
             entityType: "document",
             entityId: savedDocumentId,
         });
+    }
+
+    const additionalFilePaths: string[] = [];
+    for (const additionalFile of fileValues.slice(1)) {
+        const storedPath = await insertAdditionalPurchaseDocument({
+            supabase,
+            companyId,
+            purchaseId,
+            vehicleId: purchaseCase.vehicle_id,
+            sellerCustomerId: purchaseCase.seller_customer_id,
+            documentType,
+            file: additionalFile,
+        });
+
+        if (!storedPath) {
+            if (additionalFilePaths.length > 0) {
+                await supabase
+                    .from("documents")
+                    .delete()
+                    .eq("company_id", companyId)
+                    .in("file_path", additionalFilePaths);
+            }
+            await Promise.all(
+                additionalFilePaths.map((filePath) =>
+                    cleanupPrivateDocumentFile({ supabase, filePath }),
+                ),
+            );
+            return {
+                success: false,
+                message: "Mindestens ein weiteres Dokument konnte nicht gespeichert werden.",
+            };
+        }
+        additionalFilePaths.push(storedPath);
     }
 
     const { data: purchaseDocuments } = await supabase

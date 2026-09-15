@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 
 export type UploadedPrivateDocumentFile = {
     originalFileName: string;
@@ -56,7 +57,7 @@ export async function uploadPrivateDocumentFile({
 > {
     const originalFileName = sanitizeDocumentFileName(file.name);
     const fileExtension = getFileExtension(originalFileName);
-    const fileName = `${documentType}-${Date.now()}${fileExtension}`;
+    const fileName = `${documentType}-${randomUUID()}${fileExtension}`;
     const filePath = `${directory}/${fileName}`;
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 

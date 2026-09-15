@@ -45,6 +45,7 @@ import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-l
 import { ActionMessage } from "@/components/shared/action-message";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
+import { normalizeVin } from "@/lib/vehicles/vin";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -502,7 +503,7 @@ function VehicleCreateFields() {
             <FormField label="Hersteller *" name="new_vehicle_manufacturer" required />
             <FormField label="Modell *" name="new_vehicle_model" required />
             <FormField label="Typ *" name="new_vehicle_type" required />
-            <FormField label="Fahrgestellnummer / VIN *" name="new_vehicle_vin" required />
+            <FormField label="Fahrgestellnummer / VIN *" name="new_vehicle_vin" required normalize={normalizeVin} />
             <FormField label="Baujahr" name="new_vehicle_construction_year" type="number" />
             <FormField label="Kilometerstand" name="new_vehicle_mileage" type="number" />
             <FormField label="Farbe" name="new_vehicle_color" />
@@ -748,6 +749,7 @@ function FormField({
     placeholder,
     value,
     onChange,
+    normalize,
 }: {
     label: string;
     name: string;
@@ -757,6 +759,7 @@ function FormField({
     placeholder?: string;
     value?: string;
     onChange?: ChangeEventHandler<HTMLInputElement>;
+    normalize?: (value: string) => string;
 }) {
     return (
         <div className="space-y-2">
@@ -772,7 +775,10 @@ function FormField({
                 defaultValue={defaultValue}
                 placeholder={placeholder}
                 value={value}
-                onChange={onChange}
+                onChange={(event) => {
+                    if (normalize) event.currentTarget.value = normalize(event.currentTarget.value);
+                    onChange?.(event);
+                }}
                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
         </div>

@@ -11,6 +11,7 @@ import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
+import { normalizeVin } from "@/lib/vehicles/vin";
 
 export type UpdateVehicleState = {
     success: boolean;
@@ -63,7 +64,7 @@ export async function updateVehicleAction(
     const model = getStringFormValue(formData, "model");
     const vehicleType = getStringFormValue(formData, "vehicle_type");
     const constructionYear = getDecimalFormValue(formData, "construction_year");
-    const vin = getStringFormValue(formData, "vin");
+    const vin = normalizeVin(getStringFormValue(formData, "vin") ?? "");
     const licensePlate = getStringFormValue(formData, "license_plate");
     const purchasePriceNet = getDecimalFormValue(formData, "purchase_price_net");
     const additionalCostsNet = getDecimalFormValue(formData, "additional_costs_net") ?? 0;
@@ -144,7 +145,7 @@ export async function updateVehicleAction(
         .from("vehicles")
         .select("id")
         .eq("company_id", companyId)
-        .eq("vin", vin)
+        .ilike("vin", vin)
         .neq("id", vehicleId)
         .limit(1);
 

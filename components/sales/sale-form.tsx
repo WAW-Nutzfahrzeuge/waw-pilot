@@ -56,6 +56,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { normalizeVin } from "@/lib/vehicles/vin";
 
 const initialState = {
     success: false,
@@ -1373,7 +1374,7 @@ function NewVehicleFields({
                 <FormField label="Hersteller *" name="new_vehicle_manufacturer" required />
                 <FormField label="Modell *" name="new_vehicle_model" required />
                 <FormField label="Fahrzeugtyp *" name="new_vehicle_vehicle_type" required />
-                <FormField label="FIN / VIN *" name="new_vehicle_vin" required />
+                <FormField label="FIN / VIN *" name="new_vehicle_vin" required normalize={normalizeVin} />
                 <FormField label="Kennzeichen" name="new_vehicle_license_plate" />
                 <FormField
                     label="Baujahr"
@@ -1543,6 +1544,7 @@ function FormField({
                        pattern,
                        title,
                        onInput,
+                       normalize,
                    }: {
     label: string;
     name: string;
@@ -1558,6 +1560,7 @@ function FormField({
     pattern?: string;
     title?: string;
     onInput?: FormEventHandler<HTMLInputElement>;
+    normalize?: (value: string) => string;
 }) {
     return (
         <div className="space-y-2">
@@ -1573,7 +1576,10 @@ function FormField({
                 placeholder={placeholder}
                 step={step}
                 value={value}
-                onChange={onChange}
+                onChange={(event) => {
+                    if (normalize) event.currentTarget.value = normalize(event.currentTarget.value);
+                    onChange?.(event);
+                }}
                 readOnly={readOnly}
                 pattern={pattern}
                 title={title}

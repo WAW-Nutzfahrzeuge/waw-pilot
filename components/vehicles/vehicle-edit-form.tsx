@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DocumentCard } from "@/components/shared/document-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { VehicleDocumentUploadForm } from "@/components/vehicles/vehicle-document-upload-form";
+import { normalizeVin } from "@/lib/vehicles/vin";
 import {
     formatFileSize,
     getDocumentSourceLabel,
@@ -221,6 +222,9 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                                 id="vin"
                                                 name="vin"
                                                 defaultValue={vehicle.vin}
+                                                onInput={(event) => {
+                                                    event.currentTarget.value = normalizeVin(event.currentTarget.value);
+                                                }}
                                                 required
                                                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-mono font-semibold"
                                             />

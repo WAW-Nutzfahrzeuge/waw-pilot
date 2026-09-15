@@ -27,7 +27,6 @@ import {
 import { isAllowedArrivalPeriod } from "@/lib/sales/export-date-rules";
 import {
     evaluateVehicleSaleEligibility,
-    normalizeVinForSale,
 } from "@/lib/sales/vehicle-sale-eligibility";
 import {
     getSaleTaxConfiguration,
@@ -39,6 +38,7 @@ import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
+import { normalizeVin } from "@/lib/vehicles/vin";
 
 type CreateSaleState = {
     success: boolean;
@@ -742,7 +742,7 @@ async function createVehicleFromSaleForm(
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_vehicle_type");
     const vin = getStringValue(formData, "new_vehicle_vin");
-    const normalizedVin = vin ? normalizeVinForSale(vin) : null;
+    const normalizedVin = vin ? normalizeVin(vin) : null;
     const constructionYear = getNumberValue(formData, "new_vehicle_construction_year");
     const mileage = getNumberValue(formData, "new_vehicle_mileage");
     const color = getStringValue(formData, "new_vehicle_color");
@@ -772,7 +772,7 @@ async function createVehicleFromSaleForm(
         .from("vehicles")
         .select("id")
         .eq("company_id", companyId)
-        .eq("vin", normalizedVin)
+        .ilike("vin", normalizedVin)
         .limit(1);
 
     if (duplicateVinError) {
@@ -863,7 +863,7 @@ async function validateVehicleFromSaleForm(
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_vehicle_type");
     const vin = getStringValue(formData, "new_vehicle_vin");
-    const normalizedVin = vin ? normalizeVinForSale(vin) : null;
+    const normalizedVin = vin ? normalizeVin(vin) : null;
     const purchasePriceNet = getNumberValue(formData, "new_vehicle_purchase_price_net");
 
     if (!manufacturer || !model || !vehicleType || !normalizedVin) {
@@ -884,7 +884,7 @@ async function validateVehicleFromSaleForm(
         .from("vehicles")
         .select("id")
         .eq("company_id", companyId)
-        .eq("vin", normalizedVin)
+        .ilike("vin", normalizedVin)
         .limit(1);
 
     if (duplicateVinError) {

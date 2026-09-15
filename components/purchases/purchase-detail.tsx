@@ -287,12 +287,12 @@ export function PurchaseDetail({
 
                             <div className="mt-5 space-y-4">
                                 {purchaseRequiredDocuments.map((requiredDocument) => {
-                                    const existingDocument =
-                                        purchase.documents.find(
-                                            (document) =>
-                                                document.document_type ===
-                                                requiredDocument.documentType,
-                                        ) ?? null;
+                                    const existingDocuments = purchase.documents.filter(
+                                        (document) =>
+                                            document.document_type === requiredDocument.documentType &&
+                                            document.status === "available",
+                                    );
+                                    const existingDocument = existingDocuments[0] ?? null;
 
                                     return (
                                         <div
@@ -323,11 +323,19 @@ export function PurchaseDetail({
                                                         )}
                                                     </div>
 
-                                                    <p className="mt-1 text-sm font-medium text-slate-500">
-                                                        {existingDocument
-                                                            ? existingDocument.file_name
-                                                            : "Noch nicht hochgeladen"}
-                                                    </p>
+                                                    {existingDocuments.length > 0 ? (
+                                                        <div className="mt-1 space-y-1">
+                                                            {existingDocuments.map((document) => (
+                                                                <p key={document.id} className="text-sm font-medium text-slate-500">
+                                                                    {document.file_name}
+                                                                </p>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="mt-1 text-sm font-medium text-slate-500">
+                                                            Noch nicht hochgeladen
+                                                        </p>
+                                                    )}
 
                                                     {existingDocument?.file_path ? (
                                                         <div className="mt-3 flex flex-wrap gap-2">
@@ -359,6 +367,17 @@ export function PurchaseDetail({
                                                                     Download
                                                                 </Link>
                                                             </Button>
+
+                                                            {existingDocuments.slice(1).map((document) => (
+                                                                document.file_path ? (
+                                                                    <Button key={document.id} asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                                        <Link href={`/api/documents/${document.id}/file`} target="_blank">
+                                                                            <ExternalLink className="mr-1 size-3.5" />
+                                                                            Weitere öffnen
+                                                                        </Link>
+                                                                    </Button>
+                                                                ) : null
+                                                            ))}
                                                         </div>
                                                     ) : null}
                                                 </div>

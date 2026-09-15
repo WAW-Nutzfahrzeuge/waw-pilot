@@ -60,18 +60,29 @@ function VehicleDocumentUploadField({
     const inputId = useId();
     const inputRef = useRef<HTMLInputElement>(null);
     const cropInputRef = useRef<HTMLInputElement>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [infoMessage, setInfoMessage] = useState<string | null>(null);
     const [isCompressing, setIsCompressing] = useState(false);
     const [cropOpen, setCropOpen] = useState(false);
     const [cropImageFile, setCropImageFile] = useState<File | null>(null);
+    const [cropQueue, setCropQueue] = useState<File[]>([]);
+    const cropCompletedRef = useRef(false);
 
     useEffect(() => {
         if (!cropOpen && cropInputRef.current) {
             cropInputRef.current.value = "";
         }
     }, [cropOpen]);
+
+    function openNextCrop(files: File[]) {
+        const [nextFile, ...remainingFiles] = files;
+        if (!nextFile) return;
+
+        setCropQueue(remainingFiles);
+        setCropImageFile(nextFile);
+        setCropOpen(true);
+    }
 
     function validateFile(file: File): boolean {
         if (!isAllowedVehicleDocumentFile(file)) {
@@ -88,13 +99,13 @@ function VehicleDocumentUploadField({
         return true;
     }
 
-    function writeFileToInput(file: File) {
+    function writeFilesToInput(files: File[]) {
         const input = inputRef.current;
 
         if (!input) return;
 
         const transfer = new DataTransfer();
-        transfer.items.add(file);
+        files.forEach((file) => transfer.items.add(file));
         input.files = transfer.files;
     }
 
@@ -139,24 +150,34 @@ function VehicleDocumentUploadField({
     }
 
     async function handleFileChange() {
-        const file = inputRef.current?.files?.[0] ?? null;
+        const files = Array.from(inputRef.current?.files ?? []);
 
-        if (!file) {
-            setSelectedFile(null);
+        if (files.length === 0) {
+            setSelectedFiles([]);
             setErrorMessage(null);
             setInfoMessage(null);
             return;
         }
 
-        const preparedFile = await prepareSelectedFile(file);
+        const imageFiles = files.filter((file) => isConvertibleVehicleDocumentImage(file));
+        const preparedFiles: File[] = [];
+        for (const file of files) {
+            if (isConvertibleVehicleDocumentImage(file)) continue;
 
-        if (!preparedFile || !validateFile(preparedFile)) {
-            resetFileInput();
-            return;
+            const preparedFile = await prepareSelectedFile(file);
+            if (!preparedFile || !validateFile(preparedFile)) {
+                resetFileInput();
+                return;
+            }
+            preparedFiles.push(preparedFile);
         }
 
-        writeFileToInput(preparedFile);
-        setSelectedFile(preparedFile);
+        writeFilesToInput(preparedFiles);
+        setSelectedFiles(preparedFiles);
+
+        if (imageFiles.length > 0) {
+            openNextCrop(imageFiles);
+        }
     }
 
     function handleCropFileChange() {
@@ -184,8 +205,17 @@ function VehicleDocumentUploadField({
 
         if (!preparedFile || !validateFile(preparedFile)) return;
 
-        writeFileToInput(preparedFile);
-        setSelectedFile(preparedFile);
+        const nextFiles = [...selectedFiles, preparedFile];
+        writeFilesToInput(nextFiles);
+        setSelectedFiles(nextFiles);
+        cropCompletedRef.current = true;
+        window.setTimeout(() => openNextCrop(cropQueue), 0);
+    }
+
+    function removeFile(index: number) {
+        const nextFiles = selectedFiles.filter((_, fileIndex) => fileIndex !== index);
+        writeFilesToInput(nextFiles);
+        setSelectedFiles(nextFiles);
     }
 
     function resetFileInput() {
@@ -193,7 +223,7 @@ function VehicleDocumentUploadField({
             inputRef.current.value = "";
         }
 
-        setSelectedFile(null);
+        setSelectedFiles([]);
         setInfoMessage(null);
     }
 
@@ -221,7 +251,7 @@ function VehicleDocumentUploadField({
                     {isCompressing ? "Wandelt um..." : "Hochladen"}
                 </Button>
 
-                {selectedFile ? (
+                {selectedFiles.length > 0 ? (
                     <Button
                         type="button"
                         variant="outline"
@@ -230,7 +260,7 @@ function VehicleDocumentUploadField({
                         onClick={resetFileInput}
                     >
                         <X className="mr-2 size-4" />
-                        Entfernen
+                        Alle entfernen
                     </Button>
                 ) : null}
 
@@ -251,6 +281,7 @@ function VehicleDocumentUploadField({
                 id={inputId}
                 name={name}
                 type="file"
+                multiple
                 accept={vehicleDocumentAcceptMimeTypes}
                 className="sr-only"
                 onChange={handleFileChange}
@@ -263,10 +294,18 @@ function VehicleDocumentUploadField({
                 onChange={handleCropFileChange}
             />
 
-            {selectedFile ? (
-                <p className="mt-3 truncate text-sm font-bold text-emerald-700">
-                    {selectedFile.name} · {formatFileSize(selectedFile.size)}
-                </p>
+            {selectedFiles.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                    {selectedFiles.map((file, index) => (
+                        <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+                            <span className="min-w-0 flex-1 truncate">{file.name} · {formatFileSize(file.size)}</span>
+                            <button type="button" className="shrink-0 text-xs font-extrabold text-slate-500 hover:text-red-700" onClick={() => removeFile(index)}>
+                                Entfernen
+                            </button>
+                        </div>
+                    ))}
+                    <p className="text-xs font-semibold text-slate-500">Weitere Bilder können hinzugefügt werden.</p>
+                </div>
             ) : (
                 <p className="mt-3 text-xs font-semibold text-slate-500">
                     PDF bleibt PDF. JPG und PNG werden als PDF gespeichert. Max. {formatFileSize(maxFileSizeBytes)}.
@@ -288,7 +327,16 @@ function VehicleDocumentUploadField({
             <DocumentCropDialog
                 open={cropOpen}
                 imageFile={cropImageFile}
-                onOpenChange={setCropOpen}
+                onOpenChange={(open) => {
+                    setCropOpen(open);
+                    if (!open && cropQueue.length > 0) {
+                        if (cropCompletedRef.current) {
+                            cropCompletedRef.current = false;
+                        } else {
+                            window.setTimeout(() => openNextCrop(cropQueue), 0);
+                        }
+                    }
+                }}
                 onCropComplete={handleCropComplete}
             />
         </div>

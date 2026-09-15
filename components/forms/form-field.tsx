@@ -16,6 +16,7 @@ type FormFieldProps = {
     error?: ReactNode;
     children?: ReactNode;
     className?: string;
+    onInput?: React.InputHTMLAttributes<HTMLInputElement>["onInput"];
 };
 
 export function FormField({
@@ -29,6 +30,7 @@ export function FormField({
     error,
     children,
     className,
+    onInput,
 }: FormFieldProps) {
     return (
         <div className={cn("space-y-2", className)}>
@@ -46,6 +48,7 @@ export function FormField({
                     placeholder={placeholder}
                     aria-invalid={Boolean(error)}
                     className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
+                    onInput={onInput}
                 />
             )}
             {description ? <p className="text-xs font-semibold leading-5 text-slate-500">{description}</p> : null}

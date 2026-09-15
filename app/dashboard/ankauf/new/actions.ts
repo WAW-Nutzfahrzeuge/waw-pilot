@@ -24,6 +24,7 @@ import {
     maxPurchaseCreateUploadPayloadBytes,
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeVin } from "@/lib/vehicles/vin";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
     getDuplicateVinMessage,
@@ -128,12 +129,10 @@ function getNumberValue(formData: FormData, key: string): number | null {
     return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function getFileValue(formData: FormData, key: string): File | null {
-    const value = formData.get(key);
-
-    if (!(value instanceof File) || value.size <= 0) return null;
-
-    return value;
+function getFileValues(formData: FormData, key: string): File[] {
+    return formData.getAll(key).filter(
+        (value): value is File => value instanceof File && value.size > 0,
+    );
 }
 
 function roundMoney(value: number): number {
@@ -239,7 +238,7 @@ async function storePurchaseVehicleDocument({
 
     const originalFileName = sanitizeFileName(file.name);
     const fileExtension = getFileExtension(originalFileName);
-    const fileName = `${documentType}-${Date.now()}${fileExtension}`;
+    const fileName = `${documentType}-${randomUUID()}${fileExtension}`;
     const filePath = `purchases/${purchaseCaseId}/${fileName}`;
 
     logPurchaseWorkflow(requestId, "document_upload_start", {
@@ -655,7 +654,7 @@ async function resolveVehicleId({
     const manufacturer = getStringValue(formData, "new_vehicle_manufacturer");
     const model = getStringValue(formData, "new_vehicle_model");
     const vehicleType = getStringValue(formData, "new_vehicle_type");
-    const vin = getStringValue(formData, "new_vehicle_vin");
+    const vin = normalizeVin(getStringValue(formData, "new_vehicle_vin") ?? "");
     const constructionYear = getNumberValue(
         formData,
         "new_vehicle_construction_year",
@@ -676,7 +675,7 @@ async function resolveVehicleId({
         .from("vehicles")
         .select("id")
         .eq("company_id", companyId)
-        .eq("vin", vin)
+        .ilike("vin", vin)
         .limit(1);
 
     if (duplicateVin && duplicateVin.length > 0) {
@@ -763,21 +762,17 @@ export async function createPurchaseCaseAction(
     const paymentStatus = getStringValue(formData, "payment_status") ?? "open";
     const notes = getStringValue(formData, "notes");
     const documentUploads = [
-        getFileValue(formData, "vehicle_registration_file")
-            ? {
-                  file: getFileValue(formData, "vehicle_registration_file") as File,
-                  documentType: "vehicle_registration" as const,
-                  label: "Fahrzeugschein",
-              }
-            : null,
-        getFileValue(formData, "purchase_invoice_file")
-            ? {
-                  file: getFileValue(formData, "purchase_invoice_file") as File,
-                  documentType: "purchase_invoice" as const,
-                  label: "Einkaufsrechnung",
-              }
-            : null,
-    ].filter((upload): upload is NonNullable<typeof upload> => Boolean(upload));
+        ...getFileValues(formData, "vehicle_registration_file").map((file) => ({
+            file,
+            documentType: "vehicle_registration" as const,
+            label: "Fahrzeugschein",
+        })),
+        ...getFileValues(formData, "purchase_invoice_file").map((file) => ({
+            file,
+            documentType: "purchase_invoice" as const,
+            label: "Einkaufsrechnung",
+        })),
+    ];
     const totalUploadSize = documentUploads.reduce(
         (total, upload) => total + upload.file.size,
         0,

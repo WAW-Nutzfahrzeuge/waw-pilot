@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
+import { normalizeVin } from "@/lib/vehicles/vin";
 
 const initialState = {
     success: false,
@@ -103,7 +104,7 @@ export function VehicleForm({
                             <FormField label="Hersteller *" name="manufacturer" required />
                             <FormField label="Modell *" name="model" required />
                             <FormField label="Fahrzeugtyp *" name="vehicle_type" required />
-                            <FormField label="FIN / VIN *" name="vin" required />
+                            <FormField label="FIN / VIN *" name="vin" required normalize={normalizeVin} />
                             <FormField
                                 label="Vorheriges Kennzeichen (optional)"
                                 name="license_plate"
@@ -295,6 +296,7 @@ function FormField({
                        defaultValue,
                        placeholder,
                        step,
+                       normalize,
                    }: {
     label: string;
     name: string;
@@ -303,6 +305,7 @@ function FormField({
     defaultValue?: string;
     placeholder?: string;
     step?: string;
+    normalize?: (value: string) => string;
 }) {
     return (
         <div className="space-y-2">
@@ -317,6 +320,7 @@ function FormField({
                 defaultValue={defaultValue}
                 placeholder={placeholder}
                 step={step}
+                onChange={normalize ? (event) => { event.currentTarget.value = normalize(event.currentTarget.value); } : undefined}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
         </div>

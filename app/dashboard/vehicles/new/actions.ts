@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 
 import { getCurrentCompanyId } from "@/lib/company";
 import { getTodayDateOnly } from "@/lib/format/date";
@@ -13,6 +14,7 @@ import {
     maxDocumentFileSizeBytes,
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeVin } from "@/lib/vehicles/vin";
 import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
@@ -48,12 +50,10 @@ function getDateValue(formData: FormData, key: string): string | null {
     return getStringValue(formData, key);
 }
 
-function getFileValue(formData: FormData, key: string): File | null {
-    const value = formData.get(key);
-
-    if (!(value instanceof File) || value.size <= 0) return null;
-
-    return value;
+function getFileValues(formData: FormData, key: string): File[] {
+    return formData.getAll(key).filter(
+        (value): value is File => value instanceof File && value.size > 0,
+    );
 }
 
 function sanitizeFileName(fileName: string): string {
@@ -120,7 +120,7 @@ async function storeVehicleDocument({
 
     const originalFileName = sanitizeFileName(file.name);
     const fileExtension = getFileExtension(originalFileName);
-    const fileName = `${documentType}-${Date.now()}${fileExtension}`;
+    const fileName = `${documentType}-${randomUUID()}${fileExtension}`;
     const filePath = `vehicles/${vehicleId}/${fileName}`;
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
@@ -202,7 +202,7 @@ export async function createVehicleAction(
     const manufacturer = getStringValue(formData, "manufacturer");
     const model = getStringValue(formData, "model");
     const vehicleType = getStringValue(formData, "vehicle_type");
-    const vin = getStringValue(formData, "vin");
+    const vin = normalizeVin(getStringValue(formData, "vin") ?? "");
 
     const constructionYear = getNumberValue(formData, "construction_year");
     const licensePlate = getStringValue(formData, "license_plate");
@@ -214,11 +214,11 @@ export async function createVehicleAction(
     const purchaseDate = getDateValue(formData, "purchase_date");
     const notes = getStringValue(formData, "notes");
     const damageNotes = getStringValue(formData, "damage_notes");
-    const vehicleRegistrationFile = getFileValue(
+    const vehicleRegistrationFiles = getFileValues(
         formData,
         "vehicle_registration_file",
     );
-    const purchaseInvoiceFile = getFileValue(formData, "purchase_invoice_file");
+    const purchaseInvoiceFiles = getFileValues(formData, "purchase_invoice_file");
 
     if (!manufacturer || !model || !vehicleType || !vin) {
         return {
@@ -245,7 +245,7 @@ export async function createVehicleAction(
         .from("vehicles")
         .select("id")
         .eq("company_id", companyId)
-        .eq("vin", vin)
+        .ilike("vin", vin)
         .limit(1);
 
     if (duplicateVinError) {
@@ -343,21 +343,17 @@ export async function createVehicleAction(
     }
 
     const documentUploads = [
-        vehicleRegistrationFile
-            ? {
-                  file: vehicleRegistrationFile,
-                  documentType: "vehicle_registration" as const,
-                  label: "Fahrzeugschein",
-              }
-            : null,
-        purchaseInvoiceFile
-            ? {
-                  file: purchaseInvoiceFile,
-                  documentType: "purchase_invoice" as const,
-                  label: "Einkaufsrechnung",
-              }
-            : null,
-    ].filter((upload): upload is NonNullable<typeof upload> => Boolean(upload));
+        ...vehicleRegistrationFiles.map((file) => ({
+            file,
+            documentType: "vehicle_registration" as const,
+            label: "Fahrzeugschein",
+        })),
+        ...purchaseInvoiceFiles.map((file) => ({
+            file,
+            documentType: "purchase_invoice" as const,
+            label: "Einkaufsrechnung",
+        })),
+    ];
 
     for (const upload of documentUploads) {
         const uploadResult = await storeVehicleDocument({

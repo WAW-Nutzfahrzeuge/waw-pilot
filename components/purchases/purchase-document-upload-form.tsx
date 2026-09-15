@@ -47,15 +47,16 @@ export function PurchaseDocumentUploadForm({
     const displayMessage = clientErrorMessage ?? state.message;
 
     function handleFileChange() {
-        const file = fileInputRef.current?.files?.[0] ?? null;
+        const files = Array.from(fileInputRef.current?.files ?? []);
+        const file = files[0] ?? null;
 
-        if (!file || file.size <= 0) {
+        if (!file || files.some((selected) => selected.size <= 0)) {
             setClientErrorMessage("Bitte wähle eine Datei aus.");
             setSelectedFileName(null);
             return;
         }
 
-        if (!isAllowedDocumentFile(file)) {
+        if (files.some((selected) => !isAllowedDocumentFile(selected))) {
             setClientErrorMessage(getUnsupportedDocumentTypeMessage());
             setSelectedFileName(null);
             if (fileInputRef.current) {
@@ -65,7 +66,9 @@ export function PurchaseDocumentUploadForm({
         }
 
         setClientErrorMessage(null);
-        setSelectedFileName(file.name);
+        setSelectedFileName(
+            files.length === 1 ? file.name : `${files.length} Dateien ausgewählt`,
+        );
 
         window.setTimeout(() => {
             formRef.current?.requestSubmit();
@@ -129,8 +132,9 @@ export function PurchaseDocumentUploadForm({
 
                 <input
                     ref={fileInputRef}
-                    name="file"
-                    type="file"
+                name="file"
+                type="file"
+                multiple
                     accept={documentAcceptMimeTypes}
                     className="sr-only"
                     disabled={isPending}

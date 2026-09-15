@@ -12,6 +12,7 @@ import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/forms/form-field";
+import { normalizeVin } from "@/lib/vehicles/vin";
 
 type PurchaseSellerEditDialogProps = {
     purchaseId: string;
@@ -192,6 +193,9 @@ export function PurchaseVehicleEditDialog({
                             name="vin"
                             required
                             defaultValue={vehicle.vin}
+                            onInput={(event) => {
+                                event.currentTarget.value = normalizeVin(event.currentTarget.value);
+                            }}
                         />
                         <FormField
                             label="Baujahr"
