@@ -1,5 +1,6 @@
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCurrentCompanyId } from "@/lib/company";
+import { calculateInventoryValueNet } from "@/lib/vehicles/inventory-domain";
 
 export type VehicleStatus = "in_stock" | "reserved" | "sold";
 export type VehicleDocumentStatus = "complete" | "partial" | "missing";
@@ -31,6 +32,7 @@ export type VehicleDashboardSummary = {
     vehiclesCount: number;
     currentVehiclesCount: number;
     soldVehiclesCount: number;
+    inventoryValueNet: number;
     vehiclesWithOpenDocumentsCount: number;
     recentVehicles: {
         id: string;
@@ -56,6 +58,7 @@ type VehicleDocumentRow = {
 type VehicleDashboardRow = {
     id: string;
     status: VehicleStatus;
+    purchase_price_net: number | string;
 };
 
 type RecentVehicleDashboardRow = {
@@ -72,11 +75,38 @@ type VehicleReportRow = {
     purchase_price_net: number | string;
 };
 
+type VehicleCustomerRelationRow = {
+    vehicle_id: string | null;
+    customers: {
+        type: "company" | "private";
+        company_name: string | null;
+        first_name: string | null;
+        last_name: string | null;
+    } | null;
+};
+
 function getVehicleDocumentStatus(availableDocumentCount: number): VehicleDocumentStatus {
     if (availableDocumentCount >= 2) return "complete";
     if (availableDocumentCount === 1) return "partial";
 
     return "missing";
+}
+
+function getVehicleCustomerName(
+    customer: VehicleCustomerRelationRow["customers"],
+): string | null {
+    if (!customer) return null;
+
+    if (customer.type === "company") {
+        return customer.company_name ?? "Unbekannte Firma";
+    }
+
+    const privateName = [customer.first_name, customer.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    return privateName.length > 0 ? privateName : "Unbekannte Privatperson";
 }
 
 export async function getVehicles(): Promise<VehicleRow[]> {
@@ -116,17 +146,70 @@ export async function getVehicles(): Promise<VehicleRow[]> {
     const vehicles = data ?? [];
     const vehicleIds = vehicles.map((vehicle) => vehicle.id);
     const availableDocumentsByVehicleId = new Map<string, number>();
+    const sellersByVehicleId = new Map<string, string | null>();
+    const buyersByVehicleId = new Map<string, string | null>();
 
     if (vehicleIds.length > 0) {
-        const { data: documentsData, error: documentsError } = await supabase
-            .from("documents")
-            .select("vehicle_id, status")
-            .eq("company_id", companyId)
-            .in("vehicle_id", vehicleIds);
+        const [
+            { data: documentsData, error: documentsError },
+            { data: purchasesData, error: purchasesError },
+            { data: salesData, error: salesError },
+        ] = await Promise.all([
+            supabase
+                .from("documents")
+                .select("vehicle_id, status")
+                .eq("company_id", companyId)
+                .in("vehicle_id", vehicleIds),
+            supabase
+                .from("purchase_cases")
+                .select(
+                    `
+                    vehicle_id,
+                    customers:seller_customer_id (
+                        type,
+                        company_name,
+                        first_name,
+                        last_name
+                    )
+                `,
+                )
+                .eq("company_id", companyId)
+                .in("vehicle_id", vehicleIds)
+                .order("purchase_date", { ascending: false }),
+            supabase
+                .from("sales")
+                .select(
+                    `
+                    vehicle_id,
+                    customers:buyer_customer_id (
+                        type,
+                        company_name,
+                        first_name,
+                        last_name
+                    )
+                `,
+                )
+                .eq("company_id", companyId)
+                .in("vehicle_id", vehicleIds)
+                .neq("status", "cancelled")
+                .order("sale_date", { ascending: false }),
+        ]);
 
         if (documentsError) {
             throw new Error(
                 `Fahrzeugdokumente konnten nicht geladen werden: ${documentsError.message}`,
+            );
+        }
+
+        if (purchasesError) {
+            throw new Error(
+                `Ankaufsbeziehungen konnten nicht geladen werden: ${purchasesError.message}`,
+            );
+        }
+
+        if (salesError) {
+            throw new Error(
+                `Verkaufsbeziehungen konnten nicht geladen werden: ${salesError.message}`,
             );
         }
 
@@ -138,12 +221,32 @@ export async function getVehicles(): Promise<VehicleRow[]> {
                 (availableDocumentsByVehicleId.get(document.vehicle_id) ?? 0) + 1,
             );
         }
+
+        for (const purchase of (purchasesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
+            if (!purchase.vehicle_id || sellersByVehicleId.has(purchase.vehicle_id)) {
+                continue;
+            }
+
+            sellersByVehicleId.set(
+                purchase.vehicle_id,
+                getVehicleCustomerName(purchase.customers),
+            );
+        }
+
+        for (const sale of (salesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
+            if (!sale.vehicle_id || buyersByVehicleId.has(sale.vehicle_id)) continue;
+
+            buyersByVehicleId.set(
+                sale.vehicle_id,
+                getVehicleCustomerName(sale.customers),
+            );
+        }
     }
 
     return vehicles.map((vehicle) => ({
         ...vehicle,
-        seller_name: null,
-        buyer_name: null,
+        seller_name: sellersByVehicleId.get(vehicle.id) ?? null,
+        buyer_name: buyersByVehicleId.get(vehicle.id) ?? null,
         document_status: getVehicleDocumentStatus(
             availableDocumentsByVehicleId.get(vehicle.id) ?? 0,
         ),
@@ -157,7 +260,7 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
     const [vehiclesResult, recentVehiclesResult] = await Promise.all([
         supabase
             .from("vehicles")
-            .select("id, status")
+            .select("id, status, purchase_price_net")
             .eq("company_id", companyId),
         supabase
             .from("vehicles")
@@ -205,6 +308,12 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
     let currentVehiclesCount = 0;
     let soldVehiclesCount = 0;
     let vehiclesWithOpenDocumentsCount = 0;
+    const inventoryValueNet = calculateInventoryValueNet(
+        vehicles.map((vehicle) => ({
+            status: vehicle.status,
+            purchaseNetAmount: Number(vehicle.purchase_price_net ?? 0),
+        })),
+    );
 
     for (const vehicle of vehicles) {
         if (vehicle.status === "in_stock" || vehicle.status === "reserved") {
@@ -228,6 +337,7 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
         vehiclesCount: vehicles.length,
         currentVehiclesCount,
         soldVehiclesCount,
+        inventoryValueNet,
         vehiclesWithOpenDocumentsCount,
         recentVehicles: (
             (recentVehiclesResult.data ?? []) as RecentVehicleDashboardRow[]
@@ -256,15 +366,20 @@ export async function getVehicleReportSummary(): Promise<VehicleReportSummary> {
 
     let currentVehiclesCount = 0;
     let soldVehiclesCount = 0;
-    let inventoryValueNet = 0;
+    const vehicles = (data ?? []) as VehicleReportRow[];
+    const inventoryValueNet = calculateInventoryValueNet(
+        vehicles.map((vehicle) => ({
+            status: vehicle.status,
+            purchaseNetAmount: Number(vehicle.purchase_price_net ?? 0),
+        })),
+    );
 
-    for (const vehicle of (data ?? []) as VehicleReportRow[]) {
+    for (const vehicle of vehicles) {
         const isCurrent =
             vehicle.status === "in_stock" || vehicle.status === "reserved";
 
         if (isCurrent) {
             currentVehiclesCount += 1;
-            inventoryValueNet += Number(vehicle.purchase_price_net ?? 0);
         }
 
         if (vehicle.status === "sold") {

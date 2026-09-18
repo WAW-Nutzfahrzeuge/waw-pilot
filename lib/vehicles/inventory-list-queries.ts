@@ -138,12 +138,6 @@ function getInvoicePriority(invoiceType: string | null): number {
     return 99;
 }
 
-function getVehicleCreatedDate(vehicle: VehicleQueryRow): string | null {
-    if (!vehicle.created_at) return null;
-
-    return vehicle.created_at.slice(0, 10);
-}
-
 export async function getInventoryListRows(): Promise<InventoryListRow[]> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -336,7 +330,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             vinLastSix: vin === "—" ? "" : vin.slice(-6),
             licensePlate: vehicle.license_plate,
 
-            stockStartDate: purchaseDate ?? getVehicleCreatedDate(vehicle),
+            stockStartDate: purchaseDate,
             stockEndDate: saleDate,
 
             purchaseNumber: purchase?.purchase_number ?? null,

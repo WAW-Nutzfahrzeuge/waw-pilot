@@ -38,6 +38,7 @@ export type DashboardData = {
     incompleteDocumentsCount: number;
     totalRevenueNet: number;
     totalProfitNet: number;
+    inventoryValueNet: number;
     cashbookBalance: number;
 
     recentVehicles: {
@@ -180,6 +181,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         incompleteDocumentsCount: documentSummary.incompleteDocumentsCount,
         totalRevenueNet: salesSummary.totalRevenueNet,
         totalProfitNet: salesSummary.totalProfitNet,
+        inventoryValueNet: vehicleSummary.inventoryValueNet,
         cashbookBalance: cashbookSummary.balance,
 
         recentVehicles: vehicleSummary.recentVehicles,

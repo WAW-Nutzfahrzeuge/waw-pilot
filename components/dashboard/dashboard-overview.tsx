@@ -198,6 +198,10 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
                                 value={formatCurrency(data.totalProfitNet)}
                             />
                             <SummaryRow
+                                label="Bestandswert netto"
+                                value={formatCurrency(data.inventoryValueNet)}
+                            />
+                            <SummaryRow
                                 label="Kassenbuchsaldo"
                                 value={formatCurrency(data.cashbookBalance)}
                             />

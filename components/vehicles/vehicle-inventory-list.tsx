@@ -18,6 +18,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+    buildInventorySearchText,
+    calculateHistoricalInventoryValueNet,
+    calculateInventoryValueNet,
+    wasVehicleInInventoryPeriod,
+} from "@/lib/vehicles/inventory-domain";
 
 type VehicleInventoryListProps = {
     rows: InventoryListRow[];
@@ -78,59 +84,14 @@ function getStatusClassName(status: InventoryListRow["status"]): string {
 }
 
 function getSearchableText(row: InventoryListRow): string {
-    return [
-        row.stockNumber,
-        row.vehicleLabel,
-        row.vin,
-        row.vinLastSix,
-        row.licensePlate,
-        row.stockStartDate,
-        formatDate(row.stockStartDate),
-        row.stockEndDate,
-        formatDate(row.stockEndDate),
-        row.purchaseNumber,
-        row.purchaseDate,
-        formatDate(row.purchaseDate),
-        row.sellerName,
-        formatMoney(row.purchaseNetAmount),
-        formatMoney(row.additionalCostsNet),
-        row.saleNumber,
-        row.saleDate,
-        formatDate(row.saleDate),
-        row.buyerName,
-        formatMoney(row.saleNetAmount),
-        row.invoiceNumber,
-        formatMoney(row.rawProfitNet),
-        getStatusLabel(row.status),
-    ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-}
-
-function wasInStockDuringPeriod({
-                                    row,
-                                    fromDate,
-                                    toDate,
-                                }: {
-    row: InventoryListRow;
-    fromDate: string;
-    toDate: string;
-}): boolean {
-    if (!fromDate && !toDate) return true;
-
-    const stockStartDate = row.stockStartDate ?? row.purchaseDate;
-    const stockEndDate = row.stockEndDate ?? row.saleDate;
-
-    if (!stockStartDate) return true;
-
-    const filterFromDate = fromDate || "0001-01-01";
-    const filterToDate = toDate || "9999-12-31";
-
-    return (
-        stockStartDate <= filterToDate &&
-        (!stockEndDate || stockEndDate >= filterFromDate)
-    );
+    return buildInventorySearchText({
+        row: {
+            ...row,
+            statusLabel: getStatusLabel(row.status),
+        },
+        formatDate,
+        formatMoney,
+    });
 }
 
 function getFilterDescription({
@@ -203,7 +164,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
 
             if (!matchesSearch) return false;
 
-            return wasInStockDuringPeriod({
+            return wasVehicleInInventoryPeriod({
                 row,
                 fromDate,
                 toDate,
@@ -215,6 +176,14 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
         let totalPurchaseNet = 0;
         let totalSaleNet = 0;
         let totalRawProfitNet = 0;
+        const inventoryValueRows = filteredRows.map((row) => ({
+            status: row.status,
+            purchaseNetAmount: row.purchaseNetAmount,
+        }));
+        const hasDateFilter = Boolean(fromDate || toDate);
+        const totalInventoryValueNet = hasDateFilter
+            ? calculateHistoricalInventoryValueNet(inventoryValueRows)
+            : calculateInventoryValueNet(inventoryValueRows);
 
         for (const row of filteredRows) {
             totalPurchaseNet += row.purchaseNetAmount;
@@ -223,11 +192,12 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
         }
 
         return {
+            totalInventoryValueNet,
             totalPurchaseNet,
             totalSaleNet,
             totalRawProfitNet,
         };
-    }, [filteredRows]);
+    }, [filteredRows, fromDate, toDate]);
 
     const filterDescription = useMemo(
         () => getFilterDescription({
@@ -292,9 +262,9 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                     icon={ClipboardList}
                 />
                 <SummaryCard
-                    title="Einkauf netto"
-                    value={formatMoney(inventorySummary.totalPurchaseNet)}
-                    description="Summe Einkauf"
+                    title="Bestandswert netto"
+                    value={formatMoney(inventorySummary.totalInventoryValueNet)}
+                    description="Einkauf netto im Bestand"
                     icon={TrendingUp}
                 />
                 <SummaryCard

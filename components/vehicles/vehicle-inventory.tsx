@@ -205,7 +205,7 @@ export function VehicleInventory({
                                     Bestandsliste
                                 </h2>
                                 <p className="mt-1 text-sm font-medium text-slate-500">
-                                    Aktueller Bestandswert:{" "}
+                                    Aktueller Bestandswert netto:{" "}
                                     <span className="font-extrabold text-slate-950">
                     {formatCurrency(inventorySummary.totalStockValue)}
                   </span>
@@ -368,7 +368,7 @@ function VehicleTable({
 
                             <div className="mt-4 grid grid-cols-2 gap-3">
                                 <MobileInfoBox
-                                    label="Einkauf"
+                                    label="Einkauf netto"
                                     value={formatCurrency(vehicle.purchase_price_net)}
                                 />
                                 <MobileInfoBox
@@ -462,7 +462,7 @@ function VehicleTable({
                         <th className="px-5 py-4">Fahrzeug</th>
                         <th className="px-5 py-4">VIN</th>
                         <th className="px-5 py-4">Verkäufer</th>
-                        <th className="px-5 py-4">Einkauf</th>
+                        <th className="px-5 py-4">Einkauf netto</th>
                         <th className="px-5 py-4">Gewinn</th>
                         <th className="px-5 py-4">Status</th>
                         <th className="px-5 py-4">Dokumente</th>
