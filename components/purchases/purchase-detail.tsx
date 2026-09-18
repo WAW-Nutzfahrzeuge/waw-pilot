@@ -39,9 +39,12 @@ import {
     PurchaseSellerEditDialog,
     PurchaseVehicleEditDialog,
 } from "@/components/purchases/purchase-record-edit-dialogs";
+import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
+import { deletePurchaseAdminAction } from "@/app/dashboard/admin-delete-actions";
 
 type PurchaseDetailProps = {
     purchase: PurchaseCaseDetailType;
+    canAdminDelete?: boolean;
     sellerSaved?: boolean;
     vehicleSaved?: boolean;
 };
@@ -61,6 +64,7 @@ const purchaseRequiredDocuments = [
 
 export function PurchaseDetail({
                                    purchase,
+                                   canAdminDelete = false,
                                    sellerSaved = false,
                                    vehicleSaved = false,
                                }: PurchaseDetailProps) {
@@ -70,6 +74,20 @@ export function PurchaseDetail({
     const archivedDocuments = purchase.documents.filter(
         (document) => !primaryDocumentTypes.includes(document.document_type),
     );
+    const availableDocuments = purchase.documents.filter(
+        (document) => document.status !== "missing",
+    );
+    const purchaseDeleteDependencies = [
+        availableDocuments.length > 0
+            ? `${availableDocuments.length} Dokument${
+                availableDocuments.length === 1 ? "" : "e"
+            }`
+            : null,
+        purchase.vehicle
+            ? "Das Fahrzeug bleibt erhalten; Einkaufsbezug und Verkäuferzuordnung werden entfernt."
+            : null,
+        purchase.seller ? "Der Verkäufer/Kunde bleibt erhalten." : null,
+    ].filter((item): item is string => Boolean(item));
 
     return (
         <div className="space-y-6">
@@ -79,6 +97,15 @@ export function PurchaseDetail({
                 description="Gekauftes Fahrzeug mit Verkäufer, Einkaufspreis, Zahlung und Ankaufsdokumenten."
                 action={
                     <div className="flex flex-wrap gap-2">
+                        {canAdminDelete ? (
+                            <AdminDeleteDialog
+                                subjectLabel="Ankauf"
+                                hiddenInputName="purchase_id"
+                                hiddenInputValue={purchase.id}
+                                action={deletePurchaseAdminAction}
+                                dependentItems={purchaseDeleteDependencies}
+                            />
+                        ) : null}
                         <Button
                             asChild
                             variant="outline"

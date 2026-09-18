@@ -4,6 +4,7 @@ import { getSaleDetail } from "@/lib/sales/sale-detail-queries";
 import { getSaleExportDetails } from "@/lib/sales/sale-export-details-queries";
 import { isZugferdServiceConfigured } from "@/lib/zugferd/zugferd-service-client";
 import { getCurrentCompanyId } from "@/lib/company";
+import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { createEmailRepository } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
 type SaleDetailPageProps = {
@@ -54,17 +55,19 @@ export default async function SaleDetailPage({
         }),
     );
 
-    const [resolvedSearchParams, sale, generatedDocuments, exportDetails, emailHistory] = await Promise.all([
+    const [resolvedSearchParams, sale, generatedDocuments, exportDetails, emailHistory, role] = await Promise.all([
         searchParams,
         getSaleDetail(saleId),
         getSaleGeneratedDocumentChecks(saleId),
         getSaleExportDetails(saleId),
         emailHistoryPromise,
+        getCurrentUserRole(),
     ]);
 
     return (
         <SaleDetail
             sale={sale}
+            canAdminDelete={role === "admin"}
             generatedDocuments={generatedDocuments}
             exportDetails={exportDetails}
             emailHistory={emailHistory.emails}

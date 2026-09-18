@@ -66,9 +66,12 @@ import {
     getSaleDocumentStatus,
     getSaleDocumentStatusLabel,
 } from "@/utils/sale-document-status";
+import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
+import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
+    canAdminDelete?: boolean;
     generatedDocuments: SaleGeneratedDocumentCheck[];
     exportDetails: SaleExportDetails;
     emailHistory: EmailListItemDto[];
@@ -118,6 +121,7 @@ function getSaleDocumentDisplayFileName(
 
 export async function SaleDetail({
                                sale,
+                               canAdminDelete = false,
                                generatedDocuments,
                                exportDetails,
                                emailHistory,
@@ -176,6 +180,26 @@ export async function SaleDetail({
     const visibleDocuments = sale.documents.filter(
         (document) => document.status !== "missing",
     );
+    const saleDeleteDependencies = [
+        sale.invoices.length > 0
+            ? `${sale.invoices.length} Rechnung${sale.invoices.length === 1 ? "" : "en"}`
+            : null,
+        sale.payments.length > 0
+            ? `${sale.payments.length} Zahlung${sale.payments.length === 1 ? "" : "en"}`
+            : null,
+        visibleDocuments.length > 0
+            ? `${visibleDocuments.length} Dokument${visibleDocuments.length === 1 ? "" : "e"}`
+            : null,
+        "Das Fahrzeug bleibt erhalten und wird wieder in den Bestand gesetzt.",
+    ].filter((item): item is string => Boolean(item));
+    const saleHasCorrections = sale.refunds.length > 0 ||
+        sale.invoices.some(
+            (invoice) =>
+                invoice.correction_of_invoice_id ||
+                invoice.root_invoice_id ||
+                invoice.invoice_type === "cancellation_invoice" ||
+                invoice.invoice_type === "credit_note",
+        );
 
     return (
         <div className="min-w-0 space-y-6">
@@ -185,6 +209,20 @@ export async function SaleDetail({
                 description="Detailansicht mit Kunde, Fahrzeug, Rechnungen, Zahlung und Pflichtdokumenten."
                 action={
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                        {canAdminDelete ? (
+                            <AdminDeleteDialog
+                                subjectLabel="Verkauf"
+                                hiddenInputName="sale_id"
+                                hiddenInputValue={sale.id}
+                                action={deleteSaleAdminAction}
+                                dependentItems={saleDeleteDependencies}
+                                disabledReason={
+                                    saleHasCorrections
+                                        ? "Dieser Verkauf hat Rechnungskorrekturen oder Rückzahlungen. Bitte diese Abhängigkeiten zuerst fachlich klären."
+                                        : null
+                                }
+                            />
+                        ) : null}
                         <DownloadSaleFileButton saleId={sale.id} />
                         <Button
                             asChild

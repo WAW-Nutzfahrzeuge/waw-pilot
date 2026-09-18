@@ -1,4 +1,5 @@
 import { PurchaseDetail } from "@/components/purchases/purchase-detail";
+import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { getPurchaseCaseDetail } from "@/lib/purchases/purchase-detail-queries";
 
 type PurchaseDetailPageProps = {
@@ -20,14 +21,16 @@ export default async function PurchaseDetailPage({
     const { purchaseId } = await params;
     const searchParamsPromise: Promise<PurchaseDetailSearchParams> =
         searchParams ?? Promise.resolve({});
-    const [resolvedSearchParams, purchase] = await Promise.all([
+    const [resolvedSearchParams, purchase, role] = await Promise.all([
         searchParamsPromise,
         getPurchaseCaseDetail(purchaseId),
+        getCurrentUserRole(),
     ]);
 
     return (
         <PurchaseDetail
             purchase={purchase}
+            canAdminDelete={role === "admin"}
             sellerSaved={resolvedSearchParams?.sellerSaved === "1"}
             vehicleSaved={resolvedSearchParams?.vehicleSaved === "1"}
         />

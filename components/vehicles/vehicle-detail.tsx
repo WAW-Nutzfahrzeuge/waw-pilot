@@ -36,9 +36,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { FlashMessage } from "@/components/shared/flash-message";
 import { DocumentCard } from "@/components/shared/document-card";
 import { VehicleDocumentUploadForm } from "@/components/vehicles/vehicle-document-upload-form";
+import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
+import { deleteVehicleAdminAction } from "@/app/dashboard/admin-delete-actions";
+import {
+    getVehicleDeleteBlockers,
+    type VehicleDeleteDependencyCounts,
+} from "@/lib/admin-delete/admin-delete-policies";
 
 type VehicleDetailProps = {
     vehicle: VehicleDetailType;
+    canAdminDelete?: boolean;
+    adminDeleteDependencyPreview?: VehicleDeleteDependencyCounts;
     vehicleSaved?: boolean;
     vehicleDocumentUploaded?: boolean;
     vehicleDocumentDeleted?: boolean;
@@ -47,6 +55,8 @@ type VehicleDetailProps = {
 
 export function VehicleDetail({
                                   vehicle,
+                                  canAdminDelete = false,
+                                  adminDeleteDependencyPreview,
                                   vehicleSaved = false,
                                   vehicleDocumentUploaded = false,
                                   vehicleDocumentDeleted = false,
@@ -80,6 +90,23 @@ export function VehicleDetail({
                 (definition) => definition.type === document.document_type,
             ),
     );
+    const adminDeleteBlockers = getVehicleDeleteBlockers(
+        adminDeleteDependencyPreview ?? {
+            purchases: vehicle.purchase_id ? 1 : 0,
+            sales: vehicle.sales.length,
+            invoices: vehicle.sales.filter((sale) => sale.invoice_id).length,
+            cashbookEntries: 0,
+            financialEntries: 0,
+        },
+    );
+    const vehicleDeleteDependencies = [
+        ...adminDeleteBlockers,
+        vehicle.documents.length > 0
+            ? `${vehicle.documents.length} Dokument${
+                vehicle.documents.length === 1 ? "" : "e"
+            }`
+            : null,
+    ].filter((item): item is string => Boolean(item));
 
     return (
         <div className="space-y-6">
@@ -88,16 +115,32 @@ export function VehicleDetail({
                 title={vehicle.name}
                 description="Detailansicht mit Fahrzeugdaten, Kundenbezug, Verkäufen und Dokumenten."
                 action={
-                    <Button
-                        asChild
-                        variant="outline"
-                        className="rounded-2xl border-slate-200 bg-white font-bold"
-                    >
-                        <Link href="/dashboard/vehicles">
-                            <ArrowLeft className="mr-2 size-4" />
-                            Zurück
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                        {canAdminDelete ? (
+                            <AdminDeleteDialog
+                                subjectLabel="Fahrzeug"
+                                hiddenInputName="vehicle_id"
+                                hiddenInputValue={vehicle.id}
+                                action={deleteVehicleAdminAction}
+                                dependentItems={vehicleDeleteDependencies}
+                                disabledReason={
+                                    adminDeleteBlockers.length > 0
+                                        ? "Dieses Fahrzeug hat kritische Relationen und kann erst gelöscht werden, wenn diese fachlich entfernt wurden."
+                                        : null
+                                }
+                            />
+                        ) : null}
+                        <Button
+                            asChild
+                            variant="outline"
+                            className="rounded-2xl border-slate-200 bg-white font-bold"
+                        >
+                            <Link href="/dashboard/vehicles">
+                                <ArrowLeft className="mr-2 size-4" />
+                                Zurück
+                            </Link>
+                        </Button>
+                    </div>
                 }
             />
 

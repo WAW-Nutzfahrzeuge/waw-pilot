@@ -1,4 +1,6 @@
 import { VehicleDetail } from "@/components/vehicles/vehicle-detail";
+import { getVehicleAdminDeleteDependencyPreview } from "@/lib/admin-delete/admin-delete-preview-queries";
+import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { getVehicleDetail } from "@/lib/vehicles/vehicle-detail-queries";
 
 type VehicleDetailPageProps = {
@@ -18,14 +20,18 @@ export default async function VehicleDetailPage({
                                                     searchParams,
                                                 }: VehicleDetailPageProps) {
     const { vehicleId } = await params;
-    const [resolvedSearchParams, vehicle] = await Promise.all([
+    const [resolvedSearchParams, vehicle, role, adminDeleteDependencyPreview] = await Promise.all([
         searchParams,
         getVehicleDetail(vehicleId),
+        getCurrentUserRole(),
+        getVehicleAdminDeleteDependencyPreview(vehicleId),
     ]);
 
     return (
         <VehicleDetail
             vehicle={vehicle}
+            canAdminDelete={role === "admin"}
+            adminDeleteDependencyPreview={adminDeleteDependencyPreview}
             vehicleSaved={resolvedSearchParams.vehicleSaved === "1"}
             vehicleDocumentUploaded={
                 resolvedSearchParams.vehicleDocumentUploaded === "1"

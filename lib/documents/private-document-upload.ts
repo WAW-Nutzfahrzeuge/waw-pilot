@@ -95,3 +95,111 @@ export async function cleanupPrivateDocumentFile({
 
     await supabase.storage.from(bucket).remove([filePath]);
 }
+
+export type StagedPrivateDocumentFile = {
+    originalPath: string;
+    trashPath: string;
+};
+
+export function buildPrivateDocumentTrashPath({
+    operationId,
+    filePath,
+}: {
+    operationId: string;
+    filePath: string;
+}): string {
+    const normalizedPath = filePath.replace(/^\/+/, "");
+
+    return `admin-delete-trash/${operationId}/${normalizedPath}`;
+}
+
+function isStorageNotFoundError(error: { statusCode?: string | number; message?: string } | null): boolean {
+    if (!error) return false;
+
+    return (
+        error.statusCode === 404 ||
+        error.statusCode === "404" ||
+        error.message?.toLowerCase().includes("not found") === true
+    );
+}
+
+export async function stagePrivateDocumentFilesForDelete({
+    supabase,
+    filePaths,
+    operationId,
+    bucket = "documents",
+}: {
+    supabase: SupabaseClient;
+    filePaths: Array<string | null | undefined>;
+    operationId: string;
+    bucket?: string;
+}): Promise<StagedPrivateDocumentFile[]> {
+    const uniqueFilePaths = Array.from(
+        new Set(filePaths.filter((filePath): filePath is string => Boolean(filePath))),
+    );
+    const stagedFiles: StagedPrivateDocumentFile[] = [];
+    const storage = supabase.storage.from(bucket);
+
+    for (const filePath of uniqueFilePaths) {
+        const trashPath = buildPrivateDocumentTrashPath({ operationId, filePath });
+        const { error } = await storage.move(filePath, trashPath);
+
+        if (error) {
+            if (isStorageNotFoundError(error)) continue;
+
+            await restoreStagedPrivateDocumentFiles({
+                supabase,
+                stagedFiles,
+                bucket,
+            });
+
+            throw new Error(`Storage-Datei konnte nicht vorbereitet werden: ${filePath}`);
+        }
+
+        stagedFiles.push({ originalPath: filePath, trashPath });
+    }
+
+    return stagedFiles;
+}
+
+export async function restoreStagedPrivateDocumentFiles({
+    supabase,
+    stagedFiles,
+    bucket = "documents",
+}: {
+    supabase: SupabaseClient;
+    stagedFiles: StagedPrivateDocumentFile[];
+    bucket?: string;
+}): Promise<void> {
+    const storage = supabase.storage.from(bucket);
+
+    for (const stagedFile of [...stagedFiles].reverse()) {
+        const { error } = await storage.move(stagedFile.trashPath, stagedFile.originalPath);
+
+        if (error && !isStorageNotFoundError(error)) {
+            throw new Error(
+                `Storage-Datei konnte nicht zurückverschoben werden: ${stagedFile.originalPath}`,
+            );
+        }
+    }
+}
+
+export async function finalizeStagedPrivateDocumentDeletes({
+    supabase,
+    stagedFiles,
+    bucket = "documents",
+}: {
+    supabase: SupabaseClient;
+    stagedFiles: StagedPrivateDocumentFile[];
+    bucket?: string;
+}): Promise<void> {
+    const trashPaths = stagedFiles.map((stagedFile) => stagedFile.trashPath);
+
+    if (trashPaths.length === 0) return;
+
+    const { error } = await supabase.storage.from(bucket).remove(trashPaths);
+
+    if (error) {
+        throw new Error(`Storage-Cleanup konnte nicht abgeschlossen werden: ${error.message}`);
+    }
+}
