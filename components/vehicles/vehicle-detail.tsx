@@ -8,6 +8,7 @@ import {
     ExternalLink,
     FileText,
     Receipt,
+    ShoppingCart,
     Truck,
     UserRound,
     Wallet,
@@ -43,6 +44,7 @@ import {
     getVehicleDeleteBlockers,
     type VehicleDeleteDependencyCounts,
 } from "@/lib/admin-delete/admin-delete-policies";
+import { getVehicleSaleAction } from "@/lib/sales/sale-create-prefill";
 
 function getVehicleDocumentDisplayFileName(
     document: VehicleDetailType["documents"][number],
@@ -120,6 +122,7 @@ export function VehicleDetail({
             }`
             : null,
     ].filter((item): item is string => Boolean(item));
+    const vehicleSaleAction = getVehicleSaleAction(vehicle);
 
     return (
         <div className="space-y-6">
@@ -129,6 +132,22 @@ export function VehicleDetail({
                 description="Detailansicht mit Fahrzeugdaten, Kundenbezug, Verkäufen und Dokumenten."
                 action={
                     <div className="flex flex-wrap justify-end gap-2">
+                        {vehicleSaleAction.kind !== "none" ? (
+                            <Button
+                                asChild
+                                variant={vehicleSaleAction.kind === "create" ? "default" : "outline"}
+                                className={
+                                    vehicleSaleAction.kind === "create"
+                                        ? "rounded-2xl font-bold"
+                                        : "rounded-2xl border-slate-200 bg-white font-bold"
+                                }
+                            >
+                                <Link href={vehicleSaleAction.href}>
+                                    <ShoppingCart className="mr-2 size-4" />
+                                    {vehicleSaleAction.label}
+                                </Link>
+                            </Button>
+                        ) : null}
                         {canAdminDelete ? (
                             <AdminDeleteDialog
                                 subjectLabel="Fahrzeug"
