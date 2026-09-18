@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
@@ -244,13 +245,23 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
             </div>
 
             <div className="hidden print:block">
-                <div className="mb-4 border-b border-slate-300 pb-3">
-                    <h1 className="text-xl font-black text-slate-950">
-                        Bestandsliste
-                    </h1>
-                    <p className="mt-1 text-xs font-medium text-slate-600">
-                        {filterDescription}
-                    </p>
+                <div className="inventory-print-header mb-4 border-b border-slate-300 pb-3">
+                    <div>
+                        <h1 className="text-xl font-black text-slate-950">
+                            Bestandsliste
+                        </h1>
+                        <p className="mt-1 text-xs font-medium text-slate-600">
+                            {filterDescription}
+                        </p>
+                    </div>
+                    <Image
+                        src="/brand/waw-logo.png"
+                        alt="WAW"
+                        width={96}
+                        height={63}
+                        priority
+                        className="inventory-print-logo"
+                    />
                 </div>
             </div>
 
@@ -382,7 +393,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                 <th className="px-4 py-3 text-right font-black print:px-1 print:py-1">
                                     EK netto
                                 </th>
-                                <th className="px-4 py-3 font-black print:px-1 print:py-1">
+                                <th className="inventory-sale-start px-4 py-3 font-black print:px-1 print:py-1">
                                     VK-Nr.
                                 </th>
                                 <th className="px-4 py-3 font-black print:px-1 print:py-1">
@@ -452,7 +463,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                             {row.purchaseNetAmountLabel}
                                         </td>
 
-                                        <td className="px-4 py-3 font-black text-slate-950 print:px-1 print:py-1">
+                                        <td className="inventory-sale-start px-4 py-3 font-black text-slate-950 print:px-1 print:py-1">
                                             {row.saleNumber ?? "—"}
                                         </td>
 
@@ -523,7 +534,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                     </td>
                                     <td
                                         colSpan={4}
-                                        className="px-4 py-3 print:px-1 print:py-1"
+                                        className="inventory-sale-start px-4 py-3 print:px-1 print:py-1"
                                     />
                                     <td className="px-4 py-3 text-right print:px-1 print:py-1">
                                         {formatMoney(inventorySummary.totalSaleNet)}
@@ -544,7 +555,15 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                 @media print {
                     @page {
                         size: A4 landscape;
-                        margin: 8mm;
+                        margin: 8mm 8mm 13mm;
+
+                        @bottom-right {
+                            content: "Seite " counter(page) " von " counter(pages);
+                            color: #475569;
+                            font-family: Helvetica, Arial, sans-serif;
+                            font-size: 7pt;
+                            font-weight: 700;
+                        }
                     }
 
                     body {
@@ -560,6 +579,42 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                     main {
                         padding: 0 !important;
                         margin: 0 !important;
+                    }
+
+                    .inventory-print-header {
+                        display: flex !important;
+                        align-items: flex-start;
+                        justify-content: space-between;
+                        gap: 12mm;
+                    }
+
+                    .inventory-print-logo {
+                        width: 24mm;
+                        height: auto;
+                        object-fit: contain;
+                        flex: 0 0 auto;
+                        margin-top: 1mm;
+                    }
+
+                    table {
+                        page-break-inside: auto;
+                    }
+
+                    thead {
+                        display: table-header-group;
+                    }
+
+                    tfoot {
+                        display: table-footer-group;
+                    }
+
+                    tr {
+                        page-break-inside: avoid;
+                        break-inside: avoid;
+                    }
+
+                    .inventory-sale-start {
+                        border-left: 1.6pt solid #64748b !important;
                     }
                 }
             `}</style>
