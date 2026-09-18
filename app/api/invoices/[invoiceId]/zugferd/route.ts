@@ -14,7 +14,6 @@ type RouteContext = {
 
 type InvoiceZugferdQueryResult = {
     invoice_number: string;
-    sales: { sale_number: string | null } | { sale_number: string | null }[] | null;
     zugferd_file_path: string | null;
     zugferd_validation_status: string | null;
 };
@@ -26,7 +25,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data, error } = await supabase
         .from("invoices")
-        .select("invoice_number, zugferd_file_path, zugferd_validation_status, sales:sale_id (sale_number)")
+        .select("invoice_number, zugferd_file_path, zugferd_validation_status")
         .eq("id", invoiceId)
         .eq("company_id", companyId)
         .single();
@@ -39,7 +38,6 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     const invoice = data as InvoiceZugferdQueryResult;
-    const sale = Array.isArray(invoice.sales) ? invoice.sales[0] : invoice.sales;
 
     if (!invoice.zugferd_file_path) {
         return NextResponse.json(
@@ -73,7 +71,7 @@ export async function GET(_request: Request, context: RouteContext) {
         headers: {
             "Content-Type": "application/pdf",
             "Content-Disposition": `attachment; filename="${new ExportFileNamePolicy().createDocumentFileName({
-                saleReference: sale?.sale_number ?? invoice.invoice_number,
+                saleReference: invoice.invoice_number,
                 documentType: "zugferd_invoice",
                 mimeType: "application/pdf",
             })}"`,

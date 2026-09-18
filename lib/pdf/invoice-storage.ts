@@ -43,7 +43,7 @@ export async function generateAndStoreInvoicePdf(
     const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
 
     const fileName = new ExportFileNamePolicy().createDocumentFileName({
-        saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,
+        saleReference: pdfData.invoiceNumber,
         documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
         mimeType: "application/pdf",
     });

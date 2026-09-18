@@ -28,7 +28,7 @@ import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signatu
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
-import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
+import { generateAndStoreInvoicePdf, renderInvoicePdfBytes } from "@/lib/pdf/invoice-storage";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -149,7 +149,6 @@ type ZugferdInvoiceEmailQueryRow = {
     id: string;
     sale_id: string | null;
     invoice_number: string;
-    sales: { sale_number: string | null } | { sale_number: string | null }[] | null;
     zugferd_file_path: string | null;
     zugferd_validation_status: string | null;
     zugferd_email_send_count: number | null;
@@ -519,7 +518,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
     });
 
     const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
-        saleReference: sale.sale_number ?? invoiceNumber,
+        saleReference: invoiceNumber,
         documentType: getInvoiceTypeDocumentType(invoiceType),
         mimeType: "application/pdf",
     });
@@ -897,6 +896,12 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     let deliveryErrorCode: string | null = null;
 
     try {
+        const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
+        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: pdfData.invoiceNumber,
+            documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
+            mimeType: "application/pdf",
+        });
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getOptionalCurrentAuthUserId();
         const sendEmail = await createSendEmailUseCase();
@@ -913,9 +918,12 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
-            documentAttachments: [
+            resolvedAttachments: [
                 {
-                    documentId: invoice.pdf_document_id,
+                    fileName: invoiceFileName,
+                    content: Buffer.from(pdfBytes),
+                    mimeType: "application/pdf",
+                    fileSizeBytes: pdfBytes.byteLength,
                     attachmentType: "invoice_pdf",
                 },
             ],
@@ -1020,6 +1028,12 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
     }
 
     try {
+        const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
+        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: pdfData.invoiceNumber,
+            documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
+            mimeType: "application/pdf",
+        });
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getOptionalCurrentAuthUserId();
         const template = getDatevInvoiceEmailTemplate(invoice.invoice_number);
@@ -1037,9 +1051,12 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
-            documentAttachments: [
+            resolvedAttachments: [
                 {
-                    documentId: invoice.pdf_document_id,
+                    fileName: invoiceFileName,
+                    content: Buffer.from(pdfBytes),
+                    mimeType: "application/pdf",
+                    fileSizeBytes: pdfBytes.byteLength,
                     attachmentType: "invoice_pdf_datev",
                 },
             ],
@@ -1159,7 +1176,7 @@ export async function createZugferdInvoiceAction(formData: FormData) {
         });
         const pdfBytes = Buffer.from(serviceResult.pdfBase64, "base64");
         const fileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: pdfData.saleNumber ?? pdfData.invoiceNumber,
+            saleReference: pdfData.invoiceNumber,
             documentType: "zugferd_invoice",
             mimeType: "application/pdf",
         });
@@ -1414,7 +1431,6 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
       id,
       sale_id,
       invoice_number,
-      sales:sale_id (sale_number),
       zugferd_file_path,
       zugferd_validation_status,
       zugferd_email_send_count,
@@ -1440,7 +1456,6 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
     }
 
     const invoice = data as unknown as ZugferdInvoiceEmailQueryRow;
-    const saleRelation = Array.isArray(invoice.sales) ? invoice.sales[0] : invoice.sales;
     const customer = getSingleRelation(invoice.customers);
 
     if (!customer?.email) {
@@ -1495,7 +1510,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
             resolvedAttachments: [
                 {
                     fileName: new ExportFileNamePolicy().createDocumentFileName({
-                        saleReference: saleRelation?.sale_number ?? invoice.invoice_number,
+                        saleReference: invoice.invoice_number,
                         documentType: "zugferd_invoice",
                         mimeType: "application/pdf",
                     }),

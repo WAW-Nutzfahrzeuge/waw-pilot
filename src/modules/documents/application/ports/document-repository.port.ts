@@ -7,6 +7,7 @@ export type ActiveDocumentFile = {
     documentId: string;
     documentType: string;
     fileName: string;
+    invoiceId: string | null;
     invoiceNumber: string | null;
     mimeType: string | null;
     storageBucket: string;

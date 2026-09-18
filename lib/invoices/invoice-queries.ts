@@ -112,10 +112,9 @@ function getCustomerName(customer: InvoiceQueryRow["customers"]): string {
 function getInvoiceFileName(
     invoiceType: InvoiceType,
     invoiceNumber: string,
-    saleNumber: string | null,
 ): string {
     return new ExportFileNamePolicy().createDocumentFileName({
-        saleReference: saleNumber ?? invoiceNumber,
+        saleReference: invoiceNumber,
         documentType: getInvoiceTypeDocumentType(invoiceType),
         mimeType: "application/pdf",
     });
@@ -229,7 +228,6 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
                 pdf_file_name: getInvoiceFileName(
                     invoiceType,
                     invoice.invoice_number,
-                    invoice.sales?.sale_number ?? null,
                 ),
             };
         })

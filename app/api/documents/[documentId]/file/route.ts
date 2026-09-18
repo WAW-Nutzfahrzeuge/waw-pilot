@@ -6,6 +6,15 @@ import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/f
 
 export const runtime = "nodejs";
 
+const invoiceDocumentTypes = new Set([
+    "invoice",
+    "invoice_pdf",
+    "proforma_invoice",
+    "down_payment_invoice",
+    "cancellation_invoice",
+    "credit_note",
+]);
+
 type RouteContext = {
     params: Promise<{
         documentId: string;
@@ -49,6 +58,16 @@ export async function GET(request: Request, context: RouteContext) {
             },
             { status: 404 },
         );
+    }
+
+    if (!versionId && file.invoiceId && invoiceDocumentTypes.has(file.documentType)) {
+        const invoiceUrl = new URL(`/api/invoices/${file.invoiceId}/pdf`, request.url);
+
+        if (shouldDownload) {
+            invoiceUrl.searchParams.set("download", "1");
+        }
+
+        return NextResponse.redirect(invoiceUrl);
     }
 
     const response = await fetch(file.signedUrl, { cache: "no-store" });

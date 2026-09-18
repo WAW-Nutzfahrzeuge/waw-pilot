@@ -180,6 +180,7 @@ export async function SaleDetail({
     const visibleDocuments = sale.documents.filter(
         (document) => document.status !== "missing",
     );
+    const saleTitleNumber = sale.invoice?.invoice_number ?? sale.sale_number;
     const saleDeleteDependencies = [
         sale.invoices.length > 0
             ? `${sale.invoices.length} Rechnung${sale.invoices.length === 1 ? "" : "en"}`
@@ -205,7 +206,7 @@ export async function SaleDetail({
         <div className="min-w-0 space-y-6">
             <PageHeader
                 eyebrow="Verkaufsakte"
-                title={`Verkauf ${sale.sale_number ?? sale.invoice?.invoice_number ?? sale.vehicle.name}`}
+                title={`Verkauf ${saleTitleNumber ?? sale.vehicle.name}`}
                 description="Detailansicht mit Kunde, Fahrzeug, Rechnungen, Zahlung und Pflichtdokumenten."
                 action={
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">

@@ -1561,7 +1561,7 @@ export async function createSaleAction(
         });
 
         const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: saleNumber,
+            saleReference: invoiceNumber,
             documentType: getInvoiceTypeDocumentType("standard"),
             mimeType: "application/pdf",
         });

@@ -264,14 +264,8 @@ export class SupabaseInvoiceCorrectionRepository implements InvoiceCorrectionRep
         }
 
         const invoiceId = correctionInvoice.id as string;
-        const { data: saleReferenceRow } = await this.supabase
-            .from("sales")
-            .select("sale_number")
-            .eq("company_id", command.companyId)
-            .eq("id", original.saleId)
-            .maybeSingle();
         const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: saleReferenceRow?.sale_number ?? invoiceNumber,
+            saleReference: invoiceNumber,
             documentType: "cancellation_invoice",
             mimeType: "application/pdf",
         });
