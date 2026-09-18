@@ -93,8 +93,10 @@ const pageHeight = 841.89;
 const black = rgb(0.08, 0.08, 0.08);
 const gray = rgb(0.55, 0.55, 0.55);
 const lightGray = rgb(0.86, 0.86, 0.86);
-const tableGray = rgb(0.72, 0.72, 0.72);
-const red = rgb(0.9, 0.05, 0.05);
+const navy = rgb(0.05, 0.15, 0.23);
+const paleBlue = rgb(0.93, 0.96, 0.98);
+const paleBlueStrong = rgb(0.87, 0.92, 0.96);
+const borderBlue = rgb(0.62, 0.70, 0.76);
 const pdfFontPath = path.join(
     process.cwd(),
     "node_modules",
@@ -185,9 +187,10 @@ function drawBox(
         borderColor?: ReturnType<typeof rgb>;
         borderWidth?: number;
         fillColor?: ReturnType<typeof rgb>;
+        radius?: number;
     },
 ) {
-    page.drawRectangle({
+    const rectangleOptions = {
         x,
         y,
         width,
@@ -195,7 +198,112 @@ function drawBox(
         borderColor: options?.borderColor ?? black,
         borderWidth: options?.borderWidth ?? 1,
         color: options?.fillColor,
-    });
+    };
+
+    page.drawRectangle(rectangleOptions);
+}
+
+type InvoiceIcon =
+    | "person"
+    | "building"
+    | "phone"
+    | "mail"
+    | "bank"
+    | "calendar"
+    | "document"
+    | "truck"
+    | "card";
+
+// These paths are the vector definitions used by lucide-react. pdf-lib cannot
+// render React components, so the same Lucide paths are drawn directly into
+// the PDF as stroked SVG paths.
+const lucideIconPaths: Record<InvoiceIcon, string[]> = {
+    person: ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8"],
+    building: [
+        "M10 12h4",
+        "M10 8h4",
+        "M14 21v-3a2 2 0 0 0-4 0v3",
+        "M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",
+        "M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",
+    ],
+    phone: [
+        "M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384",
+    ],
+    mail: ["m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7", "M2 4h20v16H2z"],
+    bank: [
+        "M10 18v-7",
+        "M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z",
+        "M14 18v-7",
+        "M18 18v-7",
+        "M3 22h18",
+        "M6 18v-7",
+    ],
+    calendar: [
+        "M8 2v4",
+        "M16 2v4",
+        "M3 4h18v18H3z",
+        "M3 10h18",
+        "M8 14h.01",
+        "M12 14h.01",
+        "M16 14h.01",
+        "M8 18h.01",
+        "M12 18h.01",
+        "M16 18h.01",
+    ],
+    document: [
+        "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2z",
+        "M14 2v6h6",
+        "M10 13H8",
+        "M16 17H8",
+    ],
+    truck: [
+        "M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2",
+        "M15 18H9",
+        "M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14",
+        "M6 18a2 2 0 1 0 4 0",
+        "M16 18a2 2 0 1 0 4 0",
+    ],
+    card: ["M2 5h20v14H2z", "M2 10h20"],
+};
+
+const iconBadgeRadius = 8;
+const iconBadgeIconScale = 0.4;
+const inlineIconScale = 0.36;
+const iconTextGap = 6;
+
+function textXAfterBadge(iconX: number): number {
+    return iconX + iconBadgeRadius + iconTextGap;
+}
+
+function drawLucideIcon(
+    page: PDFPage,
+    x: number,
+    y: number,
+    kind: InvoiceIcon,
+    scale = inlineIconScale,
+    borderWidth = 1,
+) {
+    // pdf-lib flips the SVG Y axis around the supplied origin. The origin is
+    // therefore placed at the path's top-right coordinate so its 24-unit
+    // Lucide viewBox is centered at the requested PDF point.
+    for (const iconPath of lucideIconPaths[kind]) {
+        page.drawSvgPath(iconPath, {
+            x: x - 12 * scale,
+            y: y + 12 * scale,
+            scale,
+            borderColor: navy,
+            borderWidth,
+        });
+    }
+}
+
+function drawIconBadge(page: PDFPage, x: number, y: number, kind: InvoiceIcon) {
+    page.drawCircle({ x, y, size: iconBadgeRadius, color: paleBlueStrong });
+    drawLucideIcon(page, x, y, kind, iconBadgeIconScale, 0.95);
+}
+
+function getInvoiceCompanyDisplayName(): string {
+    return "WAW Nutzfahrzeuge E. K.";
 }
 
 function drawLine(
@@ -223,6 +331,7 @@ function drawCenteredText(
     width: number,
     font: PDFFont,
     size: number,
+    color = black,
 ) {
     const textWidth = font.widthOfTextAtSize(text, size);
 
@@ -231,7 +340,7 @@ function drawCenteredText(
         y,
         size,
         font,
-        color: black,
+        color,
     });
 }
 
@@ -242,6 +351,7 @@ function drawRightAlignedText(
     y: number,
     font: PDFFont,
     size: number,
+    color = black,
 ) {
     const textWidth = font.widthOfTextAtSize(text, size);
 
@@ -250,7 +360,7 @@ function drawRightAlignedText(
         y,
         size,
         font,
-        color: black,
+        color,
     });
 }
 
@@ -778,17 +888,22 @@ export async function generateInvoicePdf(
     const logoImage = await pdfDoc.embedPng(logoBytes);
 
     page.drawImage(logoImage, {
-        x: 40,
-        y: 708,
-        width: 120,
-        height: 95,
+        x: 42,
+        y: 698,
+        width: 138,
+        height: 108,
     });
 
-    drawText(page, getInvoiceTitle(data.invoiceType, visibleDocumentNumber), 210, 805, {
+    const invoiceTitle = getInvoiceTitle(data.invoiceType, visibleDocumentNumber);
+    const titleWidth = 225;
+    const titleSize = fitTextSize(invoiceTitle, helveticaBold, data.invoiceType === "standard" ? 20 : 18, 13, titleWidth);
+    drawCenteredText(page, invoiceTitle, 184, 805, titleWidth, helveticaBold, titleSize, navy);
+
+    drawText(page, getInvoiceCompanyDisplayName(), 430, 812, {
         font: helveticaBold,
-        size: data.invoiceType === "standard" ? 22 : 21,
-        color: data.invoiceType === "standard" ? gray : black,
-        maxWidth: 340,
+        size: 7.5,
+        color: navy,
+        maxWidth: 120,
     });
 
     if (data.correction?.originalInvoiceNumber) {
@@ -818,106 +933,149 @@ export async function generateInvoicePdf(
     /**
      * Empfängeradresse / Käufer
      */
-    drawText(page, "Käufer | Buyer:", 42, 662, {
-        font: helveticaBold,
-        size: 8,
-        color: gray,
-    });
-
+    const buyerBoxX = 42;
+    const buyerBoxTop = 674;
+    const buyerIconX = buyerBoxX + 15;
+    const buyerContentX = textXAfterBadge(buyerIconX);
+    const buyerContentWidth = 208;
     const customerAddressLines = getCustomerAddressLines(data);
     const [customerName, ...customerAddressLinesRest] = customerAddressLines;
+    const customerNameLines = wrapText(customerName ?? "-", helveticaBold, 9.2, buyerContentWidth);
+    const customerAddressLinesWrapped = customerAddressLinesRest.flatMap((line) => wrapText(line, helvetica, 8, buyerContentWidth));
+    const buyerTextStartY = 625;
+    const buyerAddressStartY = buyerTextStartY - customerNameLines.length * 11 - 1;
+    const buyerExportY = buyerAddressStartY - customerAddressLinesWrapped.length * 10 - 4;
+    const buyerBoxBottom = buyerExportY - 14;
+    const buyerBoxHeight = buyerBoxTop - buyerBoxBottom;
 
-    drawWrappedText(page, customerName ?? "-", 42, 646, {
+    drawBox(page, buyerBoxX, buyerBoxBottom, 250, buyerBoxHeight, {
+        borderColor: borderBlue,
+        borderWidth: 0.8,
+        fillColor: paleBlue,
+        radius: 6,
+    });
+    drawIconBadge(page, buyerIconX, buyerBoxTop - 23, "person");
+    drawText(page, "Käufer | Buyer:", buyerContentX, 648, {
         font: helveticaBold,
-        size: 8.2,
-        lineHeight: 10,
-        maxWidth: 290,
-        maxLines: 1,
+        size: 9,
+        color: navy,
     });
 
-    drawWrappedLines(page, customerAddressLinesRest, 42, 634, {
+    let buyerTextY = buyerTextStartY;
+    buyerTextY = drawWrappedText(page, customerName ?? "-", buyerContentX, buyerTextY, {
+        font: helveticaBold,
+        size: 9.2,
+        lineHeight: 11,
+        maxWidth: buyerContentWidth,
+        maxLines: 2,
+    });
+
+    drawWrappedLines(page, customerAddressLinesRest, buyerContentX, buyerTextY - 1, {
         font: helvetica,
-        size: 7.5,
+        size: 8,
         lineHeight: 10,
-        maxWidth: 290,
+        maxWidth: buyerContentWidth,
     });
 
-    drawText(page, getSaleTypeInvoiceLabel(data.saleType), 42, 586, {
+    drawLine(page, buyerContentX, buyerExportY + 17, buyerBoxX + 237, buyerExportY + 17, 0.6, borderBlue);
+    drawText(page, getSaleTypeInvoiceLabel(data.saleType), buyerContentX, buyerExportY, {
         font: helveticaBold,
-        size: 6.5,
+        size: 7,
         color: gray,
+        maxWidth: 220,
     });
 
     /**
      * Rechte Firmen- und Bankdatenbox
      */
-    const infoBoxX = 350;
+    const infoBoxX = 314;
     const infoBoxY = 468;
-    const infoBoxWidth = 206;
+    const infoBoxWidth = 243;
     const infoBoxHeight = 250;
-    const infoHeaderHeight = 18;
 
     drawBox(page, infoBoxX, infoBoxY, infoBoxWidth, infoBoxHeight, {
-        borderColor: black,
-        borderWidth: 1,
+        borderColor: borderBlue,
+        borderWidth: 0.8,
+        fillColor: paleBlue,
+        radius: 6,
     });
 
-    drawBox(page, infoBoxX, infoBoxY + infoBoxHeight - infoHeaderHeight, infoBoxWidth, infoHeaderHeight, {
-        borderColor: black,
-        borderWidth: 1,
-        fillColor: tableGray,
-    });
-
-    const rightContentX = infoBoxX + 10;
-    const rightContentWidth = infoBoxWidth - 20;
+    const rightIconX = infoBoxX + 15;
+    const rightContentX = textXAfterBadge(rightIconX);
+    const rightContentWidth = infoBoxX + infoBoxWidth - 14 - rightContentX;
+    drawIconBadge(page, rightIconX, infoBoxY + infoBoxHeight - 30, "building");
 
     drawWrappedLines(
         page,
         [
-            data.company.legalName,
+            getInvoiceCompanyDisplayName(),
             data.company.street,
             `${data.company.postalCode} ${data.company.city}`,
-            "",
-            `Tel: ${safeText(data.company.phone)}`,
-            data.company.mobilePhone1 ? `Mobil 1: ${data.company.mobilePhone1}` : null,
-            data.company.mobilePhone2 ? `Mobil 2: ${data.company.mobilePhone2}` : null,
-            `E-Mail: ${safeText(data.company.email)}`,
-            data.company.website ? `Web: ${data.company.website}` : null,
-            `Steuer-Nr: ${safeText(data.company.taxNumber)}`,
-            safeText(data.company.vatId),
         ].filter((line): line is string => line !== null),
         rightContentX,
         infoBoxY + infoBoxHeight - 35,
         {
             font: helveticaBold,
-            size: 6.1,
+            size: 7.4,
             lineHeight: 10,
             maxWidth: rightContentWidth,
         },
     );
 
+    let contactY = infoBoxY + infoBoxHeight - 65;
+    const drawContactLine = (kind: InvoiceIcon, text: string) => {
+        drawLucideIcon(page, rightIconX, contactY + 3.2, kind);
+        drawText(page, text, rightContentX, contactY, {
+            font: helveticaBold,
+            size: 7.2,
+            maxWidth: rightContentWidth,
+        });
+        contactY -= 10;
+    };
+
+    contactY -= 2;
+    if (data.company.phone) drawContactLine("phone", `Tel: ${data.company.phone}`);
+    if (data.company.mobilePhone1) drawContactLine("phone", `Mobil 1: ${data.company.mobilePhone1}`);
+    if (data.company.mobilePhone2) drawContactLine("phone", `Mobil 2: ${data.company.mobilePhone2}`);
+    if (data.company.email) drawContactLine("mail", `E-Mail: ${data.company.email}`);
+    if (data.company.website) drawContactLine("document", `Web: ${data.company.website}`);
+    drawText(page, `Steuer-Nr: ${safeText(data.company.taxNumber)}`, rightContentX, contactY, {
+        font: helveticaBold,
+        size: 7.2,
+        maxWidth: rightContentWidth,
+    });
+    drawText(page, safeText(data.company.vatId), rightContentX, contactY - 10, {
+        font: helveticaBold,
+        size: 7.2,
+        maxWidth: rightContentWidth,
+    });
+
     const bankBoxY = infoBoxY;
     const bankBoxHeight = 112;
 
     drawBox(page, infoBoxX, bankBoxY, infoBoxWidth, bankBoxHeight, {
-        borderColor: red,
-        borderWidth: 1.5,
+        borderColor: borderBlue,
+        borderWidth: 0.8,
+        fillColor: paleBlue,
+        radius: 6,
     });
 
     const bankContentX = rightContentX;
     const bankContentWidth = rightContentWidth;
     const bankTopY = bankBoxY + bankBoxHeight;
 
+    drawIconBadge(page, rightIconX, bankTopY - 20, "bank");
+    drawLucideIcon(page, rightIconX, bankTopY - 84, "document");
     drawText(page, "Bankverbindung | bank information:", bankContentX, bankTopY - 17, {
         font: helveticaBold,
-        size: 6.6,
+        size: 7.2,
         maxWidth: bankContentWidth,
     });
 
     drawWrappedLines(
         page,
         [
-            `Kontoinhaber: ${safeText(data.company.bankAccountHolder ?? data.company.legalName)}`,
+            `Kontoinhaber: ${getInvoiceCompanyDisplayName()}`,
             `Kreditinstitut/Bank: ${safeText(data.company.bankName)}`,
             data.company.bankBlz ? `BLZ: ${data.company.bankBlz}` : null,
             `IBAN: ${safeText(formatIban(data.company.bankIban))}`,
@@ -933,8 +1091,8 @@ export async function generateInvoicePdf(
         bankTopY - 30,
         {
             font: helveticaBold,
-            size: 6.1,
-            lineHeight: 9,
+            size: 6.9,
+            lineHeight: 8.5,
             maxWidth: bankContentWidth,
         },
     );
@@ -947,18 +1105,23 @@ export async function generateInvoicePdf(
         borderWidth: 1,
     });
 
-    drawWrappedText(page, getInvoiceBoxTitle(data.invoiceType, visibleDocumentNumber), 48, 525, {
+    const leftBoxIconX = 57;
+    const leftBoxTextX = textXAfterBadge(leftBoxIconX);
+
+    drawIconBadge(page, leftBoxIconX, 523, "calendar");
+
+    drawWrappedText(page, getInvoiceBoxTitle(data.invoiceType, visibleDocumentNumber), leftBoxTextX, 525, {
         font: helveticaBold,
         size: 9,
         lineHeight: 10,
-        maxWidth: 215,
+        maxWidth: 42 + 230 - 9 - leftBoxTextX,
         maxLines: 1,
     });
 
     drawText(
         page,
         `Rechnungs-Datum: ${formatDate(data.invoiceDate)} | Fällig: ${formatDate(data.dueDate)}`,
-        48,
+        leftBoxTextX,
         507,
         {
         font: helveticaBold,
@@ -974,7 +1137,9 @@ export async function generateInvoicePdf(
         borderWidth: 1,
     });
 
-    drawText(page, "Gebrauchte | Pre-owned:", 48, 463, {
+    drawIconBadge(page, leftBoxIconX, 467, "document");
+
+    drawText(page, "Gebrauchte | Pre-owned:", leftBoxTextX, 463, {
         font: helveticaBold,
         size: 8,
     });
@@ -982,7 +1147,7 @@ export async function generateInvoicePdf(
     const primaryFileLabel = getPrimaryFileLabel(data.invoiceType);
 
     if (primaryFileLabel) {
-        drawText(page, primaryFileLabel, 150, 463, {
+        drawText(page, primaryFileLabel, leftBoxTextX + 100, 463, {
             font: helveticaBold,
             size: 8,
         });
@@ -997,8 +1162,8 @@ export async function generateInvoicePdf(
     const tableHeight = 190;
 
     const headerHeight = 23;
-    const col1 = 175;
-    const col3 = 75;
+    const col1 = 160;
+    const col3 = 100;
     const col2 = tableWidth - col1 - col3;
 
     const tableTopY = tableY + tableHeight;
@@ -1012,13 +1177,15 @@ export async function generateInvoicePdf(
     drawBox(page, tableX, tableTopY - headerHeight, tableWidth, headerHeight, {
         borderColor: black,
         borderWidth: 1,
-        fillColor: tableGray,
+        fillColor: navy,
     });
 
-    drawBox(page, tableX + col1 + col2, tableY, col3, tableHeight, {
+    // Keep the price-column fill below the header so the complete header row
+    // remains navy with white text.
+    drawBox(page, tableX + col1 + col2, tableY, col3, tableHeight - headerHeight, {
         borderColor: black,
         borderWidth: 0,
-        fillColor: lightGray,
+        fillColor: paleBlue,
     });
 
     drawLine(page, tableX + col1, tableY, tableX + col1, tableTopY);
@@ -1033,16 +1200,18 @@ export async function generateInvoicePdf(
         col1,
         helveticaBold,
         6.5,
+        rgb(1, 1, 1),
     );
 
     drawCenteredText(
         page,
-        "Fahrgestellnummer | Chassi number .:",
+        "Fahrgestellnummer | VIN",
         tableX + col1,
         tableTopY - 15,
         col2,
         helveticaBold,
         6.5,
+        rgb(1, 1, 1),
     );
 
     drawCenteredText(
@@ -1053,9 +1222,12 @@ export async function generateInvoicePdf(
         col3,
         helveticaBold,
         6.2,
+        rgb(1, 1, 1),
     );
 
-    const vehicleLabelX = tableX + 12;
+    const vehicleIconX = tableX + 14;
+    drawIconBadge(page, vehicleIconX, tableContentTopY - 16, "truck");
+    const vehicleLabelX = textXAfterBadge(vehicleIconX);
     const vehicleLabelWidth = 52;
     const vehicleValueX = vehicleLabelX + vehicleLabelWidth;
     const vehicleStartY = tableContentTopY - 12;
@@ -1102,20 +1274,17 @@ export async function generateInvoicePdf(
         maxLines: 2,
     });
 
-    drawCellText(
+    const vinText = safeText(data.vehicle.vin);
+    const vinSize = fitTextSize(vinText, helveticaBold, 11, 8, col2 - 24);
+    drawCenteredText(
         page,
-        safeText(data.vehicle.vin),
+        vinText,
         tableX + col1,
-        tableContentTopY,
+        tableContentTopY - 27,
         col2,
-        {
-            font: helveticaBold,
-            size: 7.5,
-            lineHeight: 8,
-            paddingX: 12,
-            paddingTop: 14,
-            maxLines: 3,
-        },
+        helveticaBold,
+        vinSize,
+        navy,
     );
 
     drawCellText(
@@ -1139,8 +1308,8 @@ export async function generateInvoicePdf(
     const vehiclePriceSize = fitTextSize(
         vehiclePrice,
         helveticaBold,
-        8.2,
-        6.5,
+        11,
+        7.5,
         col3 - 16,
     );
 
@@ -1166,9 +1335,11 @@ export async function generateInvoicePdf(
      */
     const paymentTitleY = 188;
 
-    drawText(page, "Zahlungsbedingungen | Payment:", 42, paymentTitleY, {
+    const paymentIconX = 54;
+    drawIconBadge(page, paymentIconX, paymentTitleY + 1, "card");
+    drawText(page, "Zahlungsbedingungen | Payment:", textXAfterBadge(paymentIconX), paymentTitleY, {
         font: helveticaBold,
-        size: 7.5,
+        size: 7.2,
     });
 
     drawWrappedLines(
@@ -1202,7 +1373,7 @@ export async function generateInvoicePdf(
     drawBox(page, totalsX, totalsY + 35, totalsBoxWidth, totalsBoxHeight, {
         borderColor: black,
         borderWidth: 1,
-        fillColor: lightGray,
+        fillColor: paleBlue,
     });
 
     drawRightAlignedText(
@@ -1244,21 +1415,21 @@ export async function generateInvoicePdf(
         totalsLabelRightX,
         totalsY + 5,
         helveticaBold,
-        5.8,
+        6.4,
     );
 
     drawBox(page, totalsX, totalsY - 1, totalsBoxWidth, totalsBoxHeight, {
         borderColor: black,
         borderWidth: 1,
-        fillColor: lightGray,
+        fillColor: navy,
     });
 
     const grossAmountText = formatCurrency(data.amounts.grossAmount);
     const grossAmountSize = fitTextSize(
         grossAmountText,
         helveticaBold,
-        7.4,
-        6,
+        9.2,
+        7.2,
         totalsBoxWidth - 12,
     );
 
@@ -1269,6 +1440,7 @@ export async function generateInvoicePdf(
         totalsY + 5,
         helveticaBold,
         grossAmountSize,
+        rgb(1, 1, 1),
     );
 
     await drawSignatureStampImages(page, pdfDoc, data.signatureStamp);
