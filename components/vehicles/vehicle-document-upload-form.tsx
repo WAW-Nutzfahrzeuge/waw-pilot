@@ -152,8 +152,8 @@ export function VehicleDocumentUploadForm({
     }
 
     return (
-        <div className="flex flex-wrap items-center gap-2">
-            <form ref={formRef}>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <form ref={formRef} className="flex min-w-0 flex-wrap items-center gap-2">
                 <input type="hidden" name="vehicle_id" value={vehicleId} />
                 <input type="hidden" name="document_type" value={documentType} />
                 {existingDocumentId ? (
@@ -177,7 +177,7 @@ export function VehicleDocumentUploadForm({
                     type="button"
                     size="sm"
                     disabled={isPending}
-                    className="rounded-xl bg-slate-950 font-bold text-white hover:bg-slate-800"
+                    className="rounded-xl bg-slate-950 font-bold text-white hover:bg-slate-800 whitespace-nowrap"
                     onClick={() => inputRef.current?.click()}
                 >
                     {isPending ? (
@@ -192,7 +192,7 @@ export function VehicleDocumentUploadForm({
                     size="sm"
                     variant="outline"
                     disabled={isPending}
-                    className="rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    className="rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100 whitespace-nowrap"
                     onClick={() => cropInputRef.current?.click()}
                 >
                     <Crop className="mr-1 size-3.5" />
@@ -209,14 +209,14 @@ export function VehicleDocumentUploadForm({
             </form>
 
             {existingDocumentId ? (
-                <form action={deleteVehicleDocumentAction}>
+                <form action={deleteVehicleDocumentAction} className="flex min-w-0">
                     <input type="hidden" name="vehicle_id" value={vehicleId} />
                     <input type="hidden" name="document_id" value={existingDocumentId} />
                     <Button
                         type="submit"
                         size="sm"
                         variant="outline"
-                        className="rounded-xl border-red-200 bg-white font-bold text-red-700 hover:bg-red-50"
+                        className="rounded-xl border-red-200 bg-white font-bold text-red-700 hover:bg-red-50 whitespace-nowrap"
                     >
                         <Trash2 className="mr-1 size-3.5" />
                         Entfernen

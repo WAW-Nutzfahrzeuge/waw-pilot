@@ -88,8 +88,8 @@ export function PurchaseDocumentUploadForm({
             <div
                 className={
                     displayFileName
-                        ? "group flex cursor-pointer items-center gap-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
-                        : "group flex cursor-pointer items-center gap-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-cyan-50/40 hover:shadow-md"
+                        ? "group flex cursor-pointer flex-wrap items-center gap-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+                        : "group flex cursor-pointer flex-wrap items-center gap-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-cyan-300 hover:bg-cyan-50/40 hover:shadow-md"
                 }
             >
                 <span
@@ -125,7 +125,7 @@ export function PurchaseDocumentUploadForm({
                     type="button"
                     disabled={isPending}
                     onClick={() => fileInputRef.current?.click()}
-                    className="h-10 shrink-0 rounded-xl bg-slate-950 px-3 text-xs font-extrabold text-white transition hover:bg-slate-800"
+                    className="h-10 shrink-0 rounded-xl bg-slate-950 px-3 text-xs font-extrabold text-white transition hover:bg-slate-800 whitespace-nowrap"
                 >
                     Hochladen
                 </Button>

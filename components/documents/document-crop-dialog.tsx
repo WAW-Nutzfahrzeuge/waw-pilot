@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { Crop, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { getVisibleCroppedFileName } from "@/lib/documents/visible-file-names";
 
 type DocumentCropDialogProps = {
     open: boolean;
@@ -36,14 +37,6 @@ const initialCropBox: CropBox = {
     width: 96,
     height: 96,
 };
-
-function getCroppedFileName(fileName: string): string {
-    const extension = fileName.split(".").pop()?.toLowerCase();
-    const safeExtension = extension === "png" ? "png" : "jpg";
-    const baseName = fileName.replace(/\.[^.]+$/, "").trim() || "dokument";
-
-    return `${baseName}-cropped.${safeExtension}`;
-}
 
 function getOutputMimeType(file: File): "image/jpeg" | "image/png" {
     return file.type === "image/png" ? "image/png" : "image/jpeg";
@@ -292,7 +285,7 @@ export function DocumentCropDialog({
 
             const mimeType = getOutputMimeType(imageFile);
             const blob = await canvasToBlob(canvas, mimeType);
-            const croppedFile = new File([blob], getCroppedFileName(imageFile.name), {
+            const croppedFile = new File([blob], getVisibleCroppedFileName(imageFile.name, mimeType), {
                 type: mimeType,
                 lastModified: Date.now(),
             });

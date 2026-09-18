@@ -41,15 +41,15 @@ export function DocumentCard({
     className,
 }: DocumentCardProps) {
     return (
-        <Card className={cn("rounded-2xl shadow-sm", toneClasses[tone], className)}>
+        <Card className={cn("document-card rounded-2xl shadow-sm", toneClasses[tone], className)}>
             <CardContent className="p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex min-w-0 gap-3">
+                <div className="document-card-layout">
+                    <div className="document-card-info">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500">
                             {icon ?? <FileText className="size-5" />}
                         </div>
-                        <div className="min-w-0">
-                            <h3 className="min-w-0 text-sm font-extrabold text-slate-950">{title}</h3>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="min-w-0 whitespace-normal text-sm font-extrabold text-slate-950">{title}</h3>
                             {status || badge ? (
                                 <div className="mt-2 flex flex-wrap items-center gap-2">
                                     {status ? <span>{status}</span> : null}
@@ -57,12 +57,16 @@ export function DocumentCard({
                                 </div>
                             ) : null}
                             {description ? (
-                                <p className="mt-1 text-sm font-medium leading-6 text-slate-600">{description}</p>
+                                <p className="mt-1 whitespace-normal text-sm font-medium leading-6 text-slate-600">{description}</p>
                             ) : null}
-                            {meta ? <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{meta}</p> : null}
+                            {meta ? <p className="mt-1 break-words text-xs font-semibold leading-5 text-slate-500">{meta}</p> : null}
                         </div>
                     </div>
-                    {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+                    {actions ? (
+                        <div className="document-card-actions">
+                            {actions}
+                        </div>
+                    ) : null}
                 </div>
                 {footer ? <div className="mt-4 border-t border-slate-200 pt-4">{footer}</div> : null}
             </CardContent>

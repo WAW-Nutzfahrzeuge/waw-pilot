@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentCompanyId } from "@/lib/company";
+import { getDocumentDownloadFileName } from "@/lib/documents/visible-file-names";
 import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/factories/document-use-case.factory";
 
 export const runtime = "nodejs";
@@ -11,8 +12,13 @@ type RouteContext = {
     }>;
 };
 
-function createSafeFileName(fileName: string): string {
-    return fileName.replace(/"/g, "");
+function createContentDisposition(disposition: "attachment" | "inline", fileName: string): string {
+    const asciiFallback = fileName
+        .replace(/[^\x20-\x7e]/g, "_")
+        .replace(/"/g, "")
+        .trim() || "Dokument";
+
+    return `${disposition}; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -57,14 +63,21 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    const fileName = createSafeFileName(file.fileName);
+    const fileName = getDocumentDownloadFileName({
+        storedFileName: file.fileName,
+        documentType: file.documentType,
+        mimeType: file.mimeType,
+        invoiceNumber: file.invoiceNumber,
+        storagePath: file.storagePath,
+        versionNumber: file.versionNumber,
+    });
     const contentType = file.mimeType || "application/octet-stream";
     const disposition = shouldDownload ? "attachment" : "inline";
 
     return new NextResponse(Buffer.from(arrayBuffer), {
         headers: {
             "Content-Type": contentType,
-            "Content-Disposition": `${disposition}; filename="${fileName}"`,
+            "Content-Disposition": createContentDisposition(disposition, fileName),
             "Cache-Control": "no-store",
         },
     });

@@ -678,7 +678,7 @@ function DocumentTableRow({
             </td>
 
             <td className="px-5 py-5">
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
                     <DocumentOpenButton document={document} />
                     <DocumentDownloadButton document={document} />
                 </div>
@@ -799,7 +799,7 @@ function DocumentOpenButton({ document, fullWidth = false }: DocumentActionProps
             className={
                 fullWidth
                     ? "h-11 w-full rounded-2xl font-bold"
-                    : "rounded-xl font-bold"
+                    : "rounded-xl font-bold whitespace-nowrap"
             }
         >
             {hasFile ? (
@@ -832,7 +832,7 @@ function DocumentDownloadButton({
             className={
                 fullWidth
                     ? "h-11 w-full rounded-2xl font-bold"
-                    : "rounded-xl font-bold"
+                    : "rounded-xl font-bold whitespace-nowrap"
             }
         >
             {hasFile ? (

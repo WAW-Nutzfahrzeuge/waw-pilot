@@ -152,8 +152,8 @@ export function SaleDocumentUploadForm({
             <div
                 className={
                     hasExistingDocument
-                        ? "group flex cursor-pointer items-center gap-4 rounded-2xl border border-emerald-200 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
-                        : "group flex cursor-pointer items-center gap-4 rounded-2xl border border-dashed border-amber-300 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md"
+                        ? "group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-emerald-200 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md"
+                        : "group flex cursor-pointer flex-wrap items-center gap-4 rounded-2xl border border-dashed border-amber-300 bg-white px-4 py-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-md"
                 }
             >
                 <span
@@ -200,8 +200,8 @@ export function SaleDocumentUploadForm({
                     onClick={() => fileInputRef.current?.click()}
                     className={
                         hasExistingDocument
-                            ? "h-10 shrink-0 rounded-xl bg-emerald-700 px-3 text-xs font-extrabold text-white transition hover:bg-emerald-800"
-                            : "h-10 shrink-0 rounded-xl bg-slate-950 px-3 text-xs font-extrabold text-white transition hover:bg-slate-800"
+                            ? "h-10 shrink-0 rounded-xl bg-emerald-700 px-3 text-xs font-extrabold text-white transition hover:bg-emerald-800 whitespace-nowrap"
+                            : "h-10 shrink-0 rounded-xl bg-slate-950 px-3 text-xs font-extrabold text-white transition hover:bg-slate-800 whitespace-nowrap"
                     }
                 >
                     {hasExistingDocument ? "Ersetzen" : "Hochladen"}
@@ -224,7 +224,7 @@ export function SaleDocumentUploadForm({
                     type="button"
                     variant="outline"
                     disabled={isPending}
-                    className="h-10 rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    className="h-10 rounded-xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100 whitespace-nowrap"
                     onClick={() => cropInputRef.current?.click()}
                 >
                     <Crop className="size-4" />

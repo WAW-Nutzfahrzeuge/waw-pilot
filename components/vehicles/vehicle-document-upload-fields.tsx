@@ -241,10 +241,10 @@ function VehicleDocumentUploadField({
                 </div>
             </div>
 
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Button
                     type="button"
-                    className="h-10 rounded-2xl bg-slate-950 font-bold text-white hover:bg-slate-800"
+                    className="h-10 rounded-2xl bg-slate-950 font-bold text-white hover:bg-slate-800 whitespace-nowrap"
                     disabled={isCompressing}
                     onClick={() => inputRef.current?.click()}
                 >
@@ -255,7 +255,7 @@ function VehicleDocumentUploadField({
                     <Button
                         type="button"
                         variant="outline"
-                        className="h-10 rounded-2xl border-slate-200 bg-white font-bold"
+                        className="h-10 rounded-2xl border-slate-200 bg-white font-bold whitespace-nowrap"
                         disabled={isCompressing}
                         onClick={resetFileInput}
                     >
@@ -267,7 +267,7 @@ function VehicleDocumentUploadField({
                 <Button
                     type="button"
                     variant="outline"
-                    className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100"
+                    className="h-10 rounded-2xl border-cyan-200 bg-cyan-50 font-bold text-cyan-800 hover:bg-cyan-100 whitespace-nowrap"
                     disabled={isCompressing}
                     onClick={() => cropInputRef.current?.click()}
                 >

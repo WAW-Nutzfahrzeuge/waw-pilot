@@ -6,6 +6,7 @@ import type {
     ResolvedEmailAttachment,
 } from "@/src/modules/email/application/ports/email-attachment-reader.port";
 import type { DocumentRepository } from "@/src/modules/documents/application/ports/document-repository.port";
+import { getDocumentDownloadFileName } from "@/lib/documents/visible-file-names";
 
 export class SupabaseDocumentAttachmentReader implements EmailAttachmentReaderPort {
     constructor(
@@ -46,7 +47,14 @@ export class SupabaseDocumentAttachmentReader implements EmailAttachmentReaderPo
         return {
             documentId: activeFile.documentId,
             documentVersionId: activeFile.versionId,
-            fileName: activeFile.fileName,
+            fileName: getDocumentDownloadFileName({
+                storedFileName: activeFile.fileName,
+                documentType: activeFile.documentType,
+                mimeType: activeFile.mimeType ?? data.type ?? "application/octet-stream",
+                invoiceNumber: activeFile.invoiceNumber,
+                storagePath: activeFile.storagePath,
+                versionNumber: activeFile.versionNumber,
+            }),
             mimeType: activeFile.mimeType ?? data.type ?? "application/octet-stream",
             fileSizeBytes: content.byteLength,
             content,

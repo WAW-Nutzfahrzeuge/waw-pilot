@@ -21,6 +21,7 @@ import {
     getDocumentSourceLabel,
     getDocumentTypeLabel,
 } from "@/lib/documents/document-helpers";
+import { getDocumentDownloadFileName } from "@/lib/documents/visible-file-names";
 import {
     getPaymentStatusLabel,
     getPaymentStatusTone,
@@ -42,6 +43,18 @@ import {
     getVehicleDeleteBlockers,
     type VehicleDeleteDependencyCounts,
 } from "@/lib/admin-delete/admin-delete-policies";
+
+function getVehicleDocumentDisplayFileName(
+    document: VehicleDetailType["documents"][number],
+): string {
+    return getDocumentDownloadFileName({
+        storedFileName: document.file_name,
+        documentType: document.document_type,
+        mimeType: document.mime_type,
+        storagePath: document.file_path,
+        versionNumber: 1,
+    });
+}
 
 type VehicleDetailProps = {
     vehicle: VehicleDetailType;
@@ -409,7 +422,7 @@ export function VehicleDetail({
                                         description={description}
                                         meta={
                                             document
-                                                ? `${document.file_name} · ${formatFileSize(document.file_size)} · ${getDocumentSourceLabel(document.source as "generated" | "uploaded")}`
+                                                ? `${getVehicleDocumentDisplayFileName(document)} · ${formatFileSize(document.file_size)} · ${getDocumentSourceLabel(document.source as "generated" | "uploaded")}`
                                                 : "Noch nicht hochgeladen"
                                         }
                                         status={
@@ -479,7 +492,7 @@ export function VehicleDetail({
                                             <DocumentCard
                                                 key={document.id}
                                                 title={getDocumentTypeLabel(document.document_type)}
-                                                meta={`${document.file_name} · ${formatFileSize(document.file_size)}`}
+                                                meta={`${getVehicleDocumentDisplayFileName(document)} · ${formatFileSize(document.file_size)}`}
                                                 status={
                                                     <StatusBadge
                                                         tone={

@@ -120,6 +120,13 @@ type SupabaseQueryError = {
     message: string;
 };
 
+type ActiveFileDocumentContext = {
+    id: string;
+    document_type: string;
+    invoice_id: string | null;
+    invoices: { invoice_number: string | null } | { invoice_number: string | null }[] | null;
+};
+
 type LegacyDocumentRow = Omit<
     SupabaseDocumentRow,
     | "document_reference"
@@ -277,10 +284,14 @@ export class SupabaseDocumentRepository implements DocumentRepository {
         documentId: string;
         versionId?: string;
     }) {
+        const documentContext = await this.findActiveFileDocumentContext(params.companyId, params.documentId);
+
+        if (!documentContext) return null;
+
         if (params.versionId) {
             const { data, error } = await this.supabase
                 .from("document_versions")
-                .select("id, document_id, storage_bucket, storage_path, original_file_name, mime_type")
+                .select("id, document_id, storage_bucket, storage_path, original_file_name, mime_type, version_number")
                 .eq("company_id", params.companyId)
                 .eq("document_id", params.documentId)
                 .eq("id", params.versionId)
@@ -290,17 +301,20 @@ export class SupabaseDocumentRepository implements DocumentRepository {
 
             return {
                 documentId: data.document_id as string,
+                documentType: documentContext.document_type,
                 fileName: data.original_file_name as string,
+                invoiceNumber: this.getInvoiceNumber(documentContext),
                 mimeType: data.mime_type as string | null,
                 storageBucket: data.storage_bucket as string,
                 storagePath: data.storage_path as string,
                 versionId: data.id as string,
+                versionNumber: data.version_number as number | null,
             };
         }
 
         const { data: version } = await this.supabase
             .from("document_versions")
-            .select("id, document_id, storage_bucket, storage_path, original_file_name, mime_type")
+            .select("id, document_id, storage_bucket, storage_path, original_file_name, mime_type, version_number")
             .eq("company_id", params.companyId)
             .eq("document_id", params.documentId)
             .eq("is_active", true)
@@ -309,17 +323,20 @@ export class SupabaseDocumentRepository implements DocumentRepository {
         if (version) {
             return {
                 documentId: version.document_id as string,
+                documentType: documentContext.document_type,
                 fileName: version.original_file_name as string,
+                invoiceNumber: this.getInvoiceNumber(documentContext),
                 mimeType: version.mime_type as string | null,
                 storageBucket: version.storage_bucket as string,
                 storagePath: version.storage_path as string,
                 versionId: version.id as string,
+                versionNumber: version.version_number as number | null,
             };
         }
 
         const { data: legacyDocument, error } = await this.supabase
             .from("documents")
-            .select("id, file_name, file_path, mime_type")
+            .select("id, document_type, file_name, file_path, mime_type, invoice_id, invoices!documents_invoice_id_fkey(invoice_number)")
             .eq("company_id", params.companyId)
             .eq("id", params.documentId)
             .single();
@@ -328,12 +345,39 @@ export class SupabaseDocumentRepository implements DocumentRepository {
 
         return {
             documentId: legacyDocument.id as string,
+            documentType: (legacyDocument.document_type as string | null) ?? documentContext.document_type,
             fileName: legacyDocument.file_name as string,
+            invoiceNumber: this.getInvoiceNumber(legacyDocument as ActiveFileDocumentContext),
             mimeType: legacyDocument.mime_type as string | null,
             storageBucket: "documents",
             storagePath: legacyDocument.file_path as string,
             versionId: null,
+            versionNumber: 1,
         };
+    }
+
+    private async findActiveFileDocumentContext(
+        companyId: string,
+        documentId: string,
+    ): Promise<ActiveFileDocumentContext | null> {
+        const { data, error } = await this.supabase
+            .from("documents")
+            .select("id, document_type, invoice_id, invoices!documents_invoice_id_fkey(invoice_number)")
+            .eq("company_id", companyId)
+            .eq("id", documentId)
+            .single();
+
+        if (error || !data) return null;
+
+        return data as ActiveFileDocumentContext;
+    }
+
+    private getInvoiceNumber(document: ActiveFileDocumentContext): string | null {
+        const invoiceRelation = Array.isArray(document.invoices)
+            ? document.invoices[0]
+            : document.invoices;
+
+        return invoiceRelation?.invoice_number ?? null;
     }
 
     async archive(command: ArchiveDocumentCommand): Promise<void> {

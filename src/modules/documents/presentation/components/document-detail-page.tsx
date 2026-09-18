@@ -21,13 +21,13 @@ export function DocumentDetailPage({ document }: { document: DocumentDetailDto }
                 description={`${viewModel.reference} · ${viewModel.typeLabel}`}
                 action={
                     <div className="flex flex-wrap gap-2">
-                        <Button asChild variant="outline" className="rounded-2xl font-bold">
+                        <Button asChild variant="outline" className="rounded-2xl font-bold whitespace-nowrap">
                             <Link href={viewModel.openHref} target="_blank">
                                 <ExternalLink className="mr-2 size-4" />
                                 Öffnen
                             </Link>
                         </Button>
-                        <Button asChild className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800">
+                        <Button asChild className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800 whitespace-nowrap">
                             <Link href={viewModel.downloadHref}>
                                 <Download className="mr-2 size-4" />
                                 Herunterladen
@@ -129,14 +129,14 @@ export function DocumentDetailPage({ document }: { document: DocumentDetailDto }
                                         {version.fileName} · hochgeladen am {formatDate(version.uploadedAt)}
                                     </p>
                                 </div>
-                                <div className="flex gap-2">
-                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                <div className="flex flex-wrap gap-2 md:justify-end">
+                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold whitespace-nowrap">
                                         <Link href={version.openHref} target="_blank">
                                             <ExternalLink className="mr-1 size-3.5" />
                                             Öffnen
                                         </Link>
                                     </Button>
-                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold whitespace-nowrap">
                                         <Link href={version.downloadHref}>
                                             <Download className="mr-1 size-3.5" />
                                             Download

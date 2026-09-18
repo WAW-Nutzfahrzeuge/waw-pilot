@@ -38,6 +38,7 @@ import {
     formatFileSize,
     getDocumentSourceLabel,
 } from "@/lib/documents/document-helpers";
+import { getDocumentDownloadFileName } from "@/lib/documents/visible-file-names";
 
 type VehicleEditFormProps = {
     vehicle: VehicleDetail;
@@ -47,6 +48,18 @@ const initialState: UpdateVehicleState = {
     success: false,
     message: "",
 };
+
+function getVehicleDocumentDisplayFileName(
+    document: VehicleDetail["documents"][number],
+): string {
+    return getDocumentDownloadFileName({
+        storedFileName: document.file_name,
+        documentType: document.document_type,
+        mimeType: document.mime_type,
+        storagePath: document.file_path,
+        versionNumber: 1,
+    });
+}
 
 function getNumberInputValue(value: number | null): string {
     if (value === null) return "";
@@ -282,7 +295,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                                 description={description}
                                                 meta={
                                                     document
-                                                        ? `${document.file_name} · ${formatFileSize(document.file_size)} · ${getDocumentSourceLabel(document.source as "generated" | "uploaded")}`
+                                                        ? `${getVehicleDocumentDisplayFileName(document)} · ${formatFileSize(document.file_size)} · ${getDocumentSourceLabel(document.source as "generated" | "uploaded")}`
                                                         : "Noch nicht hochgeladen"
                                                 }
                                                 status={

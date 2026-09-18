@@ -5,11 +5,14 @@ import type { SearchDocumentsQuery } from "@/src/modules/documents/application/q
 
 export type ActiveDocumentFile = {
     documentId: string;
+    documentType: string;
     fileName: string;
+    invoiceNumber: string | null;
     mimeType: string | null;
     storageBucket: string;
     storagePath: string;
     versionId: string | null;
+    versionNumber: number | null;
 };
 
 export interface DocumentRepository {
