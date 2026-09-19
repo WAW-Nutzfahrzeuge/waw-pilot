@@ -845,7 +845,6 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
       sale_id,
       invoice_number,
       email_send_count,
-      pdf_document_id,
       customers:customer_id (
         type,
         company_name,
@@ -854,12 +853,6 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         email,
         preferred_language,
         country
-      ),
-      documents:pdf_document_id (
-        id,
-        file_name,
-        file_path,
-        mime_type
       )
     `,
         )
@@ -875,15 +868,11 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
 
     const invoice = data as unknown as InvoiceEmailQueryRow;
     const customer = getSingleRelation(invoice.customers);
-    const document = getSingleRelation(invoice.documents);
 
     if (!customer?.email) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingEmail"));
     }
 
-    if (!invoice.pdf_document_id || !document?.file_path) {
-        redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingPdf"));
-    }
     const language = getSuggestedEmailLanguage({
         country: customer.country,
         preferredLanguage: customer.preferred_language,
