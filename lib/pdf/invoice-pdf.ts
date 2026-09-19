@@ -410,7 +410,7 @@ async function drawSignatureStampImages(
         const height = signatureImage.height * scale;
 
         page.drawImage(signatureImage, {
-            x: 350,
+            x: 405,
             y: 58,
             width,
             height,
@@ -435,7 +435,7 @@ async function drawSignatureStampImages(
         const height = Math.min(62, (stampImage.height / stampImage.width) * width);
 
         page.drawImage(stampImage, {
-            x: 490,
+            x: 512,
             y: 60,
             width,
             height,
@@ -984,7 +984,7 @@ export async function generateInvoicePdf(
     const rightIconX = infoBoxX + 15;
     const rightContentX = textXAfterBadge(rightIconX);
     const rightContentWidth = infoBoxX + infoBoxWidth - 14 - rightContentX;
-    drawIconBadge(page, rightIconX, infoBoxY + infoBoxHeight - 30, "building");
+    drawIconBadge(page, rightIconX, infoBoxY + infoBoxHeight - 22, "building");
 
     drawWrappedLines(
         page,
@@ -994,7 +994,7 @@ export async function generateInvoicePdf(
             `${data.company.postalCode} ${data.company.city}`,
         ].filter((line): line is string => line !== null),
         rightContentX,
-        infoBoxY + infoBoxHeight - 35,
+        infoBoxY + infoBoxHeight - 27,
         {
             font: helveticaBold,
             size: 7.4,
@@ -1003,7 +1003,8 @@ export async function generateInvoicePdf(
         },
     );
 
-    let contactY = infoBoxY + infoBoxHeight - 73;
+    let contactY = infoBoxY + infoBoxHeight - 62;
+    const contactLineGap = 20;
     const drawContactLine = (kind: InvoiceIcon, text: string) => {
         drawIconBadge(page, rightIconX, contactY + 3.2, kind);
         drawText(page, text, rightContentX, contactY, {
@@ -1011,7 +1012,15 @@ export async function generateInvoicePdf(
             size: 7.2,
             maxWidth: rightContentWidth,
         });
-        contactY -= 20;
+        contactY -= contactLineGap;
+    };
+    const drawCompanyTextLine = (text: string) => {
+        drawText(page, text, rightContentX, contactY, {
+            font: helveticaBold,
+            size: 7.2,
+            maxWidth: rightContentWidth,
+        });
+        contactY -= contactLineGap;
     };
 
     if (data.company.phone) drawContactLine("phone", `Tel: ${data.company.phone}`);
@@ -1019,19 +1028,15 @@ export async function generateInvoicePdf(
     if (data.company.mobilePhone2) drawContactLine("phone", `Mobil 2: ${data.company.mobilePhone2}`);
     if (data.company.email) drawContactLine("mail", `E-Mail: ${data.company.email}`);
     if (data.company.website) drawContactLine("document", `Web: ${data.company.website}`);
-    drawText(page, `Steuer-Nr: ${safeText(data.company.taxNumber)}`, rightContentX, contactY, {
-        font: helveticaBold,
-        size: 7.2,
-        maxWidth: rightContentWidth,
-    });
-    drawText(page, safeText(data.company.vatId), rightContentX, contactY - 10, {
-        font: helveticaBold,
-        size: 7.2,
-        maxWidth: rightContentWidth,
-    });
+    drawCompanyTextLine(`Steuer-Nr: ${safeText(data.company.taxNumber)}`);
 
-    const bankBoxY = infoBoxY - 12;
-    const bankBoxHeight = 124;
+    if (data.company.vatId?.trim()) {
+        drawCompanyTextLine(`USt-IdNr: ${data.company.vatId.trim()}`);
+    }
+
+    const bankBoxHeight = 132;
+    const bankTopY = contactY + 15;
+    const bankBoxY = bankTopY - bankBoxHeight;
 
     drawBox(page, infoBoxX, bankBoxY, infoBoxWidth, bankBoxHeight, {
         borderColor: borderRed,
@@ -1042,7 +1047,6 @@ export async function generateInvoicePdf(
 
     const bankContentX = rightContentX;
     const bankContentWidth = rightContentWidth;
-    const bankTopY = bankBoxY + bankBoxHeight;
 
     drawIconBadge(page, rightIconX, bankTopY - 20, "bank");
     drawIconBadge(page, rightIconX, bankTopY - 84, "document");
@@ -1060,7 +1064,7 @@ export async function generateInvoicePdf(
         data.company.bankBic ? `BIC: ${data.company.bankBic}` : null,
     ].filter((line): line is string => line !== null);
     const bankInfoY = bankTopY - 30;
-    const bankInfoLineHeight = 8.5;
+    const bankInfoLineHeight = 9.6;
 
     drawWrappedLines(page, bankInfoLines, bankContentX, bankInfoY, {
         font: helveticaBold,
@@ -1078,7 +1082,7 @@ export async function generateInvoicePdf(
     const paymentValueX = bankContentX + 74;
     const paymentLabelWidth = paymentValueX - paymentLabelX - 4;
     const paymentValueWidth = bankContentX + bankContentWidth - paymentValueX;
-    let paymentY = bankInfoY - renderedBankInfoLineCount * bankInfoLineHeight - 5;
+    let paymentY = bankInfoY - renderedBankInfoLineCount * bankInfoLineHeight - 7;
 
     const drawPaymentPurposeLine = (label: string, value: string) => {
         const safeValue = safeText(value);
@@ -1087,7 +1091,7 @@ export async function generateInvoicePdf(
         drawWrappedText(page, label, paymentLabelX, paymentY, {
             font: helveticaBold,
             size: 6.6,
-            lineHeight: 8,
+            lineHeight: 8.8,
             maxWidth: paymentLabelWidth,
             maxLines: 2,
         });
@@ -1096,7 +1100,7 @@ export async function generateInvoicePdf(
             size: valueSize,
             maxWidth: paymentValueWidth,
         });
-        paymentY -= 17;
+        paymentY -= 20;
     };
 
     drawPaymentPurposeLine("Verwendungszweck | reason for payment:", paymentPurposeValue);
@@ -1459,11 +1463,11 @@ export async function generateInvoicePdf(
 
     drawRightAlignedText(
         page,
-        "Brutto - Gesamtpreis",
+        "Brutto Gesamtpreis",
         totalsLabelRightX,
         totalsY + 5,
         helveticaBold,
-        6.4,
+        5.9,
     );
 
     drawBox(page, totalsX, totalsY - 1, totalsBoxWidth, totalsBoxHeight, {
