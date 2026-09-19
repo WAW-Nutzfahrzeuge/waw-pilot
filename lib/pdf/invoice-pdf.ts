@@ -1463,7 +1463,7 @@ export async function generateInvoicePdf(
 
     drawRightAlignedText(
         page,
-        "Brutto Gesamtpreis",
+        "Brutto - Gesamtpreis",
         totalsLabelRightX,
         totalsY + 5,
         helveticaBold,
