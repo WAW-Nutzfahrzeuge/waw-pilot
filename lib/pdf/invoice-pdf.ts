@@ -365,6 +365,49 @@ function drawRightAlignedText(
     });
 }
 
+function drawSingleLineText(
+    page: PDFPage,
+    text: string,
+    x: number,
+    y: number,
+    font: PDFFont,
+    size: number,
+    color = black,
+) {
+    let currentX = x;
+
+    for (const char of text) {
+        page.drawText(char, {
+            x: currentX,
+            y,
+            size,
+            font,
+            color,
+        });
+        currentX += font.widthOfTextAtSize(char, size);
+    }
+}
+
+function drawRightAlignedSingleLineText(
+    page: PDFPage,
+    text: string,
+    rightX: number,
+    y: number,
+    font: PDFFont,
+    size: number,
+    color = black,
+) {
+    drawSingleLineText(
+        page,
+        text,
+        rightX - font.widthOfTextAtSize(text, size),
+        y,
+        font,
+        size,
+        color,
+    );
+}
+
 function fitTextSize(
     text: string,
     font: PDFFont,
@@ -1005,13 +1048,20 @@ export async function generateInvoicePdf(
 
     let contactY = infoBoxY + infoBoxHeight - 62;
     const contactLineGap = 20;
-    const drawContactLine = (kind: InvoiceIcon, text: string) => {
+    const drawContactLine = (kind: InvoiceIcon, text: string, options?: { noWrap?: boolean }) => {
         drawIconBadge(page, rightIconX, contactY + 3.2, kind);
-        drawText(page, text, rightContentX, contactY, {
-            font: helveticaBold,
-            size: 7.2,
-            maxWidth: rightContentWidth,
-        });
+        const textSize = options?.noWrap
+            ? fitTextSize(text, helveticaBold, 7.2, 5.2, rightContentWidth)
+            : 7.2;
+        if (options?.noWrap) {
+            drawSingleLineText(page, text, rightContentX, contactY, helveticaBold, textSize);
+        } else {
+            drawText(page, text, rightContentX, contactY, {
+                font: helveticaBold,
+                size: textSize,
+                maxWidth: rightContentWidth,
+            });
+        }
         contactY -= contactLineGap;
     };
     const drawCompanyTextLine = (text: string) => {
@@ -1027,7 +1077,7 @@ export async function generateInvoicePdf(
     if (data.company.mobilePhone1) drawContactLine("phone", `Mobil 1: ${data.company.mobilePhone1}`);
     if (data.company.mobilePhone2) drawContactLine("phone", `Mobil 2: ${data.company.mobilePhone2}`);
     if (data.company.email) drawContactLine("mail", `E-Mail: ${data.company.email}`);
-    if (data.company.website) drawContactLine("document", `Web: ${data.company.website}`);
+    if (data.company.website) drawContactLine("document", `Web: ${data.company.website}`, { noWrap: true });
     drawCompanyTextLine(`Steuer-Nr: ${safeText(data.company.taxNumber)}`);
 
     if (data.company.vatId?.trim()) {
@@ -1461,13 +1511,13 @@ export async function generateInvoicePdf(
         6,
     );
 
-    drawRightAlignedText(
+    drawRightAlignedSingleLineText(
         page,
         "Brutto - Gesamtpreis",
         totalsLabelRightX,
         totalsY + 5,
         helveticaBold,
-        5.9,
+        5.6,
     );
 
     drawBox(page, totalsX, totalsY - 1, totalsBoxWidth, totalsBoxHeight, {
