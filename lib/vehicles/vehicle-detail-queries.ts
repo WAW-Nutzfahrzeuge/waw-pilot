@@ -71,6 +71,7 @@ type InvoiceRow = {
 
 type PurchaseRow = {
     id: string;
+    purchase_number: string | null;
 };
 
 export type VehicleDetailDocument = {
@@ -119,6 +120,7 @@ export type VehicleDetail = {
     show_damage_on_invoice: boolean;
     created_at: string;
     purchase_id: string | null;
+    purchase_number: string | null;
 
     seller: {
         id: string;
@@ -326,7 +328,7 @@ export async function getVehicleDetail(
         .order("sale_date", { ascending: false });
     const purchasePromise = supabase
         .from("purchase_cases")
-        .select("id")
+        .select("id, purchase_number")
         .eq("company_id", companyId)
         .eq("vehicle_id", vehicleId)
         .order("created_at", { ascending: false })
@@ -496,6 +498,7 @@ export async function getVehicleDetail(
         show_damage_on_invoice: Boolean(vehicle.show_damage_on_invoice),
         created_at: vehicle.created_at,
         purchase_id: purchase?.id ?? null,
+        purchase_number: purchase?.purchase_number ?? null,
 
         seller: mapCustomer(seller),
         buyer: mapCustomer(buyer),

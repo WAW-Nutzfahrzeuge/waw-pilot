@@ -344,6 +344,12 @@ export function VehicleDetail({
                                 <CustomerBox
                                     title="Verkäufer"
                                     customer={vehicle.seller}
+                                    purchaseNumber={vehicle.purchase_number}
+                                    purchaseHref={
+                                        vehicle.purchase_id
+                                            ? `/dashboard/ankauf/${vehicle.purchase_id}`
+                                            : undefined
+                                    }
                                     editHref={
                                         vehicle.purchase_id
                                             ? `/dashboard/ankauf/${vehicle.purchase_id}/edit`
@@ -590,10 +596,14 @@ export function VehicleDetail({
 function CustomerBox({
                          title,
                          customer,
+                         purchaseNumber,
+                         purchaseHref,
                          editHref,
                      }: {
     title: string;
     customer: VehicleDetailType["seller"];
+    purchaseNumber?: string | null;
+    purchaseHref?: string;
     editHref?: string;
 }) {
     if (!customer) {
@@ -622,6 +632,23 @@ function CustomerBox({
                 ) : null}
             </div>
             <p className="mt-2 font-extrabold text-slate-950">{customer.name}</p>
+            {purchaseNumber ? (
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-bold">
+                    <span className="text-slate-500">Einkaufsnummer:</span>
+                    {purchaseHref ? (
+                        <Link
+                            href={purchaseHref}
+                            className="rounded-full bg-cyan-50 px-2.5 py-1 text-cyan-700 transition hover:bg-cyan-100"
+                        >
+                            {purchaseNumber}
+                        </Link>
+                    ) : (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                            {purchaseNumber}
+                        </span>
+                    )}
+                </div>
+            ) : null}
             <p className="mt-1 text-sm font-semibold text-slate-500">
                 {customer.address}
             </p>
