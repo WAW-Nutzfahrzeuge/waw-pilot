@@ -32,6 +32,10 @@ import { generateAndStoreInvoicePdf, renderInvoicePdfBytes } from "@/lib/pdf/inv
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
+    getSaleTaxConfiguration,
+    type SaleBuyerType,
+} from "@/utils/sale-tax-rules";
+import {
     buildCanonicalInvoiceData,
     ZugferdDataValidationError,
     type ZugferdValidationIssue,
@@ -58,6 +62,7 @@ type RegenerateInvoiceOptionsRow = {
     include_signature_stamp: boolean | null;
     include_terms_pdf?: boolean | null;
     pdf_document_id: string | null;
+    zugferd_file_path?: string | null;
 };
 
 type SaleInvoiceSourceRow = {
@@ -67,6 +72,7 @@ type SaleInvoiceSourceRow = {
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
+    sale_type: string | null;
     net_amount: number | string;
     vat_rate: number | string;
     vat_amount: number | string;
@@ -74,6 +80,18 @@ type SaleInvoiceSourceRow = {
     invoice_notes: string | null;
     include_damage_notes_on_invoice: boolean | null;
     vehicles: SaleInvoiceVehicleRelation | SaleInvoiceVehicleRelation[] | null;
+    customers?:
+        | {
+              type: "company" | "private" | null;
+              country: string | null;
+              vat_id: string | null;
+          }
+        | Array<{
+              type: "company" | "private" | null;
+              country: string | null;
+              vat_id: string | null;
+          }>
+        | null;
 };
 
 type InvoiceEmailDocumentRelation = {
@@ -182,6 +200,10 @@ function getSingleRelation<T>(relation: T | T[] | null): T | null {
     }
 
     return relation;
+}
+
+function roundMoney(value: number): number {
+    return Math.round(value * 100) / 100;
 }
 
 function getInvoiceTypeValue(formData: FormData): InvoiceType | null {
@@ -639,7 +661,8 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
       invoice_number,
       include_signature_stamp,
       include_terms_pdf,
-      pdf_document_id
+      pdf_document_id,
+      zugferd_file_path
     `,
         )
         .eq("id", invoiceId)
@@ -659,7 +682,8 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
       invoice_type,
       invoice_number,
       include_signature_stamp,
-      pdf_document_id
+      pdf_document_id,
+      zugferd_file_path
     `,
             )
             .eq("id", invoiceId)
@@ -730,6 +754,16 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
             `
       invoice_notes,
       include_damage_notes_on_invoice,
+      sale_type,
+      net_amount,
+      vat_rate,
+      vat_amount,
+      gross_amount,
+      customers:buyer_customer_id (
+        type,
+        country,
+        vat_id
+      ),
       vehicles (
         damage_notes,
         show_damage_on_invoice
@@ -750,8 +784,110 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
 
     const sale = saleData as Pick<
         SaleInvoiceSourceRow,
-        "invoice_notes" | "include_damage_notes_on_invoice" | "vehicles"
+        | "invoice_notes"
+        | "include_damage_notes_on_invoice"
+        | "vehicles"
+        | "sale_type"
+        | "net_amount"
+        | "vat_rate"
+        | "vat_amount"
+        | "gross_amount"
+        | "customers"
     >;
+    const buyerCustomer = getSingleRelation(sale.customers ?? null);
+    const buyerType: SaleBuyerType =
+        buyerCustomer?.type === "private" ? "private" : "company";
+    const taxConfiguration = getSaleTaxConfiguration({
+        buyerType,
+        deliveryType: sale.sale_type,
+        billingCountry: buyerCustomer?.country ?? null,
+    });
+    const nextVatRate = taxConfiguration.defaultVatRate;
+    const currentVatRate = Number(sale.vat_rate);
+    const shouldSyncTaxAmounts =
+        (!taxConfiguration.showVatId || Boolean(buyerCustomer?.vat_id?.trim())) &&
+        Number.isFinite(currentVatRate) &&
+        currentVatRate !== nextVatRate &&
+        ["standard", "proforma", "down_payment"].includes(
+            invoiceData.invoice_type ?? "",
+        );
+
+    if (shouldSyncTaxAmounts) {
+        const netAmount = Number(sale.net_amount);
+
+        if (!Number.isFinite(netAmount)) {
+            throw new Error("Verkaufspreis netto ist ungültig.");
+        }
+
+        const vatAmount = roundMoney(netAmount * (nextVatRate / 100));
+        const grossAmount = roundMoney(netAmount + vatAmount);
+
+        const { error: saleTaxUpdateError } = await supabase
+            .from("sales")
+            .update({
+                vat_rate: nextVatRate,
+                vat_amount: vatAmount,
+                gross_amount: grossAmount,
+            })
+            .eq("id", saleId)
+            .eq("company_id", companyId);
+
+        if (saleTaxUpdateError) {
+            throw new Error(
+                `Verkauf konnte steuerlich nicht aktualisiert werden: ${saleTaxUpdateError.message}`,
+            );
+        }
+
+        const { error: invoiceTaxUpdateError } = await supabase
+            .from("invoices")
+            .update({
+                vat_rate: nextVatRate,
+                vat_amount: vatAmount,
+                gross_amount: grossAmount,
+            })
+            .eq("id", invoiceId)
+            .eq("company_id", companyId);
+
+        if (invoiceTaxUpdateError) {
+            throw new Error(
+                `Rechnung konnte steuerlich nicht aktualisiert werden: ${invoiceTaxUpdateError.message}`,
+            );
+        }
+
+        if (invoiceData.zugferd_file_path) {
+            const { error: zugferdUpdateError } = await supabase
+                .from("invoices")
+                .update({
+                    zugferd_validation_status: "invalid",
+                    zugferd_generation_started_at: null,
+                    zugferd_validation_summary: {
+                        status: "invalid",
+                        issues: [
+                            {
+                                severity: "error",
+                                message:
+                                    "Steuerbeträge wurden vor PDF-Neugenerierung angepasst. ZUGFeRD muss neu erzeugt werden.",
+                            },
+                        ],
+                    },
+                })
+                .eq("id", invoiceId)
+                .eq("company_id", companyId);
+
+            if (zugferdUpdateError) {
+                throw new Error(
+                    `ZUGFeRD-Status konnte nach Steuerkorrektur nicht invalidiert werden: ${zugferdUpdateError.message}`,
+                );
+            }
+        }
+
+        await logActivity({
+            action: `Steuerbeträge für Rechnung ${invoiceData.invoice_number} vor PDF-Neugenerierung aktualisiert (${nextVatRate}% MwSt.)`,
+            entityType: "invoice",
+            entityId: invoiceId,
+        });
+    }
+
     const saleVehicle = getSingleRelation(sale.vehicles);
     const includeDamageNotesOnInvoice =
         requestedIncludeDamageNotesOnInvoice &&

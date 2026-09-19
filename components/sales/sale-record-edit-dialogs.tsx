@@ -39,7 +39,7 @@ export function SaleCustomerEditDialog({
                 </Button>
             }
             title="Kunde bearbeiten"
-            description="Änderungen gelten für zukünftige Vorgänge. Bereits erzeugte Rechnungs-PDFs bleiben unverändert."
+            description="Änderungen werden in der Verkaufsakte gespeichert. Falls sich die Steuerlogik ändert, werden bestehende Rechnungen und PDFs aktualisiert."
             action={updateSaleCustomerAction}
             submitLabel="Kunde speichern"
         >

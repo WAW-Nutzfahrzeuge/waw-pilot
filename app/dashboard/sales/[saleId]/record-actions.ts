@@ -10,6 +10,8 @@ import {
     normalizeEmailLanguage,
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
+import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
+import type { SaleType } from "@/lib/sales/sale-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
@@ -17,6 +19,10 @@ import {
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import {
+    getSaleTaxConfiguration,
+    type SaleBuyerType,
+} from "@/utils/sale-tax-rules";
 
 function getEmailLanguage(formData: FormData): EmailLanguage {
     return normalizeEmailLanguage(getStringFormValue(formData, "preferred_language"));
@@ -36,6 +42,201 @@ function getMetadataRecord(metadata: unknown): Record<string, unknown> {
     return metadata as Record<string, unknown>;
 }
 
+function roundMoney(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
+type SaleTaxSyncInvoice = {
+    id: string;
+    invoice_number: string;
+    invoice_type: string | null;
+    pdf_document_id: string | null;
+    zugferd_file_path: string | null;
+};
+
+async function syncSaleTaxAmountsAfterBuyerChange({
+    saleId,
+    companyId,
+    buyerType,
+    billingCountry,
+    buyerVatId,
+}: {
+    saleId: string;
+    companyId: string;
+    buyerType: SaleBuyerType;
+    billingCountry: string | null;
+    buyerVatId: string | null;
+}) {
+    const supabase = createServerSupabaseClient();
+
+    const { data: saleData, error: saleError } = await supabase
+        .from("sales")
+        .select("id, sale_type, net_amount, vat_rate")
+        .eq("id", saleId)
+        .eq("company_id", companyId)
+        .single();
+
+    if (saleError || !saleData) {
+        throw new Error(
+            `Verkauf konnte für Steuerkorrektur nicht geladen werden: ${
+                saleError?.message ?? "Nicht gefunden"
+            }`,
+        );
+    }
+
+    const saleType = (saleData.sale_type ?? "inland") as SaleType;
+    const taxConfiguration = getSaleTaxConfiguration({
+        buyerType,
+        deliveryType: saleType,
+        billingCountry,
+    });
+
+    const currentVatRate = Number(saleData.vat_rate);
+    const nextVatRate = taxConfiguration.defaultVatRate;
+
+    if (taxConfiguration.showVatId && !buyerVatId?.trim()) {
+        return { changed: false, invoiceCount: 0 };
+    }
+
+    if (
+        !taxConfiguration.forceVatRate &&
+        Number.isFinite(currentVatRate) &&
+        currentVatRate === nextVatRate
+    ) {
+        return { changed: false, invoiceCount: 0 };
+    }
+
+    const netAmount = Number(saleData.net_amount);
+
+    if (!Number.isFinite(netAmount)) {
+        throw new Error("Verkaufspreis netto ist ungültig.");
+    }
+
+    const vatAmount = roundMoney(netAmount * (nextVatRate / 100));
+    const grossAmount = roundMoney(netAmount + vatAmount);
+
+    if (
+        Number.isFinite(currentVatRate) &&
+        currentVatRate === nextVatRate
+    ) {
+        return { changed: false, invoiceCount: 0 };
+    }
+
+    const { error: saleUpdateError } = await supabase
+        .from("sales")
+        .update({
+            vat_rate: nextVatRate,
+            vat_amount: vatAmount,
+            gross_amount: grossAmount,
+        })
+        .eq("id", saleId)
+        .eq("company_id", companyId);
+
+    if (saleUpdateError) {
+        throw new Error(
+            `Verkauf konnte steuerlich nicht aktualisiert werden: ${saleUpdateError.message}`,
+        );
+    }
+
+    const { data: invoicesData, error: invoicesError } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, invoice_type, pdf_document_id, zugferd_file_path")
+        .eq("sale_id", saleId)
+        .eq("company_id", companyId)
+        .in("invoice_type", ["standard", "proforma", "down_payment"]);
+
+    if (invoicesError) {
+        throw new Error(
+            `Rechnungen konnten für Steuerkorrektur nicht geladen werden: ${invoicesError.message}`,
+        );
+    }
+
+    const invoices = (invoicesData ?? []) as SaleTaxSyncInvoice[];
+
+    if (invoices.length > 0) {
+        const invoiceIds = invoices.map((invoice) => invoice.id);
+
+        const { error: invoiceUpdateError } = await supabase
+            .from("invoices")
+            .update({
+                vat_rate: nextVatRate,
+                vat_amount: vatAmount,
+                gross_amount: grossAmount,
+            })
+            .eq("company_id", companyId)
+            .in("id", invoiceIds);
+
+        if (invoiceUpdateError) {
+            throw new Error(
+                `Rechnungen konnten steuerlich nicht aktualisiert werden: ${invoiceUpdateError.message}`,
+            );
+        }
+
+        const zugferdInvoiceIds = invoices
+            .filter((invoice) => Boolean(invoice.zugferd_file_path))
+            .map((invoice) => invoice.id);
+
+        if (zugferdInvoiceIds.length > 0) {
+            const { error: zugferdUpdateError } = await supabase
+                .from("invoices")
+                .update({
+                    zugferd_validation_status: "invalid",
+                    zugferd_generation_started_at: null,
+                    zugferd_validation_summary: {
+                        status: "invalid",
+                        issues: [
+                            {
+                                severity: "error",
+                                message:
+                                    "Steuerbeträge wurden nach Kundenänderung angepasst. ZUGFeRD muss neu erzeugt werden.",
+                            },
+                        ],
+                    },
+                })
+                .eq("company_id", companyId)
+                .in("id", zugferdInvoiceIds);
+
+            if (zugferdUpdateError) {
+                throw new Error(
+                    `ZUGFeRD-Status konnte nach Steuerkorrektur nicht invalidiert werden: ${zugferdUpdateError.message}`,
+                );
+            }
+        }
+
+        for (const invoice of invoices) {
+            const storedPdf = await generateAndStoreInvoicePdf(invoice.id);
+
+            if (!invoice.pdf_document_id) continue;
+
+            const { error: documentUpdateError } = await supabase
+                .from("documents")
+                .update({
+                    status: "available",
+                    file_name: storedPdf.fileName,
+                    file_path: storedPdf.filePath,
+                    file_size: storedPdf.fileSize,
+                    mime_type: "application/pdf",
+                })
+                .eq("id", invoice.pdf_document_id)
+                .eq("company_id", companyId);
+
+            if (documentUpdateError) {
+                throw new Error(
+                    `Rechnungs-PDF ${invoice.invoice_number} wurde erzeugt, aber das Dokument konnte nicht aktualisiert werden: ${documentUpdateError.message}`,
+                );
+            }
+        }
+    }
+
+    await logActivity({
+        action: `Steuerbeträge nach Käuferänderung aktualisiert (${nextVatRate}% MwSt.)`,
+        entityType: "sale",
+        entityId: saleId,
+    });
+
+    return { changed: true, invoiceCount: invoices.length };
+}
+
 export async function updateSaleCustomerAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -49,6 +250,7 @@ export async function updateSaleCustomerAction(formData: FormData) {
     if (type !== "company" && type !== "private") {
         redirectWithSaleMessage(saleId, { recordError: "invalidCustomerType" });
     }
+    const buyerType: SaleBuyerType = type === "private" ? "private" : "company";
 
     const companyName = getStringFormValue(formData, "company_name");
     const ownerName = getStringFormValue(formData, "owner_name");
@@ -94,7 +296,7 @@ export async function updateSaleCustomerAction(formData: FormData) {
             .maybeSingle(),
         supabase
             .from("customers")
-            .select("vat_id")
+            .select("vat_id, type")
             .eq("id", customerId)
             .eq("company_id", companyId)
             .maybeSingle(),
@@ -191,8 +393,18 @@ export async function updateSaleCustomerAction(formData: FormData) {
         }
     }
 
+    const taxSyncResult = await syncSaleTaxAmountsAfterBuyerChange({
+        saleId,
+        companyId,
+        buyerType,
+        billingCountry: country,
+        buyerVatId: vatId,
+    });
+
     await logActivity({
-        action: "Kunde in Verkaufsakte bearbeitet",
+        action: taxSyncResult.changed
+            ? `Kunde in Verkaufsakte bearbeitet; Steuerbeträge und ${taxSyncResult.invoiceCount} Rechnung${taxSyncResult.invoiceCount === 1 ? "" : "en"} aktualisiert`
+            : "Kunde in Verkaufsakte bearbeitet",
         entityType: "customer",
         entityId: customerId,
     });
@@ -200,6 +412,8 @@ export async function updateSaleCustomerAction(formData: FormData) {
     revalidatePaths([
         `/dashboard/sales/${saleId}`,
         "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/documents",
         "/dashboard/customers",
         "/dashboard/activities",
     ]);
