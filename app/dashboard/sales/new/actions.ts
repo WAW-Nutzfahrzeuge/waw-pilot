@@ -968,6 +968,7 @@ export async function createSaleAction(
     const netAmount = getNumberValue(formData, "net_amount");
     const newCustomerType = getNewCustomerType(formData);
     const notes = getStringValue(formData, "notes");
+    const invoiceNotes = getStringValue(formData, "invoice_notes");
     const requestedIncludeDamageNotesOnInvoice =
         getStringValue(formData, "include_damage_notes_on_invoice") === "yes";
     const includeSignatureStamp =
@@ -1431,7 +1432,7 @@ export async function createSaleAction(
             document_check_status: "missing",
             datev_status: "not_sent",
             notes,
-            invoice_notes: null,
+            invoice_notes: invoiceNotes,
             include_damage_notes_on_invoice: includeDamageNotesOnInvoice,
 
             export_destination_city: finalExportDestinationCity,

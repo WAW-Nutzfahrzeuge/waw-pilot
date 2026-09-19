@@ -68,6 +68,9 @@ import {
 } from "@/utils/sale-document-status";
 import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
 import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
+import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
@@ -98,6 +101,7 @@ type SaleDetailProps = {
     exportArrivalError?: boolean;
     paymentSaved?: string | null;
     paymentError?: string | null;
+    invoiceNotesSaved?: boolean;
     cancellationCreated?: string | null;
     refundCreated?: string | null;
     correctionError?: string | null;
@@ -148,6 +152,7 @@ export async function SaleDetail({
                                exportArrivalError = false,
                                paymentSaved = null,
                                paymentError = null,
+                               invoiceNotesSaved = false,
                                cancellationCreated = null,
                                refundCreated = null,
                                correctionError = null,
@@ -276,6 +281,13 @@ export async function SaleDetail({
                         </div>
                     </div>
                 </div>
+            ) : null}
+
+            {invoiceNotesSaved ? (
+                <FlashMessage
+                    message="Zusätzliche Vereinbarung gespeichert."
+                    description="Die vorhandenen Rechnungs-PDFs wurden mit dem neuen Rechnungstext neu erzeugt."
+                />
             ) : null}
 
             {datevInvoiceSent ? (
@@ -675,6 +687,38 @@ export async function SaleDetail({
                                         sale.invoices.some((invoice) => invoice.include_terms_pdf)
                                     }
                                 />
+
+                                <form
+                                    id="invoice-agreement"
+                                    action={updateSaleInvoiceNotesAction}
+                                    className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4"
+                                >
+                                    <input type="hidden" name="sale_id" value={sale.id} />
+                                    <div className="space-y-2">
+                                        <Label
+                                            htmlFor="sale-invoice-notes"
+                                            className="font-bold text-slate-700"
+                                        >
+                                            Zusätzliche Vereinbarung auf der Rechnung
+                                        </Label>
+                                        <Textarea
+                                            id="sale-invoice-notes"
+                                            name="invoice_notes"
+                                            defaultValue={sale.invoice_notes ?? ""}
+                                            placeholder="z. B. Sondervereinbarung, Abholbedingung oder ergänzender Rechnungstext..."
+                                            className="min-h-24 rounded-2xl border-slate-200 bg-white font-medium"
+                                        />
+                                    </div>
+
+                                    <div className="mt-4 flex justify-end">
+                                        <Button
+                                            type="submit"
+                                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                                        >
+                                            Vereinbarung speichern & PDF neu erstellen
+                                        </Button>
+                                    </div>
+                                </form>
 
                                 {sale.invoices.length > 0 ? (
                                     <div className="mt-6 divide-y-2 divide-slate-900/20">

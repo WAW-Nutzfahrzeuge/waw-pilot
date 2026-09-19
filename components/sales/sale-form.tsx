@@ -924,6 +924,18 @@ export function SaleForm({
                             </div>
                         </label>
 
+                        <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
+                            <Label htmlFor="invoice_notes" className="font-bold text-slate-700">
+                                Zusätzliche Vereinbarung auf der Rechnung
+                            </Label>
+                            <Textarea
+                                id="invoice_notes"
+                                name="invoice_notes"
+                                placeholder="z. B. Sondervereinbarung, Abholbedingung oder ergänzender Rechnungstext..."
+                                className="min-h-24 rounded-2xl border-slate-200 bg-slate-50 font-medium"
+                            />
+                        </div>
+
                         <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4">
                             <input
                                 type="checkbox"

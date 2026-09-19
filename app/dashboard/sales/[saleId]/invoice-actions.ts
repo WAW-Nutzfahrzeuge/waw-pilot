@@ -822,6 +822,93 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
     );
 }
 
+export async function updateSaleInvoiceNotesAction(formData: FormData) {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const saleId = getStringValue(formData, "sale_id");
+    const invoiceNotes = getStringValue(formData, "invoice_notes");
+
+    if (!saleId) {
+        throw new Error("Verkauf fehlt.");
+    }
+
+    const { error: saleUpdateError } = await supabase
+        .from("sales")
+        .update({
+            invoice_notes: invoiceNotes,
+        })
+        .eq("id", saleId)
+        .eq("company_id", companyId);
+
+    if (saleUpdateError) {
+        throw new Error(
+            `Zusätzliche Vereinbarung konnte nicht gespeichert werden: ${saleUpdateError.message}`,
+        );
+    }
+
+    const { data: invoicesData, error: invoicesError } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, pdf_document_id")
+        .eq("sale_id", saleId)
+        .eq("company_id", companyId);
+
+    if (invoicesError) {
+        throw new Error(
+            `Rechnungen konnten nicht geladen werden: ${invoicesError.message}`,
+        );
+    }
+
+    const invoices = (invoicesData ?? []) as Array<{
+        id: string;
+        invoice_number: string;
+        pdf_document_id: string | null;
+    }>;
+
+    for (const invoice of invoices) {
+        const storedPdf = await generateAndStoreInvoicePdf(invoice.id);
+
+        if (!invoice.pdf_document_id) continue;
+
+        const { error: documentUpdateError } = await supabase
+            .from("documents")
+            .update({
+                status: "available",
+                file_name: storedPdf.fileName,
+                file_path: storedPdf.filePath,
+                file_size: storedPdf.fileSize,
+                mime_type: "application/pdf",
+            })
+            .eq("id", invoice.pdf_document_id)
+            .eq("company_id", companyId);
+
+        if (documentUpdateError) {
+            throw new Error(
+                `PDF wurde erzeugt, aber Dokument ${invoice.invoice_number} konnte nicht aktualisiert werden: ${documentUpdateError.message}`,
+            );
+        }
+    }
+
+    await logActivity({
+        action:
+            invoices.length > 0
+                ? `Zusätzliche Vereinbarung gespeichert und ${invoices.length} Rechnungs-PDF${invoices.length === 1 ? "" : "s"} neu erzeugt`
+                : "Zusätzliche Vereinbarung gespeichert",
+        entityType: "sale",
+        entityId: saleId,
+    });
+
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/documents",
+        "/dashboard/activities",
+    ]);
+
+    redirect(`/dashboard/sales/${saleId}?invoiceNotesSaved=1#invoice-agreement`);
+}
+
 export async function sendSaleInvoiceEmailAction(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();

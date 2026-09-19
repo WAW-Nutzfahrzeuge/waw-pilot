@@ -741,21 +741,9 @@ function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
         "Delivery terms: EXW (Ex Works) according to Incoterms",
         "Das KFZ wird unter Ausschluss jeder Gewährleistung, so wie es steht, verkauft. | Sold without warranty or guarantee .",
     ];
-    const invoiceNoteLines = data.invoiceNotes?.trim()
-        ? [
-              "",
-              "Hinweis / Notiz:",
-              ...data.invoiceNotes
-                  .split(/\r?\n/)
-                  .map((line) => line.trim())
-                  .filter((line) => line.length > 0),
-          ]
-        : [];
-
     if (data.saleType === "eu") {
         return [
             ...baseLines,
-            ...invoiceNoteLines,
             "",
             "Steuerfreie innergemeinschaftliche Lieferung gemäß § 4 Nr. 1b UStG i.V.m. § 6a UStG. | Intra-Community supply exempt from VAT.",
         ];
@@ -764,14 +752,13 @@ function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
     if (data.saleType === "export_third_country") {
         return [
             ...baseLines,
-            ...invoiceNoteLines,
             "",
             "Steuerfreie Ausfuhrlieferung gemäß § 4 Nr. 1a UStG. | Export delivery exempt from VAT according to § 4 No. 1a German VAT Act.",
             "Lieferdatum = Rechnungsdatum",
         ];
     }
 
-    return [...baseLines, ...invoiceNoteLines];
+    return baseLines;
 }
 
 function getTermsNotice(language: string | null | undefined): string {
@@ -1323,11 +1310,36 @@ export async function generateInvoicePdf(
         navy,
     );
 
+    const agreementNotes = data.invoiceNotes?.trim();
+    const warrantyTextTopY = agreementNotes ? tableContentTopY - 96 : tableContentTopY - 50;
+
+    if (agreementNotes) {
+        const agreementX = tableX + col1 + 12;
+        const agreementY = tableContentTopY - 47;
+        const agreementWidth = col2 - 24;
+
+        drawText(page, "Zusätzliche Vereinbarung:", agreementX, agreementY, {
+            font: helveticaBold,
+            size: 6.8,
+            color: navy,
+            maxWidth: agreementWidth,
+        });
+
+        drawWrappedText(page, agreementNotes, agreementX, agreementY - 10, {
+            font: helveticaBold,
+            size: 6.6,
+            lineHeight: 8,
+            maxWidth: agreementWidth,
+            maxLines: 5,
+            color: black,
+        });
+    }
+
     drawCellText(
         page,
         "Der Verkauf erfolgt ohne jeglicher Gewährleistung und Garantie!",
         tableX + col1,
-        tableContentTopY - 50,
+        warrantyTextTopY,
         col2,
         {
             font: helveticaBold,

@@ -33,6 +33,7 @@ type SaleDetailPageProps = {
         exportArrivalError?: string;
         paymentSaved?: string;
         paymentError?: string;
+        invoiceNotesSaved?: string;
         cancellationCreated?: string;
         refundCreated?: string;
         correctionError?: string;
@@ -98,6 +99,7 @@ export default async function SaleDetailPage({
             exportArrivalError={resolvedSearchParams.exportArrivalError === "1"}
             paymentSaved={resolvedSearchParams.paymentSaved ?? null}
             paymentError={resolvedSearchParams.paymentError ?? null}
+            invoiceNotesSaved={resolvedSearchParams.invoiceNotesSaved === "1"}
             cancellationCreated={resolvedSearchParams.cancellationCreated ?? null}
             refundCreated={resolvedSearchParams.refundCreated ?? null}
             correctionError={resolvedSearchParams.correctionError ?? null}
