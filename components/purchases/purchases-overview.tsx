@@ -47,7 +47,7 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
             incompleteDocuments: 0,
             openPayments: 0,
             paidPurchases: 0,
-            totalGross: 0,
+            totalNet: 0,
         };
 
         for (const purchase of purchases) {
@@ -82,7 +82,7 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                 summary.completedPurchases += 1;
             }
 
-            summary.totalGross += purchase.gross_amount;
+            summary.totalNet += purchase.net_amount;
         }
 
         return {
@@ -141,8 +141,8 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                     icon={ShoppingCart}
                 />
                 <PurchaseStatCard
-                    label="Einkauf brutto"
-                    value={formatCurrency(purchaseSummary.totalGross)}
+                    label="Einkauf netto"
+                    value={formatCurrency(purchaseSummary.totalNet)}
                     description="Summe aller Ankäufe"
                     icon={Wallet}
                 />
@@ -288,10 +288,10 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
 
                                         <td className="px-5 py-5">
                                             <p className="font-extrabold text-slate-950">
-                                                {formatCurrency(purchase.gross_amount)}
+                                                {formatCurrency(purchase.net_amount)}
                                             </p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                Netto {formatCurrency(purchase.net_amount)}
+                                                Netto
                                             </p>
                                         </td>
 
@@ -397,8 +397,8 @@ function PurchaseMobileCard({ purchase }: { purchase: PurchaseCaseRow }) {
 
             <div className="mt-4 grid grid-cols-3 gap-2">
                 <PurchaseMobileInfoBox
-                    label="Brutto"
-                    value={formatCurrency(purchase.gross_amount)}
+                    label="Netto"
+                    value={formatCurrency(purchase.net_amount)}
                 />
                 <PurchaseMobileInfoBox
                     label="Zahlung"
