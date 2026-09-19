@@ -428,28 +428,6 @@ async function createBuyerCustomerFromSaleForm(
         };
     }
 
-    const duplicateCustomer = await findDuplicateCustomer({
-        supabase,
-        companyId,
-        type,
-        companyName,
-        firstName,
-        lastName,
-        email,
-        phone,
-        vatId,
-        postalCode,
-        city,
-    });
-
-    if (duplicateCustomer) {
-        return {
-            success: false,
-            message:
-                "Es gibt bereits einen möglichen passenden Kunden. Bitte wähle den bestehenden Kunden über die Suche aus oder prüfe die Stammdaten.",
-        };
-    }
-
     const { data: customer, error } = await supabase
         .from("customers")
         .insert({
@@ -526,7 +504,6 @@ async function validateBuyerCustomerFromSaleForm(
     const postalCode = getStringValue(formData, "new_customer_postal_code");
     const city = getStringValue(formData, "new_customer_city");
     const country = getStringValue(formData, "new_customer_country") ?? "Deutschland";
-    const email = getStringValue(formData, "new_customer_email");
     const phone = getStringValue(formData, "new_customer_phone");
     const rawVatId = getStringValue(formData, "new_customer_vat_id");
     const taxNumber = getStringValue(formData, "new_customer_tax_number");
@@ -590,147 +567,7 @@ async function validateBuyerCustomerFromSaleForm(
         };
     }
 
-    const duplicateCustomer = await findDuplicateCustomer({
-        supabase,
-        companyId,
-        type,
-        companyName,
-        firstName,
-        lastName,
-        email,
-        phone,
-        vatId,
-        postalCode,
-        city,
-    });
-
-    if (duplicateCustomer) {
-        return {
-            success: false,
-            message:
-                "Es gibt bereits einen möglichen passenden Kunden. Bitte wähle den bestehenden Kunden über die Suche aus oder prüfe die Stammdaten.",
-        };
-    }
-
     return { success: true };
-}
-
-async function findDuplicateCustomer({
-    supabase,
-    companyId,
-    type,
-    companyName,
-    firstName,
-    lastName,
-    email,
-    phone,
-    vatId,
-    postalCode,
-    city,
-}: {
-    supabase: ReturnType<typeof createServerSupabaseClient>;
-    companyId: string;
-    type: CustomerType;
-    companyName: string | null;
-    firstName: string | null;
-    lastName: string | null;
-    email: string | null;
-    phone: string | null;
-    vatId: string | null;
-    postalCode: string | null;
-    city: string | null;
-}): Promise<boolean> {
-    async function hasMatch(
-        query: PromiseLike<{ data: { id: string }[] | null }>,
-    ): Promise<boolean> {
-        const { data } = await query;
-
-        return (data ?? []).length > 0;
-    }
-
-    if (vatId) {
-        if (
-            await hasMatch(
-            supabase
-                .from("customers")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("vat_id", vatId)
-                .limit(1),
-            )
-        ) {
-            return true;
-        }
-    }
-
-    if (email) {
-        if (
-            await hasMatch(
-            supabase
-                .from("customers")
-                .select("id")
-                .eq("company_id", companyId)
-                .ilike("email", email)
-                .limit(1),
-            )
-        ) {
-            return true;
-        }
-    }
-
-    if (phone) {
-        if (
-            await hasMatch(
-            supabase
-                .from("customers")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("phone", phone)
-                .limit(1),
-            )
-        ) {
-            return true;
-        }
-    }
-
-    if (type === "company" && companyName && postalCode && city) {
-        if (
-            await hasMatch(
-            supabase
-                .from("customers")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("type", "company")
-                .ilike("company_name", companyName)
-                .eq("postal_code", postalCode)
-                .ilike("city", city)
-                .limit(1),
-            )
-        ) {
-            return true;
-        }
-    }
-
-    if (type === "private" && firstName && lastName && postalCode && city) {
-        if (
-            await hasMatch(
-            supabase
-                .from("customers")
-                .select("id")
-                .eq("company_id", companyId)
-                .eq("type", "private")
-                .ilike("first_name", firstName)
-                .ilike("last_name", lastName)
-                .eq("postal_code", postalCode)
-                .ilike("city", city)
-                .limit(1),
-            )
-        ) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 async function createVehicleFromSaleForm(
