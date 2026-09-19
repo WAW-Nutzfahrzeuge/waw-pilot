@@ -12,6 +12,7 @@ import {
     ZipArchiveService,
     type ZipArchiveEntry,
 } from "@/src/modules/documents/infrastructure/archive/zip-archive.service";
+import { renderInvoicePdfBytes } from "@/lib/pdf/invoice-storage";
 
 type SaleExportInvoiceRow = {
     id: string;
@@ -69,11 +70,14 @@ type SaleExportDocumentVersionRow = {
 type SaleExportFile = {
     document: SaleExportDocumentRow;
     storageBucket: string;
-    storagePath: string;
+    storagePath: string | null;
     fileName: string;
     mimeType: string | null;
     createdAt: string | null;
     isCritical: boolean;
+    renderFreshInvoicePdf: boolean;
+    invoiceId: string | null;
+    invoiceNumber: string | null;
 };
 
 export type ExportSaleFileResult = {
@@ -149,6 +153,19 @@ function isCriticalDocument(document: SaleExportDocumentRow): boolean {
     );
 }
 
+const invoicePdfDocumentTypes = new Set([
+    "invoice",
+    "invoice_pdf",
+    "proforma_invoice",
+    "down_payment_invoice",
+    "cancellation_invoice",
+    "credit_note",
+]);
+
+function isInvoicePdfDocument(document: SaleExportDocumentRow): boolean {
+    return Boolean(document.invoice_id && invoicePdfDocumentTypes.has(document.document_type));
+}
+
 function dedupeDocuments(documents: SaleExportDocumentRow[]): SaleExportDocumentRow[] {
     const byId = new Map<string, SaleExportDocumentRow>();
 
@@ -202,7 +219,7 @@ export class ExportSaleFileUseCase {
             sale,
             invoices,
         });
-        const files = await this.resolveFiles(params.companyId, documents);
+        const files = await this.resolveFiles(params.companyId, documents, invoices);
 
         if (files.length === 0) {
             throw new SaleFileExportError(
@@ -217,8 +234,12 @@ export class ExportSaleFileUseCase {
 
         for (const file of files) {
             const category = this.categoryPolicy.getCategory(file.document.document_type);
+            const documentReference =
+                file.renderFreshInvoicePdf && file.invoiceNumber
+                    ? file.invoiceNumber
+                    : saleReference;
             const requestedName = this.fileNamePolicy.createDocumentFileName({
-                saleReference,
+                saleReference: documentReference,
                 vehicleLabel,
                 documentType: file.document.document_type,
                 originalFileName: file.fileName,
@@ -229,10 +250,23 @@ export class ExportSaleFileUseCase {
                 `${archiveFolderName}/${category.folderName}/${requestedName}`,
                 usedArchivePaths,
             );
-            const data = await this.storage.download({
-                bucket: file.storageBucket,
-                path: file.storagePath,
-            });
+            let data: Uint8Array | null = null;
+
+            if (file.renderFreshInvoicePdf && file.invoiceId) {
+                try {
+                    const renderedInvoice = await renderInvoicePdfBytes(file.invoiceId);
+
+                    data = Buffer.from(renderedInvoice.pdfBytes);
+                } catch (error) {
+                    console.error("[sale-file-export] invoice render failed", error);
+                    data = null;
+                }
+            } else if (file.storagePath) {
+                data = await this.storage.download({
+                    bucket: file.storageBucket,
+                    path: file.storagePath,
+                });
+            }
 
             if (!data) {
                 const message = `${requestedName} konnte nicht geladen werden.`;
@@ -422,25 +456,36 @@ export class ExportSaleFileUseCase {
     private async resolveFiles(
         companyId: string,
         documents: SaleExportDocumentRow[],
+        invoices: SaleExportInvoiceRow[],
     ): Promise<SaleExportFile[]> {
         const documentIds = documents.map((document) => document.id);
         const versionsByDocumentId = await this.loadActiveVersions(companyId, documentIds);
+        const invoicesById = new Map(invoices.map((invoice) => [invoice.id, invoice]));
 
         return documents
             .map((document) => {
                 const version = versionsByDocumentId.get(document.id);
                 const storagePath = version?.storage_path ?? document.file_path;
+                const shouldRenderFreshInvoicePdf = isInvoicePdfDocument(document);
+                const invoice = document.invoice_id
+                    ? invoicesById.get(document.invoice_id) ?? null
+                    : null;
 
-                if (!storagePath) return null;
+                if (!storagePath && !shouldRenderFreshInvoicePdf) return null;
 
                 return {
                     document,
                     storageBucket: version?.storage_bucket ?? "documents",
                     storagePath,
                     fileName: version?.original_file_name ?? document.file_name ?? "Dokument",
-                    mimeType: version?.mime_type ?? document.mime_type,
+                    mimeType: shouldRenderFreshInvoicePdf
+                        ? "application/pdf"
+                        : version?.mime_type ?? document.mime_type,
                     createdAt: version?.uploaded_at ?? document.created_at,
                     isCritical: isCriticalDocument(document),
+                    renderFreshInvoicePdf: shouldRenderFreshInvoicePdf,
+                    invoiceId: document.invoice_id,
+                    invoiceNumber: invoice?.invoice_number ?? null,
                 };
             })
             .filter((file): file is SaleExportFile => file !== null);

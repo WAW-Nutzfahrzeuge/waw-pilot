@@ -986,13 +986,7 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
       id,
       sale_id,
       invoice_number,
-      invoice_type,
-      pdf_document_id,
-      documents:pdf_document_id (
-        id,
-        file_path,
-        mime_type
-      )
+      invoice_type
     `,
         )
         .eq("id", invoiceId)
@@ -1006,14 +1000,9 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
     }
 
     const invoice = data as unknown as InvoiceEmailQueryRow;
-    const document = getSingleRelation(invoice.documents);
 
     if (invoice.invoice_type !== "standard") {
         redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
-    }
-
-    if (!invoice.pdf_document_id || !document?.file_path) {
-        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "missingPdf"));
     }
 
     try {
