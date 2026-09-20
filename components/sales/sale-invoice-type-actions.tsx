@@ -34,7 +34,7 @@ export function SaleInvoiceTypeActions({
                                            includeDamageNotesOnInvoice = false,
                                            hasSignatureStampAssets = false,
                                            initialIncludeSignatureStamp = false,
-                                           initialIncludeTermsPdf = true,
+                                           initialIncludeTermsPdf = false,
                                        }: SaleInvoiceTypeActionsProps) {
     const hasStandard = existingInvoiceTypes.includes("standard");
     const hasProforma = existingInvoiceTypes.includes("proforma");

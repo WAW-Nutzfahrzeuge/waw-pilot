@@ -682,10 +682,9 @@ export async function SaleDetail({
                                     initialIncludeSignatureStamp={sale.invoices.some(
                                         (invoice) => invoice.include_signature_stamp,
                                     )}
-                                    initialIncludeTermsPdf={
-                                        sale.invoices.length === 0 ||
-                                        sale.invoices.some((invoice) => invoice.include_terms_pdf)
-                                    }
+                                    initialIncludeTermsPdf={sale.invoices.some(
+                                        (invoice) => invoice.include_terms_pdf,
+                                    )}
                                 />
 
                                 <form
