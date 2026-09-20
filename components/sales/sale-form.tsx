@@ -139,6 +139,7 @@ export function SaleForm({
     ] = useState(false);
     const [netAmount, setNetAmount] = useState("");
     const [vatRate, setVatRate] = useState("19");
+    const [includeTermsPdf, setIncludeTermsPdf] = useState(false);
     const requiresExportDetails =
         saleType === "eu" || saleType === "export_third_country";
     const selectedCustomer =
@@ -958,10 +959,16 @@ export function SaleForm({
                         <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-slate-200 bg-white p-4">
                             <input
                                 type="checkbox"
-                                name="include_terms_pdf"
-                                value="yes"
-                                defaultChecked
+                                checked={includeTermsPdf}
+                                onChange={(event) =>
+                                    setIncludeTermsPdf(event.currentTarget.checked)
+                                }
                                 className="mt-1 size-4 rounded border-slate-300 text-cyan-700"
+                            />
+                            <input
+                                type="hidden"
+                                name="include_terms_pdf"
+                                value={includeTermsPdf ? "yes" : "no"}
                             />
                             <div>
                                 <p className="font-extrabold text-slate-950">
