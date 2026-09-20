@@ -450,7 +450,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                                             <div className="font-bold text-slate-950">
                                                 {row.purchaseDateLabel}
                                             </div>
-                                            <div className="mt-1 text-xs font-medium text-slate-500 print:text-[7px]">
+                                            <div className="mt-1 text-sm font-bold text-slate-700 print:text-[9px]">
                                                 {row.purchaseNumber ?? "—"}
                                             </div>
                                         </td>

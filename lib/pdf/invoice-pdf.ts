@@ -10,6 +10,7 @@ import {
     type CompanySignatureStampAssets,
 } from "@/lib/pdf/company-signature-assets";
 import {
+    degrees,
     PDFDocument,
     rgb,
     type PDFFont,
@@ -482,6 +483,9 @@ async function drawSignatureStampImages(
             y: 60,
             width,
             height,
+            // Clockwise tilt so the stamp looks hand-stamped rather
+            // than perfectly aligned with the page.
+            rotate: degrees(-14),
         });
     }
 }
