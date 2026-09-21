@@ -507,7 +507,7 @@ function VehicleCreateFields() {
             <FormField label="Baujahr" name="new_vehicle_construction_year" type="number" />
             <FormField label="Kilometerstand" name="new_vehicle_mileage" type="number" />
             <FormField label="Farbe" name="new_vehicle_color" />
-            <FormField label="Fahrzeugkategorie" name="new_vehicle_category" />
+            <FormField label="Fahrzeugkategorie *" name="new_vehicle_category" required />
             <div className="md:col-span-2">
                 <Label htmlFor="new_vehicle_damage_notes" className="font-bold text-slate-700">
                     Schäden

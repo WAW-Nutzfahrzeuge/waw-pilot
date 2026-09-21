@@ -45,6 +45,7 @@ type VehicleRelation = {
     manufacturer: string;
     model: string;
     vehicle_type: string;
+    vehicle_category: string | null;
     vin: string;
     first_registration: string | null;
     construction_year: number | null;
@@ -137,6 +138,7 @@ const invoicePdfBaseSelect = `
         manufacturer,
         model,
         vehicle_type,
+        vehicle_category,
         vin,
         first_registration,
         construction_year,
@@ -351,6 +353,7 @@ export async function getInvoicePdfData(
             manufacturer: vehicle.manufacturer,
             model: vehicle.model,
             vehicleType: vehicle.vehicle_type,
+            vehicleCategory: vehicle.vehicle_category,
             vin: vehicle.vin,
             firstRegistration: vehicle.first_registration,
             constructionYear: vehicle.construction_year,

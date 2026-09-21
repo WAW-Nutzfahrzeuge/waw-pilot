@@ -71,6 +71,7 @@ export type InvoicePdfData = {
         manufacturer: string;
         model: string;
         vehicleType: string;
+        vehicleCategory: string | null;
         vin: string;
         firstRegistration: string | null;
         constructionYear: number | null;
@@ -848,7 +849,7 @@ function drawDamageNotesPages(
 
     drawText(
         damagePage,
-        `${safeText(data.vehicle.manufacturer)} ${safeText(data.vehicle.model)} · VIN ${safeText(data.vehicle.vin)}`,
+        `${safeText(data.vehicle.manufacturer)} ${safeText(data.vehicle.vehicleCategory)} · VIN ${safeText(data.vehicle.vin)}`,
         42,
         y,
         {
@@ -1221,12 +1222,12 @@ export async function generateInvoicePdf(
         maxLines: 2,
     });
 
-    drawText(page, "Modell:", leftBoxTextX, 451, {
+    drawText(page, "Fahrzeugkategorie:", leftBoxTextX, 451, {
         font: helveticaBold,
         size: 8,
     });
 
-    drawWrappedText(page, safeText(data.vehicle.model), leftBoxTextX + 100, 451, {
+    drawWrappedText(page, safeText(data.vehicle.vehicleCategory), leftBoxTextX + 100, 451, {
         font: helveticaBold,
         size: 8,
         lineHeight: 9,
@@ -1334,7 +1335,7 @@ export async function generateInvoicePdf(
         size: vehicleTextSize,
     });
 
-    drawWrappedText(page, safeText(data.vehicle.model), vehicleValueX, vehicleStartY - vehicleLineHeight, {
+    drawWrappedText(page, safeText(data.vehicle.vehicleCategory), vehicleValueX, vehicleStartY - vehicleLineHeight, {
         font: helveticaBold,
         size: vehicleTextSize,
         lineHeight: 9,
