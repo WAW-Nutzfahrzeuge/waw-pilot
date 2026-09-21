@@ -261,6 +261,19 @@ export function VehicleDetail({
                                     value={vehicle.construction_year?.toString() ?? "—"}
                                 />
                                 <InfoRow
+                                    label="Kilometerstand"
+                                    value={
+                                        vehicle.mileage !== null
+                                            ? `${vehicle.mileage.toLocaleString("de-DE")} km`
+                                            : "—"
+                                    }
+                                />
+                                <InfoRow label="Farbe" value={vehicle.color ?? "—"} />
+                                <InfoRow
+                                    label="Fahrzeugkategorie"
+                                    value={vehicle.vehicle_category ?? "—"}
+                                />
+                                <InfoRow
                                     label="Angelegt am"
                                     value={formatDate(vehicle.created_at)}
                                 />

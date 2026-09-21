@@ -71,6 +71,9 @@ export async function updateVehicleAction(
     const status = getStatusValue(formData);
     const notes = getStringFormValue(formData, "notes");
     const damageNotes = getStringFormValue(formData, "damage_notes");
+    const mileage = getDecimalFormValue(formData, "mileage");
+    const color = getStringFormValue(formData, "color");
+    const vehicleCategory = getStringFormValue(formData, "vehicle_category");
     const redirectTo = getSafeDashboardRedirectPath(
         getStringFormValue(formData, "redirect_to"),
         `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
@@ -127,7 +130,7 @@ export async function updateVehicleAction(
 
     const { data: existingVehicle, error: loadError } = await supabase
         .from("vehicles")
-        .select("id, internal_number, manufacturer, model")
+        .select("id, internal_number, manufacturer, model, show_damage_on_invoice")
         .eq("id", vehicleId)
         .eq("company_id", companyId)
         .single();
@@ -169,12 +172,15 @@ export async function updateVehicleAction(
             construction_year: constructionYear,
             vin,
             license_plate: licensePlate,
+            mileage,
+            color,
+            vehicle_category: vehicleCategory,
             purchase_price_net: purchasePriceNet,
             additional_costs_net: additionalCostsNet,
             status,
             notes,
             damage_notes: damageNotes,
-            show_damage_on_invoice: false,
+            show_damage_on_invoice: Boolean(existingVehicle.show_damage_on_invoice),
         })
         .eq("id", vehicleId)
         .eq("company_id", companyId);

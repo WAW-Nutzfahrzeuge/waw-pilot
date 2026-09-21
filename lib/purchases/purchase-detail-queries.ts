@@ -59,6 +59,9 @@ type PurchaseCaseDetailQueryRow = {
         license_plate: string | null;
         construction_year: number | null;
         first_registration: string | null;
+        mileage: number | string | null;
+        color: string | null;
+        vehicle_category: string | null;
         purchase_price_net: number | string;
         additional_costs_net: number | string;
         notes: string | null;
@@ -144,6 +147,9 @@ export type PurchaseCaseDetail = {
         license_plate: string | null;
         construction_year: number | null;
         first_registration: string | null;
+        mileage: number | null;
+        color: string | null;
+        vehicle_category: string | null;
         purchase_price_net: number;
         additional_costs_net: number;
         notes: string | null;
@@ -233,6 +239,9 @@ export async function getPurchaseCaseDetail(
         license_plate,
         construction_year,
         first_registration,
+        mileage,
+        color,
+        vehicle_category,
         purchase_price_net,
         additional_costs_net,
         notes,
@@ -359,6 +368,9 @@ export async function getPurchaseCaseDetail(
                 license_plate: vehicle.license_plate,
                 construction_year: vehicle.construction_year,
                 first_registration: vehicle.first_registration,
+                mileage: vehicle.mileage === null ? null : Number(vehicle.mileage),
+                color: vehicle.color,
+                vehicle_category: vehicle.vehicle_category,
                 purchase_price_net: Number(vehicle.purchase_price_net ?? 0),
                 additional_costs_net: Number(vehicle.additional_costs_net ?? 0),
                 notes: vehicle.notes,

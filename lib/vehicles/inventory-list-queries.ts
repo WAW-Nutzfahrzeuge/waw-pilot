@@ -46,6 +46,15 @@ type VehicleQueryRow = {
     additional_costs_net: number | string | null;
     status: "in_stock" | "reserved" | "sold";
     created_at: string;
+    seller_customer_id: string | null;
+};
+
+type CustomerNameRow = {
+    id: string;
+    type: "company" | "private";
+    company_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
 };
 
 type PurchaseQueryRow = {
@@ -53,12 +62,6 @@ type PurchaseQueryRow = {
     purchase_number: string | null;
     purchase_date: string | null;
     net_amount: number | string | null;
-    customers: {
-        type: "company" | "private";
-        company_name: string | null;
-        first_name: string | null;
-        last_name: string | null;
-    } | null;
 };
 
 type SaleQueryRow = {
@@ -157,7 +160,8 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             purchase_price_net,
             additional_costs_net,
             status,
-            created_at
+            created_at,
+            seller_customer_id
         `,
         )
         .eq("company_id", companyId)
@@ -176,6 +180,14 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         return [];
     }
 
+    const sellerCustomerIds = Array.from(
+        new Set(
+            vehicles
+                .map((vehicle) => vehicle.seller_customer_id)
+                .filter((customerId): customerId is string => Boolean(customerId)),
+        ),
+    );
+
     const purchasesPromise = supabase
         .from("purchase_cases")
         .select(
@@ -183,18 +195,21 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             vehicle_id,
             purchase_number,
             purchase_date,
-            net_amount,
-            customers:seller_customer_id (
-                type,
-                company_name,
-                first_name,
-                last_name
-            )
+            net_amount
         `,
         )
         .eq("company_id", companyId)
         .in("vehicle_id", vehicleIds)
         .order("purchase_date", { ascending: false });
+
+    const sellerCustomersPromise =
+        sellerCustomerIds.length > 0
+            ? supabase
+                  .from("customers")
+                  .select("id, type, company_name, first_name, last_name")
+                  .eq("company_id", companyId)
+                  .in("id", sellerCustomerIds)
+            : Promise.resolve({ data: [], error: null });
 
     const salesPromise = supabase
         .from("sales")
@@ -220,8 +235,15 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
 
     const [
         { data: purchasesData, error: purchasesError },
+        { data: sellerCustomersData, error: sellerCustomersError },
         { data: salesData, error: salesError },
-    ] = await Promise.all([purchasesPromise, salesPromise]);
+    ] = await Promise.all([purchasesPromise, sellerCustomersPromise, salesPromise]);
+
+    if (sellerCustomersError) {
+        throw new Error(
+            `Verkäufer für Bestandsliste konnten nicht geladen werden: ${sellerCustomersError.message}`,
+        );
+    }
 
     if (purchasesError) {
         throw new Error(
@@ -278,6 +300,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
 
     const purchasesByVehicleId = new Map<string, PurchaseQueryRow>();
     const salesByVehicleId = new Map<string, SaleQueryRow>();
+    const sellerCustomersById = new Map<string, CustomerNameRow>();
 
     for (const purchase of (purchasesData ?? []) as unknown as PurchaseQueryRow[]) {
         if (!purchase.vehicle_id) continue;
@@ -285,6 +308,10 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         if (!purchasesByVehicleId.has(purchase.vehicle_id)) {
             purchasesByVehicleId.set(purchase.vehicle_id, purchase);
         }
+    }
+
+    for (const customer of (sellerCustomersData ?? []) as CustomerNameRow[]) {
+        sellerCustomersById.set(customer.id, customer);
     }
 
     for (const sale of sales) {
@@ -335,7 +362,11 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
 
             purchaseNumber: purchase?.purchase_number ?? null,
             purchaseDate,
-            sellerName: getCustomerName(purchase?.customers),
+            sellerName: getCustomerName(
+                vehicle.seller_customer_id
+                    ? sellerCustomersById.get(vehicle.seller_customer_id) ?? null
+                    : null,
+            ),
             purchaseNetAmount,
 
             additionalCostsNet,

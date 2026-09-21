@@ -433,6 +433,9 @@ export async function updateSaleVehicleAction(formData: FormData) {
     const constructionYear = getDecimalFormValue(formData, "construction_year");
     const vin = normalizeVin(getStringFormValue(formData, "vin") ?? "");
     const licensePlate = getStringFormValue(formData, "license_plate");
+    const mileage = getDecimalFormValue(formData, "mileage");
+    const color = getStringFormValue(formData, "color");
+    const vehicleCategory = getStringFormValue(formData, "vehicle_category");
     const purchasePriceNet = getDecimalFormValue(formData, "purchase_price_net");
     const additionalCostsNet = getDecimalFormValue(formData, "additional_costs_net") ?? 0;
     const damageNotes = getStringFormValue(formData, "damage_notes");
@@ -448,7 +451,7 @@ export async function updateSaleVehicleAction(formData: FormData) {
         redirectWithSaleMessage(saleId, { recordError: "vehiclePriceInvalid" });
     }
 
-    const [{ data: sale }, { data: duplicateVinVehicle, error: duplicateVinError }] =
+    const [{ data: sale }, { data: duplicateVinVehicle, error: duplicateVinError }, { data: existingVehicle, error: loadError }] =
         await Promise.all([
             supabase
                 .from("sales")
@@ -464,6 +467,12 @@ export async function updateSaleVehicleAction(formData: FormData) {
                 .ilike("vin", vin)
                 .neq("id", vehicleId)
                 .limit(1),
+            supabase
+                .from("vehicles")
+                .select("show_damage_on_invoice")
+                .eq("id", vehicleId)
+                .eq("company_id", companyId)
+                .maybeSingle(),
         ]);
 
     if (!sale) {
@@ -472,6 +481,16 @@ export async function updateSaleVehicleAction(formData: FormData) {
 
     if (duplicateVinError) {
         console.error("[sale-record] vin duplicate check failed", duplicateVinError);
+    }
+
+    if (loadError || !existingVehicle) {
+        console.error("[sale-record] vehicle load failed", loadError);
+        redirectWithSaleMessage(saleId, {
+            recordError: encodeURIComponent(
+                "Fahrzeug konnte nicht geladen werden. Bitte versuche es erneut.",
+            ),
+        });
+        return;
     }
 
     if (duplicateVinVehicle && duplicateVinVehicle.length > 0) {
@@ -489,10 +508,13 @@ export async function updateSaleVehicleAction(formData: FormData) {
             construction_year: constructionYear,
             vin,
             license_plate: licensePlate,
+            mileage,
+            color,
+            vehicle_category: vehicleCategory,
             purchase_price_net: purchasePriceNet,
             additional_costs_net: additionalCostsNet,
             damage_notes: damageNotes,
-            show_damage_on_invoice: false,
+            show_damage_on_invoice: Boolean(existingVehicle.show_damage_on_invoice),
         })
         .eq("id", vehicleId)
         .eq("company_id", companyId);

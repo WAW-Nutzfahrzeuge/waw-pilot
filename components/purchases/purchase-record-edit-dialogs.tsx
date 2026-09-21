@@ -209,6 +209,22 @@ export function PurchaseVehicleEditDialog({
                             defaultValue={vehicle.license_plate ?? ""}
                         />
                         <FormField
+                            label="Kilometerstand"
+                            name="mileage"
+                            type="number"
+                            defaultValue={vehicle.mileage ?? ""}
+                        />
+                        <FormField
+                            label="Farbe"
+                            name="color"
+                            defaultValue={vehicle.color ?? ""}
+                        />
+                        <FormField
+                            label="Fahrzeugkategorie"
+                            name="vehicle_category"
+                            defaultValue={vehicle.vehicle_category ?? ""}
+                        />
+                        <FormField
                             label="Einkauf netto"
                             name="purchase_price_net"
                             type="number"

@@ -85,6 +85,14 @@ type VehicleCustomerRelationRow = {
     } | null;
 };
 
+type CustomerNameRow = {
+    id: string;
+    type: "company" | "private";
+    company_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+};
+
 function getVehicleDocumentStatus(availableDocumentCount: number): VehicleDocumentStatus {
     if (availableDocumentCount >= 2) return "complete";
     if (availableDocumentCount === 1) return "partial";
@@ -133,7 +141,8 @@ export async function getVehicles(): Promise<VehicleRow[]> {
       notes,
       damage_notes,
       show_damage_on_invoice,
-      created_at
+      created_at,
+      seller_customer_id
     `,
         )
         .eq("company_id", companyId)
@@ -145,14 +154,21 @@ export async function getVehicles(): Promise<VehicleRow[]> {
 
     const vehicles = data ?? [];
     const vehicleIds = vehicles.map((vehicle) => vehicle.id);
+    const sellerCustomerIds = Array.from(
+        new Set(
+            vehicles
+                .map((vehicle) => vehicle.seller_customer_id)
+                .filter((customerId): customerId is string => Boolean(customerId)),
+        ),
+    );
     const availableDocumentsByVehicleId = new Map<string, number>();
-    const sellersByVehicleId = new Map<string, string | null>();
+    const sellersByCustomerId = new Map<string, string | null>();
     const buyersByVehicleId = new Map<string, string | null>();
 
     if (vehicleIds.length > 0) {
         const [
             { data: documentsData, error: documentsError },
-            { data: purchasesData, error: purchasesError },
+            { data: sellerCustomersData, error: sellerCustomersError },
             { data: salesData, error: salesError },
         ] = await Promise.all([
             supabase
@@ -160,22 +176,13 @@ export async function getVehicles(): Promise<VehicleRow[]> {
                 .select("vehicle_id, status")
                 .eq("company_id", companyId)
                 .in("vehicle_id", vehicleIds),
-            supabase
-                .from("purchase_cases")
-                .select(
-                    `
-                    vehicle_id,
-                    customers:seller_customer_id (
-                        type,
-                        company_name,
-                        first_name,
-                        last_name
-                    )
-                `,
-                )
-                .eq("company_id", companyId)
-                .in("vehicle_id", vehicleIds)
-                .order("purchase_date", { ascending: false }),
+            sellerCustomerIds.length > 0
+                ? supabase
+                      .from("customers")
+                      .select("id, type, company_name, first_name, last_name")
+                      .eq("company_id", companyId)
+                      .in("id", sellerCustomerIds)
+                : Promise.resolve({ data: [], error: null }),
             supabase
                 .from("sales")
                 .select(
@@ -201,9 +208,9 @@ export async function getVehicles(): Promise<VehicleRow[]> {
             );
         }
 
-        if (purchasesError) {
+        if (sellerCustomersError) {
             throw new Error(
-                `Ankaufsbeziehungen konnten nicht geladen werden: ${purchasesError.message}`,
+                `Verkäufer konnten nicht geladen werden: ${sellerCustomersError.message}`,
             );
         }
 
@@ -222,15 +229,8 @@ export async function getVehicles(): Promise<VehicleRow[]> {
             );
         }
 
-        for (const purchase of (purchasesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
-            if (!purchase.vehicle_id || sellersByVehicleId.has(purchase.vehicle_id)) {
-                continue;
-            }
-
-            sellersByVehicleId.set(
-                purchase.vehicle_id,
-                getVehicleCustomerName(purchase.customers),
-            );
+        for (const customer of (sellerCustomersData ?? []) as CustomerNameRow[]) {
+            sellersByCustomerId.set(customer.id, getVehicleCustomerName(customer));
         }
 
         for (const sale of (salesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
@@ -243,14 +243,20 @@ export async function getVehicles(): Promise<VehicleRow[]> {
         }
     }
 
-    return vehicles.map((vehicle) => ({
-        ...vehicle,
-        seller_name: sellersByVehicleId.get(vehicle.id) ?? null,
-        buyer_name: buyersByVehicleId.get(vehicle.id) ?? null,
-        document_status: getVehicleDocumentStatus(
-            availableDocumentsByVehicleId.get(vehicle.id) ?? 0,
-        ),
-    }));
+    return vehicles.map((vehicle) => {
+        const { seller_customer_id: sellerCustomerId, ...vehicleFields } = vehicle;
+
+        return {
+            ...vehicleFields,
+            seller_name: sellerCustomerId
+                ? sellersByCustomerId.get(sellerCustomerId) ?? null
+                : null,
+            buyer_name: buyersByVehicleId.get(vehicle.id) ?? null,
+            document_status: getVehicleDocumentStatus(
+                availableDocumentsByVehicleId.get(vehicle.id) ?? 0,
+            ),
+        };
+    });
 }
 
 export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSummary> {
@@ -419,7 +425,8 @@ export async function getSellableVehicles(): Promise<VehicleRow[]> {
       notes,
       damage_notes,
       show_damage_on_invoice,
-      created_at
+      created_at,
+      seller_customer_id
     `,
         )
         .eq("company_id", companyId)
@@ -431,49 +438,43 @@ export async function getSellableVehicles(): Promise<VehicleRow[]> {
     }
 
     const vehicles = data ?? [];
-    const vehicleIds = vehicles.map((vehicle) => vehicle.id);
-    const sellersByVehicleId = new Map<string, string | null>();
+    const sellerCustomerIds = Array.from(
+        new Set(
+            vehicles
+                .map((vehicle) => vehicle.seller_customer_id)
+                .filter((customerId): customerId is string => Boolean(customerId)),
+        ),
+    );
+    const sellersByCustomerId = new Map<string, string | null>();
 
-    if (vehicleIds.length > 0) {
-        const { data: purchasesData, error: purchasesError } = await supabase
-            .from("purchase_cases")
-            .select(
-                `
-                vehicle_id,
-                customers:seller_customer_id (
-                    type,
-                    company_name,
-                    first_name,
-                    last_name
-                )
-            `,
-            )
+    if (sellerCustomerIds.length > 0) {
+        const { data: sellerCustomersData, error: sellerCustomersError } = await supabase
+            .from("customers")
+            .select("id, type, company_name, first_name, last_name")
             .eq("company_id", companyId)
-            .in("vehicle_id", vehicleIds)
-            .order("purchase_date", { ascending: false });
+            .in("id", sellerCustomerIds);
 
-        if (purchasesError) {
+        if (sellerCustomersError) {
             throw new Error(
-                `Ankaufsbeziehungen konnten nicht geladen werden: ${purchasesError.message}`,
+                `Verkäufer konnten nicht geladen werden: ${sellerCustomersError.message}`,
             );
         }
 
-        for (const purchase of (purchasesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
-            if (!purchase.vehicle_id || sellersByVehicleId.has(purchase.vehicle_id)) {
-                continue;
-            }
-
-            sellersByVehicleId.set(
-                purchase.vehicle_id,
-                getVehicleCustomerName(purchase.customers),
-            );
+        for (const customer of (sellerCustomersData ?? []) as CustomerNameRow[]) {
+            sellersByCustomerId.set(customer.id, getVehicleCustomerName(customer));
         }
     }
 
-    return vehicles.map((vehicle) => ({
-        ...vehicle,
-        seller_name: sellersByVehicleId.get(vehicle.id) ?? null,
-        buyer_name: null,
-        document_status: "missing",
-    }));
+    return vehicles.map((vehicle) => {
+        const { seller_customer_id: sellerCustomerId, ...vehicleFields } = vehicle;
+
+        return {
+            ...vehicleFields,
+            seller_name: sellerCustomerId
+                ? sellersByCustomerId.get(sellerCustomerId) ?? null
+                : null,
+            buyer_name: null,
+            document_status: "missing",
+        };
+    });
 }

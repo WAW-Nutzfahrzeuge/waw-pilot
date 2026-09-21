@@ -25,6 +25,7 @@ import {
     getPurchaseStatusTone,
 } from "@/lib/purchases/purchase-helpers";
 import { getDocumentTypeLabel } from "@/lib/documents/document-helpers";
+import { getVehicleStatusLabel } from "@/lib/vehicles/vehicle-helpers";
 import { formatCurrency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/date";
 import { PageHeader } from "@/components/shared/page-header";
@@ -252,8 +253,24 @@ export function PurchaseDetail({
                                         }
                                     />
                                     <InfoRow
+                                        label="Kilometerstand"
+                                        value={
+                                            purchase.vehicle.mileage !== null
+                                                ? `${purchase.vehicle.mileage.toLocaleString("de-DE")} km`
+                                                : "—"
+                                        }
+                                    />
+                                    <InfoRow
+                                        label="Farbe"
+                                        value={purchase.vehicle.color ?? "—"}
+                                    />
+                                    <InfoRow
+                                        label="Fahrzeugkategorie"
+                                        value={purchase.vehicle.vehicle_category ?? "—"}
+                                    />
+                                    <InfoRow
                                         label="Fahrzeugstatus"
-                                        value={purchase.vehicle.status}
+                                        value={getVehicleStatusDisplayLabel(purchase.vehicle.status)}
                                     />
                                 </div>
                             ) : (
@@ -492,6 +509,14 @@ export function PurchaseDetail({
             </section>
         </div>
     );
+}
+
+function getVehicleStatusDisplayLabel(status: string): string {
+    if (status === "in_stock" || status === "reserved" || status === "sold") {
+        return getVehicleStatusLabel(status);
+    }
+
+    return status;
 }
 
 function MarkPurchasePaidButton({

@@ -597,6 +597,19 @@ export async function SaleDetail({
                                     value={sale.vehicle.construction_year?.toString() ?? "—"}
                                 />
                                 <InfoRow
+                                    label="Kilometerstand"
+                                    value={
+                                        sale.vehicle.mileage !== null
+                                            ? `${sale.vehicle.mileage.toLocaleString("de-DE")} km`
+                                            : "—"
+                                    }
+                                />
+                                <InfoRow label="Farbe" value={sale.vehicle.color ?? "—"} />
+                                <InfoRow
+                                    label="Fahrzeugkategorie"
+                                    value={sale.vehicle.vehicle_category ?? "—"}
+                                />
+                                <InfoRow
                                     label="Einkauf netto"
                                     value={formatCurrency(sale.vehicle.purchase_price_net)}
                                 />

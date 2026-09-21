@@ -14,6 +14,9 @@ type VehicleBaseRow = {
     license_plate: string | null;
     construction_year: number | null;
     first_registration: string | null;
+    mileage: number | string | null;
+    color: string | null;
+    vehicle_category: string | null;
     purchase_price_net: number | string;
     sale_price_net: number | string | null;
     additional_costs_net: number | string | null;
@@ -111,6 +114,9 @@ export type VehicleDetail = {
     license_plate: string | null;
     construction_year: number | null;
     first_registration: string | null;
+    mileage: number | null;
+    color: string | null;
+    vehicle_category: string | null;
     purchase_price_net: number;
     sale_price_net: number | null;
     additional_costs_net: number;
@@ -257,6 +263,9 @@ export async function getVehicleDetail(
       license_plate,
       construction_year,
       first_registration,
+      mileage,
+      color,
+      vehicle_category,
       purchase_price_net,
       sale_price_net,
       additional_costs_net,
@@ -488,6 +497,9 @@ export async function getVehicleDetail(
         license_plate: vehicle.license_plate,
         construction_year: vehicle.construction_year,
         first_registration: vehicle.first_registration,
+        mileage: vehicle.mileage === null ? null : Number(vehicle.mileage),
+        color: vehicle.color,
+        vehicle_category: vehicle.vehicle_category,
         purchase_price_net: Number(vehicle.purchase_price_net),
         sale_price_net:
             vehicle.sale_price_net === null ? null : Number(vehicle.sale_price_net),

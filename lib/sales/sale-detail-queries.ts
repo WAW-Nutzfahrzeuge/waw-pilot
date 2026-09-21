@@ -149,6 +149,9 @@ type SaleDetailQueryRow = {
         license_plate: string | null;
         construction_year: number | null;
         first_registration: string | null;
+        mileage: number | string | null;
+        color: string | null;
+        vehicle_category: string | null;
         purchase_price_net: number | string;
         sale_price_net: number | string | null;
         additional_costs_net: number | string;
@@ -353,6 +356,9 @@ export type SaleDetail = {
         license_plate: string | null;
         construction_year: number | null;
         first_registration: string | null;
+        mileage: number | null;
+        color: string | null;
+        vehicle_category: string | null;
         purchase_price_net: number;
         sale_price_net: number | null;
         additional_costs_net: number;
@@ -513,6 +519,9 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         license_plate,
         construction_year,
         first_registration,
+        mileage,
+        color,
+        vehicle_category,
         purchase_price_net,
         sale_price_net,
         additional_costs_net,
@@ -659,6 +668,9 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         license_plate,
         construction_year,
         first_registration,
+        mileage,
+        color,
+        vehicle_category,
         purchase_price_net,
         sale_price_net,
         additional_costs_net,
@@ -1040,6 +1052,12 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             license_plate: sale.vehicles.license_plate,
             construction_year: sale.vehicles.construction_year,
             first_registration: sale.vehicles.first_registration,
+            mileage:
+                sale.vehicles.mileage === null || sale.vehicles.mileage === undefined
+                    ? null
+                    : Number(sale.vehicles.mileage),
+            color: sale.vehicles.color,
+            vehicle_category: sale.vehicles.vehicle_category,
             purchase_price_net: purchasePriceNet,
             sale_price_net:
                 sale.vehicles.sale_price_net === null

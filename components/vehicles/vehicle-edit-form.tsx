@@ -229,6 +229,35 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                         />
                                     </FormField>
 
+                                    <FormField label="Kilometerstand" htmlFor="mileage">
+                                        <Input
+                                            id="mileage"
+                                            name="mileage"
+                                            type="number"
+                                            min="0"
+                                            defaultValue={getNumberInputValue(vehicle.mileage)}
+                                            className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
+                                        />
+                                    </FormField>
+
+                                    <FormField label="Farbe" htmlFor="color">
+                                        <Input
+                                            id="color"
+                                            name="color"
+                                            defaultValue={vehicle.color ?? ""}
+                                            className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
+                                        />
+                                    </FormField>
+
+                                    <FormField label="Fahrzeugkategorie" htmlFor="vehicle_category">
+                                        <Input
+                                            id="vehicle_category"
+                                            name="vehicle_category"
+                                            defaultValue={vehicle.vehicle_category ?? ""}
+                                            className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
+                                        />
+                                    </FormField>
+
                                     <div className="md:col-span-2">
                                         <FormField label="Fahrgestellnummer / VIN" htmlFor="vin" required>
                                             <Input
