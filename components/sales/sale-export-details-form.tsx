@@ -19,8 +19,7 @@ type SaleExportDetailsFormProps = {
 };
 
 export function SaleExportDetailsForm({ details }: SaleExportDetailsFormProps) {
-    const requiresExportDetails =
-        details.sale_type === "eu" || details.sale_type === "export_third_country";
+    const requiresExportDetails = details.sale_type === "eu";
     const [destinationCity, setDestinationCity] = useState(
         details.export_destination_city ?? details.buyer_city ?? "",
     );
@@ -46,8 +45,9 @@ export function SaleExportDetailsForm({ details }: SaleExportDetailsFormProps) {
                             Export- / Verbringungsdaten
                         </h2>
                         <p className="mt-1 text-sm font-medium leading-6 text-slate-500">
-                            Diese Angaben werden für Gelangensbestätigung und
-                            Verbringungsnachweis geprüft und später in die PDFs übernommen.
+                            {details.sale_type === "export_third_country"
+                                ? "Für Drittlandexporte sind Gelangensbestätigung und Verbringungsnachweis nicht relevant – diese Angaben sind optional."
+                                : "Diese Angaben werden für Gelangensbestätigung und Verbringungsnachweis geprüft und später in die PDFs übernommen."}
                         </p>
                     </div>
                 </div>
@@ -192,16 +192,18 @@ export function SaleExportDetailsForm({ details }: SaleExportDetailsFormProps) {
 
                     </div>
 
-                    <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
-                        <div className="flex items-start gap-3">
-                            <Truck className="mt-0.5 size-5 shrink-0 text-amber-700" />
-                            <p className="text-sm font-semibold leading-6 text-amber-900">
-                                Wichtig: Für Gelangensbestätigung und Verbringungsnachweis
-                                müssen Zielort und Zielland korrekt sein. Bei falschen oder
-                                fehlenden Angaben sollte das PDF nicht erzeugt werden.
-                            </p>
+                    {requiresExportDetails ? (
+                        <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
+                            <div className="flex items-start gap-3">
+                                <Truck className="mt-0.5 size-5 shrink-0 text-amber-700" />
+                                <p className="text-sm font-semibold leading-6 text-amber-900">
+                                    Wichtig: Für Gelangensbestätigung und Verbringungsnachweis
+                                    müssen Zielort und Zielland korrekt sein. Bei falschen oder
+                                    fehlenden Angaben sollte das PDF nicht erzeugt werden.
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    ) : null}
 
                     <div className="flex justify-end">
                         <Button

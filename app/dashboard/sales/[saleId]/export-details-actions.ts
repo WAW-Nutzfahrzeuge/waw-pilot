@@ -75,9 +75,7 @@ export async function updateSaleExportDetailsAction(formData: FormData) {
     const arrivalYear = getStringValue(formData, "export_arrival_year");
     const transportDate = getStringValue(formData, "export_transport_date");
     const transportType = getStringValue(formData, "export_transport_type");
-    const requiresExportDetails =
-        saleData.sale_type === "eu" ||
-        saleData.sale_type === "export_third_country";
+    const requiresExportDetails = saleData.sale_type === "eu";
     const buyerCustomer = getSingleRelation(saleData.customers);
     const finalDestinationCity =
         destinationCity ?? buyerCustomer?.city ?? null;

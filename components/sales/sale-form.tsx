@@ -115,6 +115,8 @@ export function SaleForm({
     const [newCustomerType, setNewCustomerType] =
         useState<NewCustomerType>("company");
     const [newCustomerVatId, setNewCustomerVatId] = useState("");
+    const [newCustomerCity, setNewCustomerCity] = useState("");
+    const [newCustomerCountry, setNewCustomerCountry] = useState("");
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
 
     const today = getTodayDateOnly();
@@ -140,8 +142,7 @@ export function SaleForm({
     const [netAmount, setNetAmount] = useState("");
     const [vatRate, setVatRate] = useState("19");
     const [includeTermsPdf, setIncludeTermsPdf] = useState(false);
-    const requiresExportDetails =
-        saleType === "eu" || saleType === "export_third_country";
+    const requiresExportDetails = saleType === "eu";
     const selectedCustomer =
         customers.find((customer) => customer.id === selectedCustomerId) ?? null;
     const selectedCustomerTaxDataOverride = selectedCustomer
@@ -208,8 +209,12 @@ export function SaleForm({
         setSaleType(nextSaleType);
         setVatRate(String(nextTaxConfiguration.defaultVatRate));
 
-        if (nextSaleType !== "inland" && selectedCustomer) {
-            applyCustomerAddress(selectedCustomer);
+        if (nextSaleType === "eu") {
+            if (buyerMode === "existing" && selectedCustomer) {
+                applyDestinationAddress(selectedCustomer.city, selectedCustomer.country);
+            } else if (buyerMode === "new") {
+                applyDestinationAddress(newCustomerCity, newCustomerCountry);
+            }
         }
     }
 
@@ -229,6 +234,14 @@ export function SaleForm({
                 }).defaultVatRate,
             ),
         );
+
+        if (saleType === "eu") {
+            if (nextBuyerMode === "existing") {
+                applyDestinationAddress(selectedCustomer?.city, selectedCustomer?.country);
+            } else {
+                applyDestinationAddress(newCustomerCity, newCustomerCountry);
+            }
+        }
     }
 
     function handleNewCustomerTypeChange(nextCustomerType: NewCustomerType) {
@@ -244,15 +257,32 @@ export function SaleForm({
         );
     }
 
-    function applyCustomerAddress(customer: CustomerRow | null) {
-        if (!customer) return;
-
+    function applyDestinationAddress(
+        city: string | null | undefined,
+        country: string | null | undefined,
+    ) {
         if (!destinationCityManuallyChanged) {
-            setExportDestinationCity(customer.city ?? "");
+            setExportDestinationCity(city ?? "");
         }
 
         if (!destinationCountryManuallyChanged) {
-            setExportDestinationCountry(customer.country ?? "");
+            setExportDestinationCountry(country ?? "");
+        }
+    }
+
+    function handleNewCustomerCityChange(value: string) {
+        setNewCustomerCity(value);
+
+        if (buyerMode === "new" && saleType === "eu") {
+            applyDestinationAddress(value, newCustomerCountry);
+        }
+    }
+
+    function handleNewCustomerCountryChange(value: string) {
+        setNewCustomerCountry(value);
+
+        if (buyerMode === "new" && saleType === "eu") {
+            applyDestinationAddress(newCustomerCity, value);
         }
     }
 
@@ -268,7 +298,7 @@ export function SaleForm({
         setVatRate(String(nextTaxConfiguration.defaultVatRate));
 
         if (requiresExportDetails) {
-            applyCustomerAddress(customer);
+            applyDestinationAddress(customer?.city, customer?.country);
         }
     }
 
@@ -548,11 +578,19 @@ export function SaleForm({
                                         label="Ort *"
                                         name="new_customer_city"
                                         required
+                                        value={newCustomerCity}
+                                        onChange={(event) =>
+                                            handleNewCustomerCityChange(event.target.value)
+                                        }
                                     />
                                     <FormField
-                                        label="Land"
+                                        label="Land *"
                                         name="new_customer_country"
-                                        defaultValue="Deutschland"
+                                        required
+                                        value={newCustomerCountry}
+                                        onChange={(event) =>
+                                            handleNewCustomerCountryChange(event.target.value)
+                                        }
                                     />
                                     <FormField
                                         label="E-Mail"
@@ -689,8 +727,10 @@ export function SaleForm({
                                     }
                                 >
                                     {requiresExportDetails
-                                        ? "Für EU-Verkäufe und Drittlandexporte sind diese Angaben erforderlich, damit Gelangensbestätigung und Verbringungsnachweis erstellt werden können."
-                                        : "Bei Inland-Verkäufen sind Export- und Verbringungsdaten optional."}
+                                        ? "Für EU-Verkäufe sind diese Angaben erforderlich, damit Gelangensbestätigung und Verbringungsnachweis erstellt werden können."
+                                        : saleType === "export_third_country"
+                                            ? "Für Drittlandexporte sind Gelangensbestätigung und Verbringungsnachweis nicht relevant. Erforderlich sind stattdessen Zoll-/Ausfuhrdokumente (ABD, Ausgangsvermerk)."
+                                            : "Bei Inland-Verkäufen sind Export- und Verbringungsdaten optional."}
                                 </p>
                             </div>
                         </div>
@@ -705,7 +745,9 @@ export function SaleForm({
                             description={
                                 requiresExportDetails
                                     ? "Pflichtangaben für Gelangensbestätigung und Verbringungsnachweis."
-                                    : "Optionale Angaben für Gelangensbestätigung und Verbringungsnachweis."
+                                    : saleType === "export_third_country"
+                                        ? "Für Drittlandexporte nicht erforderlich (Gelangensbestätigung/Verbringungsnachweis gelten nur für EU-Verkäufe)."
+                                        : "Optionale Angaben für Gelangensbestätigung und Verbringungsnachweis."
                             }
                         />
 
@@ -740,7 +782,10 @@ export function SaleForm({
                                 placeholder="z. B. Österreich"
                             />
 
-                            {requiresExportDetails && selectedCustomer ? (
+                            {requiresExportDetails &&
+                            (buyerMode === "existing"
+                                ? Boolean(selectedCustomer)
+                                : Boolean(newCustomerCity || newCustomerCountry)) ? (
                                 <div className="md:col-span-2">
                                     <Button
                                         type="button"
@@ -749,8 +794,15 @@ export function SaleForm({
                                         onClick={() => {
                                             setDestinationCityManuallyChanged(false);
                                             setDestinationCountryManuallyChanged(false);
-                                            setExportDestinationCity(selectedCustomer.city ?? "");
-                                            setExportDestinationCountry(selectedCustomer.country ?? "");
+                                            if (buyerMode === "existing") {
+                                                setExportDestinationCity(selectedCustomer?.city ?? "");
+                                                setExportDestinationCountry(
+                                                    selectedCustomer?.country ?? "",
+                                                );
+                                            } else {
+                                                setExportDestinationCity(newCustomerCity);
+                                                setExportDestinationCountry(newCustomerCountry);
+                                            }
                                         }}
                                     >
                                         Aus Rechnungsadresse übernehmen

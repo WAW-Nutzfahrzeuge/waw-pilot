@@ -132,7 +132,7 @@ async function getNextSalePaymentReference(companyId: string): Promise<string> {
 }
 
 function requiresExportDetails(saleType: SaleType): boolean {
-    return saleType === "eu" || saleType === "export_third_country";
+    return saleType === "eu";
 }
 
 function resolveVatRate({
@@ -356,7 +356,7 @@ async function createBuyerCustomerFromSaleForm(
     const street = getStringValue(formData, "new_customer_street");
     const postalCode = getStringValue(formData, "new_customer_postal_code");
     const city = getStringValue(formData, "new_customer_city");
-    const country = getStringValue(formData, "new_customer_country") ?? "Deutschland";
+    const country = getStringValue(formData, "new_customer_country");
 
     const email = getStringValue(formData, "new_customer_email");
     const preferredLanguage = getNewCustomerEmailLanguage(formData);
@@ -375,10 +375,10 @@ async function createBuyerCustomerFromSaleForm(
     const vatId = type === "company" && rawVatId ? normalizeVatId(rawVatId) : null;
     const relevantTaxNumber = taxNumber;
 
-    if (!street || !postalCode || !city) {
+    if (!street || !postalCode || !city || !country) {
         return {
             success: false,
-            message: "Bitte gib Straße, PLZ und Ort für den neuen Käufer ein.",
+            message: "Bitte gib Straße, PLZ, Ort und Land für den neuen Käufer ein.",
         };
     }
 
@@ -503,7 +503,7 @@ async function validateBuyerCustomerFromSaleForm(
     const street = getStringValue(formData, "new_customer_street");
     const postalCode = getStringValue(formData, "new_customer_postal_code");
     const city = getStringValue(formData, "new_customer_city");
-    const country = getStringValue(formData, "new_customer_country") ?? "Deutschland";
+    const country = getStringValue(formData, "new_customer_country");
     const phone = getStringValue(formData, "new_customer_phone");
     const rawVatId = getStringValue(formData, "new_customer_vat_id");
     const taxNumber = getStringValue(formData, "new_customer_tax_number");
@@ -514,10 +514,10 @@ async function validateBuyerCustomerFromSaleForm(
     });
     const vatId = type === "company" && rawVatId ? normalizeVatId(rawVatId) : null;
 
-    if (!street || !postalCode || !city) {
+    if (!street || !postalCode || !city || !country) {
         return {
             success: false,
-            message: "Bitte gib Straße, PLZ und Ort für den neuen Käufer ein.",
+            message: "Bitte gib Straße, PLZ, Ort und Land für den neuen Käufer ein.",
         };
     }
 
