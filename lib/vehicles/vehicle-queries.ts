@@ -430,9 +430,49 @@ export async function getSellableVehicles(): Promise<VehicleRow[]> {
         throw new Error(`Verfügbare Fahrzeuge konnten nicht geladen werden: ${error.message}`);
     }
 
-    return (data ?? []).map((vehicle) => ({
+    const vehicles = data ?? [];
+    const vehicleIds = vehicles.map((vehicle) => vehicle.id);
+    const sellersByVehicleId = new Map<string, string | null>();
+
+    if (vehicleIds.length > 0) {
+        const { data: purchasesData, error: purchasesError } = await supabase
+            .from("purchase_cases")
+            .select(
+                `
+                vehicle_id,
+                customers:seller_customer_id (
+                    type,
+                    company_name,
+                    first_name,
+                    last_name
+                )
+            `,
+            )
+            .eq("company_id", companyId)
+            .in("vehicle_id", vehicleIds)
+            .order("purchase_date", { ascending: false });
+
+        if (purchasesError) {
+            throw new Error(
+                `Ankaufsbeziehungen konnten nicht geladen werden: ${purchasesError.message}`,
+            );
+        }
+
+        for (const purchase of (purchasesData ?? []) as unknown as VehicleCustomerRelationRow[]) {
+            if (!purchase.vehicle_id || sellersByVehicleId.has(purchase.vehicle_id)) {
+                continue;
+            }
+
+            sellersByVehicleId.set(
+                purchase.vehicle_id,
+                getVehicleCustomerName(purchase.customers),
+            );
+        }
+    }
+
+    return vehicles.map((vehicle) => ({
         ...vehicle,
-        seller_name: null,
+        seller_name: sellersByVehicleId.get(vehicle.id) ?? null,
         buyer_name: null,
         document_status: "missing",
     }));

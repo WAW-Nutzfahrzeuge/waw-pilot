@@ -38,6 +38,7 @@ export function VehicleCombobox({
                     `VIN: ${vehicle.vin}`,
                     vehicle.construction_year ? `Baujahr: ${vehicle.construction_year}` : null,
                     vehicle.license_plate ? `Kennzeichen: ${vehicle.license_plate}` : null,
+                    vehicle.seller_name ? `Verkäufer: ${vehicle.seller_name}` : null,
                     getStatusLabel(vehicle.status),
                 ]
                     .filter(Boolean)
