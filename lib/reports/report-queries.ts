@@ -1,4 +1,4 @@
-import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
+import { getFinancialTotalsSummary } from "@/lib/accounting/financial-queries";
 import { getCurrentCompanyId } from "@/lib/company";
 import { getVehicleReportSummary } from "@/lib/vehicles/vehicle-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -559,7 +559,7 @@ export async function getReportsData(
             getReportSales(dateFrom, dateTo),
             getReportInvoices(dateFrom, dateTo),
             getReportPurchases(dateFrom, dateTo),
-            getCashbookSummary({ from: dateFrom, to: dateTo }),
+            getFinancialTotalsSummary({ from: dateFrom, to: dateTo }),
         ]);
 
     let totalRevenueNet = 0;

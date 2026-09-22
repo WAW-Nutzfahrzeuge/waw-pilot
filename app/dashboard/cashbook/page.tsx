@@ -1,10 +1,34 @@
 export const dynamic = "force-dynamic";
 
 import { FinancialOverview } from "@/components/cashbook/financial-overview";
+import { analyzeFinancialBackfill } from "@/lib/accounting/financial-backfill";
 import {
     getCashRegisterSummary,
     getFinancialEntries,
 } from "@/lib/accounting/financial-queries";
+import { getCurrentUserRole } from "@/lib/auth/current-user";
+
+async function hasPendingBackfillWork(isAdmin: boolean): Promise<boolean> {
+    if (!isAdmin) {
+        return false;
+    }
+
+    try {
+        const analysis = await analyzeFinancialBackfill();
+        // Der Link soll nur auftauchen, solange es tatsächlich etwas zu
+        // klären gibt. Sobald alles übernommen oder als Duplikat bestätigt
+        // wurde, verschwindet er automatisch wieder – kein Dauerfixpunkt im
+        // normalen Kassenbuch.
+        return (
+            analysis.totals.toSyncCount > 0 || analysis.totals.unresolvedCount > 0
+        );
+    } catch {
+        // Bei einem Prüfungsfehler lieber den Hinweis zeigen (führt zur
+        // Detailseite mit der genauen Fehlermeldung), statt ein Problem
+        // stillschweigend zu verstecken.
+        return true;
+    }
+}
 
 type CashbookPageProps = {
     searchParams: Promise<{
@@ -29,6 +53,9 @@ export default async function CashbookPage({ searchParams }: CashbookPageProps) 
         to: dateTo,
     });
     const cashSummary = await getCashRegisterSummary(entries);
+    const role = await getCurrentUserRole();
+    const isAdmin = role === "admin";
+    const showBackfillLink = await hasPendingBackfillWork(isAdmin);
 
     return (
         <FinancialOverview
@@ -37,6 +64,10 @@ export default async function CashbookPage({ searchParams }: CashbookPageProps) 
             activeTab={activeTab}
             dateFrom={dateFrom}
             dateTo={dateTo}
+            isAdmin={isAdmin}
+            showBackfillLink={showBackfillLink}
         />
     );
 }
+
+

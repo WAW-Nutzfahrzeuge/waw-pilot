@@ -274,3 +274,68 @@ export async function getCashRegisterSummary(
         movementCount,
     };
 }
+
+export type FinancialTotalsSummary = {
+    totalIncome: number;
+    totalExpenses: number;
+    balance: number;
+};
+
+type FinancialTotalsQueryRow = {
+    direction: FinancialEntryDirection;
+    amount: number | string;
+};
+
+/**
+ * Gesamtsaldo über alle Zahlungsarten (Bar + Bank) aus dem Finanzjournal.
+ * Ersetzt die frühere, auf `cashbook_entries` basierende Zusammenfassung,
+ * die seit der Einführung von `financial_entries` keine Verkaufs- und
+ * Ankaufzahlungen mehr enthielt.
+ */
+export async function getFinancialTotalsSummary(
+    filters: FinancialEntryFilters = {},
+): Promise<FinancialTotalsSummary> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    let query = supabase
+        .from("financial_entries")
+        .select("direction, amount")
+        .eq("company_id", companyId)
+        .eq("status", "active");
+
+    if (isDateParam(filters.from)) {
+        query = query.gte("booking_date", filters.from);
+    }
+
+    if (isDateParam(filters.to)) {
+        query = query.lte("booking_date", filters.to);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+        throw new Error(`Finanzsaldo konnte nicht geladen werden: ${error.message}`);
+    }
+
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    for (const entry of (data ?? []) as FinancialTotalsQueryRow[]) {
+        const amount = Number(entry.amount);
+
+        if (entry.direction === "in") {
+            totalIncome += amount;
+            continue;
+        }
+
+        totalExpenses += amount;
+    }
+
+    return {
+        totalIncome,
+        totalExpenses,
+        balance: totalIncome - totalExpenses,
+    };
+}
+

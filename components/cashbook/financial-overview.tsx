@@ -40,7 +40,10 @@ type FinancialOverviewProps = {
     activeTab: "cash" | "accounting";
     dateFrom?: string | null;
     dateTo?: string | null;
+    isAdmin?: boolean;
+    showBackfillLink?: boolean;
 };
+
 
 function getPeriodLabel(dateFrom?: string | null, dateTo?: string | null): string {
     if (dateFrom && dateTo) return `${formatDate(dateFrom)} bis ${formatDate(dateTo)}`;
@@ -133,6 +136,8 @@ export function FinancialOverview({
     activeTab,
     dateFrom,
     dateTo,
+    isAdmin = false,
+    showBackfillLink = false,
 }: FinancialOverviewProps) {
     const [query, setQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -269,6 +274,17 @@ export function FinancialOverview({
                     Buchhaltung & DATEV
                 </TabLink>
             </div>
+
+            {isAdmin && showBackfillLink ? (
+                <div className="print:hidden">
+                    <Link
+                        href="/dashboard/cashbook/backfill"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-800 underline-offset-2 hover:underline"
+                    >
+                        Admin: Es gibt alte Zahlungen, die noch nicht im Kassenbuch stehen – prüfen
+                    </Link>
+                </div>
+            ) : null}
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 print:hidden">
                 {activeTab === "cash" ? (

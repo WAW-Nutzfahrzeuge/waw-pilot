@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
+import { syncSalePaymentFinancialEntry } from "@/lib/accounting/financial-sync";
 import { getCurrentCompanyId } from "@/lib/company";
 import { calculateInvoiceDueDate } from "@/lib/invoices/payment-terms";
 import {
@@ -1337,7 +1338,6 @@ export async function createSaleAction(
 
     let invoiceId: string | null = null;
     let invoiceNumber: string | null = null;
-    let invoiceDocumentId: string | null = null;
 
     if (shouldCreateInvoice) {
         try {
@@ -1435,7 +1435,6 @@ export async function createSaleAction(
         }
 
         const createdInvoiceDocumentId = invoiceDocument.id as string;
-        invoiceDocumentId = createdInvoiceDocumentId;
 
         const { error: invoiceDocumentLinkError } = await supabase
             .from("invoices")
@@ -1559,42 +1558,24 @@ export async function createSaleAction(
             .eq("id", saleId)
             .eq("company_id", companyId);
 
-        const description = invoiceNumber
-            ? `Zahlung Rechnung ${invoiceNumber}`
-            : `Zahlung Verkauf ${saleNumber}`;
-
-        const { data: cashbookEntry, error: cashbookError } = await supabase
-            .from("cashbook_entries")
-            .insert({
-                company_id: companyId,
-                entry_type: "income",
-                category: "vehicle_sale",
-                payment_method: paymentMethod,
-                amount: grossAmount,
-                booking_date: saleDate,
-                description,
-                customer_id: buyerCustomerId,
-                vehicle_id: vehicleId,
-                sale_id: saleId,
-                invoice_id: invoiceId,
-                document_id: invoiceDocumentId,
-            })
-            .select("id")
-            .single();
-
-        if (cashbookError || !cashbookEntry) {
+        try {
+            await syncSalePaymentFinancialEntry({
+                companyId,
+                paymentId: salePayment.id as string,
+            });
+        } catch (error) {
             return {
                 success: false,
-                message: `Verkauf wurde gespeichert, aber Kassenbuch konnte nicht erzeugt werden: ${
-                    cashbookError?.message ?? "Keine Kassenbuch-ID erhalten"
+                message: `Verkauf und Zahlung wurden gespeichert, aber das Finanzjournal konnte nicht aktualisiert werden: ${
+                    error instanceof Error ? error.message : "Unbekannter Fehler"
                 }`,
             };
         }
 
         await logActivity({
-            action: `Kassenbuch-Eintrag für Verkauf ${saleNumber} erstellt`,
-            entityType: "cashbook",
-            entityId: cashbookEntry.id as string,
+            action: `Zahlung ${paymentReference} zu Verkauf ${saleNumber} erfasst`,
+            entityType: "sale",
+            entityId: saleId,
         });
     }
 

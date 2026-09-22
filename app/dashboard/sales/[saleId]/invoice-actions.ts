@@ -22,7 +22,6 @@ import { DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient";
 import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
-import { getTodayDateOnly } from "@/lib/format/date";
 import { calculateInvoiceDueDate } from "@/lib/invoices/payment-terms";
 import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
@@ -152,17 +151,6 @@ function revalidateInvoiceEmailPaths(saleId: string) {
     ]);
 }
 
-function revalidateInvoicePaymentPaths(saleId: string) {
-    revalidatePaths([
-        `/dashboard/sales/${saleId}`,
-        "/dashboard/sales",
-        "/dashboard/invoices",
-        "/dashboard/cashbook",
-        "/dashboard/documents",
-        "/dashboard/activities",
-    ]);
-}
-
 type ZugferdInvoiceEmailQueryRow = {
     id: string;
     sale_id: string | null;
@@ -214,13 +202,6 @@ function getInvoiceTypeValue(formData: FormData): InvoiceType | null {
     }
 
     return null;
-}
-
-function getPaymentMethodLabel(paymentMethod: string): string {
-    if (paymentMethod === "cash") return "Bar";
-    if (paymentMethod === "bank") return "Bank";
-
-    return paymentMethod;
 }
 
 function removePlannedNetSalePriceNote(existingNotes: string | null): string | null {
@@ -1777,168 +1758,4 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
     ]);
 
     redirect(getZugferdSuccessRedirect(saleId, invoiceId, "sent", customer.email));
-}
-
-export async function markInvoicePaidAction(formData: FormData) {
-    const supabase = createServerSupabaseClient();
-    const companyId = getCurrentCompanyId();
-
-    const saleId = getStringValue(formData, "sale_id");
-    const invoiceId = getStringValue(formData, "invoice_id");
-    const paymentMethod = getStringValue(formData, "payment_method") ?? "bank";
-
-    if (!saleId) {
-        throw new Error("Verkauf fehlt.");
-    }
-
-    if (!invoiceId) {
-        throw new Error("Rechnung fehlt.");
-    }
-
-    if (paymentMethod !== "bank" && paymentMethod !== "cash") {
-        throw new Error("Ungültige Zahlungsart.");
-    }
-
-    const { data: invoiceData, error: invoiceError } = await supabase
-        .from("invoices")
-        .select(
-            `
-      id,
-      sale_id,
-      customer_id,
-      vehicle_id,
-      invoice_type,
-      invoice_number,
-      gross_amount,
-      payment_status,
-      pdf_document_id
-    `,
-        )
-        .eq("id", invoiceId)
-        .eq("company_id", companyId)
-        .single();
-
-    if (invoiceError || !invoiceData) {
-        throw new Error(
-            `Rechnung konnte nicht geladen werden: ${
-                invoiceError?.message ?? "Nicht gefunden"
-            }`,
-        );
-    }
-
-    const invoiceType = invoiceData.invoice_type as InvoiceType;
-    const invoiceLabel = getInvoiceActivityLabel(invoiceType);
-    const paymentMethodLabel = getPaymentMethodLabel(paymentMethod);
-
-    if (invoiceType === "proforma") {
-        throw new Error("Proforma-Rechnungen werden nicht als bezahlt markiert.");
-    }
-
-    if (invoiceData.payment_status === "paid") {
-        revalidatePaths([
-            `/dashboard/sales/${saleId}`,
-            "/dashboard/invoices",
-            "/dashboard/cashbook",
-        ]);
-
-        redirect(`/dashboard/sales/${saleId}`);
-    }
-
-    const paidAt = new Date().toISOString();
-
-    const { error: invoiceUpdateError } = await supabase
-        .from("invoices")
-        .update({
-            status: "paid",
-            payment_status: "paid",
-            paid_at: paidAt,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId);
-
-    if (invoiceUpdateError) {
-        throw new Error(
-            `Rechnung konnte nicht als bezahlt markiert werden: ${invoiceUpdateError.message}`,
-        );
-    }
-
-    await logActivity({
-        action: `${invoiceLabel} ${invoiceData.invoice_number} als bezahlt markiert (${paymentMethodLabel})`,
-        entityType: "invoice",
-        entityId: invoiceId,
-    });
-
-    const salePaymentStatus = invoiceType === "down_payment" ? "partial" : "paid";
-
-    const { error: saleUpdateError } = await supabase
-        .from("sales")
-        .update({
-            payment_status: salePaymentStatus,
-        })
-        .eq("id", saleId)
-        .eq("company_id", companyId);
-
-    if (saleUpdateError) {
-        throw new Error(
-            `Verkauf wurde nicht aktualisiert: ${saleUpdateError.message}`,
-        );
-    }
-
-    const { data: existingCashbookEntry, error: cashbookCheckError } =
-        await supabase
-            .from("cashbook_entries")
-            .select("id")
-            .eq("company_id", companyId)
-            .eq("invoice_id", invoiceId)
-            .maybeSingle();
-
-    if (cashbookCheckError) {
-        throw new Error(
-            `Kassenbuch konnte nicht geprüft werden: ${cashbookCheckError.message}`,
-        );
-    }
-
-    if (!existingCashbookEntry) {
-        const description =
-            invoiceType === "down_payment"
-                ? `Zahlung Anzahlungsrechnung ${invoiceData.invoice_number}`
-                : `Zahlung Rechnung ${invoiceData.invoice_number}`;
-
-        const { data: cashbookEntry, error: cashbookInsertError } = await supabase
-            .from("cashbook_entries")
-            .insert({
-                company_id: companyId,
-                entry_type: "income",
-                category: "vehicle_sale",
-                payment_method: paymentMethod,
-                amount: Number(invoiceData.gross_amount),
-                booking_date: getTodayDateOnly(),
-                description,
-                customer_id: invoiceData.customer_id,
-                vehicle_id: invoiceData.vehicle_id,
-                sale_id: saleId,
-                invoice_id: invoiceId,
-                document_id: invoiceData.pdf_document_id,
-            })
-            .select("id")
-            .single();
-
-        if (cashbookInsertError || !cashbookEntry) {
-            throw new Error(
-                `Kassenbuch-Eintrag konnte nicht erstellt werden: ${
-                    cashbookInsertError?.message ?? "Keine Kassenbuch-ID erhalten"
-                }`,
-            );
-        }
-
-        await logActivity({
-            action: `Kassenbuch-Eintrag für ${invoiceLabel} ${invoiceData.invoice_number} erstellt (${paymentMethodLabel})`,
-            entityType: "cashbook",
-            entityId: cashbookEntry.id as string,
-        });
-    }
-
-    revalidateInvoicePaymentPaths(saleId);
-
-    redirect(`/dashboard/sales/${saleId}`);
 }

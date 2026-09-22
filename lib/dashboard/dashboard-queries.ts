@@ -1,4 +1,4 @@
-import { getCashbookSummary } from "@/lib/cashbook/cashbook-queries";
+import { getFinancialTotalsSummary } from "@/lib/accounting/financial-queries";
 import { getCustomersCount } from "@/lib/customers/customer-queries";
 import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
 import { getInvoiceDashboardSummary } from "@/lib/invoices/invoice-queries";
@@ -94,7 +94,7 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
         getSalesDashboardSummary(monthFilter),
         getInvoiceDashboardSummary(monthFilter),
         getDocumentDashboardSummary(),
-        getCashbookSummary({
+        getFinancialTotalsSummary({
             from: dateRange?.from ?? null,
             to: dateRange?.to ?? null,
         }),
