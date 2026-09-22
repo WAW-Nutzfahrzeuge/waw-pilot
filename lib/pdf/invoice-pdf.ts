@@ -915,11 +915,11 @@ export async function generateInvoicePdf(
     const titleSize = fitTextSize(invoiceTitle, helveticaBold, data.invoiceType === "standard" ? 20 : 18, 13, titleWidth);
     drawCenteredText(page, invoiceTitle, 184, 805, titleWidth, helveticaBold, titleSize, navy);
 
-    drawText(page, getInvoiceCompanyDisplayName(), 430, 812, {
+    drawText(page, getInvoiceCompanyDisplayName(), 460, 812, {
         font: helveticaBold,
         size: 7.5,
         color: navy,
-        maxWidth: 120,
+        maxWidth: 110,
     });
 
     if (data.correction?.originalInvoiceNumber) {
