@@ -2,6 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getNextInvoiceNumber } from "@/lib/invoices/invoice-numbering";
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
+import {
+    SALE_STATUS_AFTER_CANCELLATION,
+    VEHICLE_STATUS_AFTER_CANCELLATION,
+    VEHICLE_STATUS_REQUIRED_FOR_RELEASE,
+} from "@/lib/sales/cancellation-release";
 import type { CreateCancellationInvoiceCommand } from "@/src/modules/invoice-corrections/application/commands/create-cancellation-invoice.command";
 import type { RegisterRefundCommand } from "@/src/modules/invoice-corrections/application/commands/register-refund.command";
 import type {
@@ -198,6 +203,7 @@ export class SupabaseInvoiceCorrectionRepository implements InvoiceCorrectionRep
                 saleId: existingCancellation.sale_id,
                 invoiceNumber: existingCancellation.invoice_number,
                 documentId: null,
+                vehicleId: summary.originalInvoice.vehicleId,
             };
         }
 
@@ -329,9 +335,33 @@ export class SupabaseInvoiceCorrectionRepository implements InvoiceCorrectionRep
             .eq("company_id", command.companyId)
             .eq("id", original.id);
 
+        // Eine Stornorechnung ist immer eine vollständige Stornierung (kein Teil-/Gutschrift-Pfad).
+        // Der Verkauf gilt daher als storniert und das Fahrzeug wird automatisch wieder in den Bestand gesetzt.
+        const { error: saleStatusError } = await this.supabase
+            .from("sales")
+            .update({ status: SALE_STATUS_AFTER_CANCELLATION })
+            .eq("company_id", command.companyId)
+            .eq("id", original.saleId);
+
+        if (saleStatusError) {
+            throw new Error("Stornorechnung wurde erstellt, aber der Verkaufsstatus konnte nicht aktualisiert werden.");
+        }
+
+        const { error: vehicleStatusError } = await this.supabase
+            .from("vehicles")
+            .update({ status: VEHICLE_STATUS_AFTER_CANCELLATION })
+            .eq("company_id", command.companyId)
+            .eq("id", original.vehicleId)
+            .eq("status", VEHICLE_STATUS_REQUIRED_FOR_RELEASE);
+
+        if (vehicleStatusError) {
+            throw new Error("Stornorechnung wurde erstellt, aber das Fahrzeug konnte nicht wieder in den Bestand gesetzt werden.");
+        }
+
         return {
             invoiceId,
             saleId: original.saleId,
+            vehicleId: original.vehicleId,
             invoiceNumber,
             documentId,
         };

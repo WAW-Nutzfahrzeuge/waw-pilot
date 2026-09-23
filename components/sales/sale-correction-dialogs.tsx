@@ -83,6 +83,7 @@ function CancellationDialog({
                         </DialogTitle>
                         <DialogDescription>
                             Die Originalrechnung bleibt unverändert. Es wird ein neuer Korrekturbeleg mit eigener Rechnungsnummer erzeugt.
+                            Der Verkauf wird als storniert markiert und das Fahrzeug automatisch wieder in den Bestand gesetzt.
                         </DialogDescription>
                     </DialogHeader>
                     <input type="hidden" name="sale_id" value={saleId} />

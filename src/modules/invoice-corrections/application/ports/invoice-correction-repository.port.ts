@@ -9,6 +9,7 @@ import type {
 export type CreatedCorrectionInvoiceResult = {
     invoiceId: string;
     saleId: string;
+    vehicleId: string;
     invoiceNumber: string;
     documentId: string | null;
 };

@@ -41,6 +41,11 @@ export class CreateCancellationInvoiceUseCase {
             entityType: "invoice",
             entityId: result.invoiceId,
         });
+        await this.activity.record({
+            action: `Verkauf storniert, Fahrzeug wurde automatisch wieder in den Bestand gesetzt (Stornorechnung ${result.invoiceNumber}).`,
+            entityType: "vehicle",
+            entityId: result.vehicleId,
+        });
 
         return result;
     }

@@ -16,7 +16,7 @@ function getCorrectionRedirect(saleId: string, params: Record<string, string>) {
     return `/dashboard/sales/${saleId}?${searchParams.toString()}#invoice-corrections`;
 }
 
-function revalidateSaleCorrectionPaths(saleId: string) {
+function revalidateSaleCorrectionPaths(saleId: string, vehicleId?: string) {
     revalidatePaths([
         `/dashboard/sales/${saleId}`,
         "/dashboard/sales",
@@ -24,6 +24,9 @@ function revalidateSaleCorrectionPaths(saleId: string) {
         "/dashboard/documents",
         "/dashboard/cashbook",
         "/dashboard/activities",
+        "/dashboard/vehicles",
+        "/dashboard/vehicles/bestandsliste",
+        ...(vehicleId ? [`/dashboard/vehicles/${vehicleId}`] : []),
     ]);
 }
 
@@ -53,7 +56,7 @@ export async function createCancellationInvoiceAction(formData: FormData) {
             createdBy: authUserId,
         });
 
-        revalidateSaleCorrectionPaths(saleId);
+        revalidateSaleCorrectionPaths(saleId, result.vehicleId);
         redirect(
             getCorrectionRedirect(saleId, {
                 cancellationCreated: result.invoiceNumber,
