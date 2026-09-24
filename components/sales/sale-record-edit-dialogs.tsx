@@ -132,8 +132,9 @@ export function SaleCustomerEditDialog({
                             defaultValue={customer.city ?? ""}
                         />
                         <FormField
-                            label="Land"
+                            label="Land *"
                             name="country"
+                            required
                             defaultValue={customer.country ?? ""}
                         />
                         <FormField

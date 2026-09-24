@@ -1416,7 +1416,7 @@ function getRecordErrorMessage(value: string): string {
     const decodedValue = decodeURIComponent(value);
     const messages: Record<string, string> = {
         invalidCustomerType: "Bitte wähle eine gültige Käuferart.",
-        customerAddressMissing: "Straße, PLZ und Ort sind Pflichtfelder.",
+        customerAddressMissing: "Straße, PLZ, Ort und Land sind Pflichtfelder.",
         companyNameMissing: "Bitte gib einen Firmennamen ein.",
         privateNameMissing: "Bitte gib Vorname und Nachname ein.",
         invalidPhone: "Bitte gib eine gültige Telefonnummer ein.",

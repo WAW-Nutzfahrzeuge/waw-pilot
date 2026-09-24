@@ -259,7 +259,7 @@ export async function updateSaleCustomerAction(formData: FormData) {
     const street = getStringFormValue(formData, "street");
     const postalCode = getStringFormValue(formData, "postal_code");
     const city = getStringFormValue(formData, "city");
-    const country = getStringFormValue(formData, "country") ?? "Deutschland";
+    const country = getStringFormValue(formData, "country");
     const email = getStringFormValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
     const phone = getStringFormValue(formData, "phone");
@@ -270,7 +270,7 @@ export async function updateSaleCustomerAction(formData: FormData) {
         "commercial_register_number",
     );
 
-    if (!street || !postalCode || !city) {
+    if (!street || !postalCode || !city || !country) {
         redirectWithSaleMessage(saleId, { recordError: "customerAddressMissing" });
     }
 
