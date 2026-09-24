@@ -5,9 +5,14 @@ import { redirect } from "next/navigation";
 import { getDecimalFormValue, getStringFormValue } from "@/lib/actions/form-data";
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
+import { getOptionalCurrentUserContext } from "@/lib/auth/current-user";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { translateVehicleDatabaseError } from "@/lib/vehicles/vehicle-save-errors";
+import {
+    createPurchasePaymentAndSync,
+    isValidPurchasePaymentMethod,
+} from "@/lib/purchases/purchase-payment-sync";
 
 type UpdatePurchaseCaseState = {
     success: boolean;
@@ -47,6 +52,10 @@ export async function updatePurchaseCaseAction(
     const netAmount = getDecimalFormValue(formData, "net_amount");
     const vatRate = getDecimalFormValue(formData, "vat_rate") ?? 19;
     const paymentStatus = getStringFormValue(formData, "payment_status") ?? "open";
+    const rawPaymentMethod = getStringFormValue(formData, "payment_method");
+    const paymentMethod = isValidPurchasePaymentMethod(rawPaymentMethod)
+        ? rawPaymentMethod
+        : "bank";
     const notes = getStringFormValue(formData, "notes");
 
     if (!purchaseId) {
@@ -203,6 +212,23 @@ export async function updatePurchaseCaseAction(
             entityType: "purchase",
             entityId: purchaseId,
         });
+
+        const userContext = await getOptionalCurrentUserContext();
+        const paymentResult = await createPurchasePaymentAndSync({
+            companyId,
+            purchaseId,
+            purchaseNumber,
+            grossAmount,
+            paymentMethod,
+            authUserId: userContext?.authUserId ?? null,
+        });
+
+        if (!paymentResult.success) {
+            console.error(
+                "Purchase payment sync after edit failed",
+                paymentResult.message,
+            );
+        }
     }
 
     revalidatePaths([

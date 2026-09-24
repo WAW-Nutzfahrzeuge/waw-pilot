@@ -403,6 +403,23 @@ export function PurchaseForm({
                                     <option value="paid">Bezahlt</option>
                                 </select>
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="payment_method" className="font-bold text-slate-700">
+                                    Zahlungsart
+                                </Label>
+                                <select
+                                    id="payment_method"
+                                    name="payment_method"
+                                    defaultValue="bank"
+                                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
+                                >
+                                    <option value="bank">Bank</option>
+                                    <option value="cash">Bar</option>
+                                </select>
+                                <p className="text-xs font-semibold text-slate-500">
+                                    Nur relevant, wenn Zahlungsstatus „Bezahlt“ ausgewählt ist.
+                                </p>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

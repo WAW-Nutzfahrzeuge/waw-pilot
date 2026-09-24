@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { randomUUID } from "node:crypto";
 
 import { getCurrentCompanyId } from "@/lib/company";
-import { getTodayDateOnly } from "@/lib/format/date";
 import { logActivity } from "@/lib/activity/activity-log";
 import {
     getDocumentTooLargeMessage,
@@ -44,10 +43,6 @@ function getNumberValue(formData: FormData, key: string): number | null {
     const numberValue = Number(normalizedValue);
 
     return Number.isFinite(numberValue) ? numberValue : null;
-}
-
-function getDateValue(formData: FormData, key: string): string | null {
-    return getStringValue(formData, key);
 }
 
 function getFileValues(formData: FormData, key: string): File[] {
@@ -91,7 +86,6 @@ async function storeVehicleDocument({
                                         supabase,
                                         companyId,
                                         vehicleId,
-                                        sellerCustomerId,
                                         documentType,
                                         label,
                                         file,
@@ -99,8 +93,7 @@ async function storeVehicleDocument({
     supabase: ReturnType<typeof createServerSupabaseClient>;
     companyId: string;
     vehicleId: string;
-    sellerCustomerId: string | null;
-    documentType: "vehicle_registration" | "purchase_invoice";
+    documentType: "vehicle_registration";
     label: string;
     file: File;
 }): Promise<{ success: true } | { success: false; message: string }> {
@@ -148,7 +141,7 @@ async function storeVehicleDocument({
         file_path: filePath,
         mime_type: file.type || null,
         file_size: file.size,
-        customer_id: documentType === "purchase_invoice" ? sellerCustomerId : null,
+        customer_id: null,
         vehicle_id: vehicleId,
         sale_id: null,
         invoice_id: null,
@@ -176,22 +169,6 @@ async function storeVehicleDocument({
     return { success: true };
 }
 
-async function cleanupFailedVehicleCreation({
-    supabase,
-    companyId,
-    vehicleId,
-}: {
-    supabase: ReturnType<typeof createServerSupabaseClient>;
-    companyId: string;
-    vehicleId: string;
-}) {
-    await supabase
-        .from("vehicles")
-        .delete()
-        .eq("id", vehicleId)
-        .eq("company_id", companyId);
-}
-
 export async function createVehicleAction(
     _previousState: CreateVehicleState,
     formData: FormData,
@@ -210,15 +187,12 @@ export async function createVehicleAction(
     const purchasePriceNet = getNumberValue(formData, "purchase_price_net");
     const additionalCostsNet = getNumberValue(formData, "additional_costs_net") ?? 0;
 
-    const sellerCustomerId = getStringValue(formData, "seller_customer_id");
-    const purchaseDate = getDateValue(formData, "purchase_date");
     const notes = getStringValue(formData, "notes");
     const damageNotes = getStringValue(formData, "damage_notes");
     const vehicleRegistrationFiles = getFileValues(
         formData,
         "vehicle_registration_file",
     );
-    const purchaseInvoiceFiles = getFileValues(formData, "purchase_invoice_file");
 
     if (!manufacturer || !model || !vehicleType || !vin) {
         return {
@@ -275,7 +249,7 @@ export async function createVehicleAction(
             sale_price_net: null,
             additional_costs_net: additionalCostsNet,
             status: "in_stock",
-            seller_customer_id: sellerCustomerId || null,
+            seller_customer_id: null,
             notes,
             damage_notes: damageNotes,
             show_damage_on_invoice: false,
@@ -304,54 +278,11 @@ export async function createVehicleAction(
         entityId: vehicleId,
     });
 
-    if (sellerCustomerId) {
-        const { data: purchase, error: purchaseError } = await supabase
-            .from("purchases")
-            .insert({
-                company_id: companyId,
-                vehicle_id: vehicleId,
-                seller_customer_id: sellerCustomerId,
-                purchase_date: purchaseDate ?? getTodayDateOnly(),
-                purchase_price_net: purchasePriceNet,
-                additional_costs_net: additionalCostsNet,
-                notes,
-            })
-            .select("id")
-            .single();
-
-        if (purchaseError || !purchase) {
-            await cleanupFailedVehicleCreation({
-                supabase,
-                companyId,
-                vehicleId,
-            });
-
-            return {
-                success: false,
-                message: `Fahrzeug konnte nicht vollständig gespeichert werden, weil der Ankauf nicht gespeichert werden konnte: ${
-                    purchaseError?.message ?? "Keine Ankauf-ID erhalten"
-                }`,
-            };
-        }
-
-        await logActivity({
-            action: `Ankauf für Fahrzeug ${vehicleActivityName} automatisch angelegt`,
-            entityType: "purchase",
-            entityId: purchase.id as string,
-        });
-
-    }
-
     const documentUploads = [
         ...vehicleRegistrationFiles.map((file) => ({
             file,
             documentType: "vehicle_registration" as const,
             label: "Fahrzeugschein",
-        })),
-        ...purchaseInvoiceFiles.map((file) => ({
-            file,
-            documentType: "purchase_invoice" as const,
-            label: "Einkaufsrechnung",
         })),
     ];
 
@@ -360,7 +291,6 @@ export async function createVehicleAction(
             supabase,
             companyId,
             vehicleId,
-            sellerCustomerId,
             documentType: upload.documentType,
             label: upload.label,
             file: upload.file,

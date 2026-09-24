@@ -5,7 +5,6 @@ import { useActionState, useRef } from "react";
 import { CalendarDays, FileText, Save, Truck } from "lucide-react";
 
 import { createVehicleAction } from "@/app/dashboard/vehicles/new/actions";
-import type { CustomerRow } from "@/lib/customers/customer-queries";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -20,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
-import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { normalizeVin } from "@/lib/vehicles/vin";
 
 const initialState = {
@@ -28,13 +26,7 @@ const initialState = {
     message: "",
 };
 
-type VehicleFormProps = {
-    customers: CustomerRow[];
-};
-
-export function VehicleForm({
-                                customers,
-                            }: VehicleFormProps) {
+export function VehicleForm() {
     const [state, formAction, isPending] = useActionState(
         createVehicleAction,
         initialState,
@@ -60,9 +52,9 @@ export function VehicleForm({
     return (
         <div className="space-y-6">
             <PageHeader
-                eyebrow="Neuer Fahrzeugankauf"
-                title="Fahrzeug ankaufen / erfassen"
-                description="Fahrzeugdaten, Einkaufspreis, Dokumente und optional Verkäufer-Kunde speichern."
+                eyebrow="Neues Fahrzeug"
+                title="Fahrzeug anlegen"
+                description="Legt nur den Fahrzeugdatensatz an, ohne Ankauf. Für einen echten Ankauf mit Verkäufer, Steuerangaben und Zahlungsstatus bitte „Fahrzeug ankaufen“ verwenden."
                 action={
                     <Button
                         asChild
@@ -128,11 +120,6 @@ export function VehicleForm({
                                 type="number"
                                 placeholder="z. B. 2019"
                             />
-                            <FormField
-                                label="Ankaufsdatum"
-                                name="purchase_date"
-                                type="date"
-                            />
                         </div>
 
                         <div className="space-y-2">
@@ -157,7 +144,7 @@ export function VehicleForm({
                         <SectionTitle
                             icon={FileText}
                             title="Dokumente"
-                            description="Fahrzeugschein und Einkaufsrechnung direkt mit dem Fahrzeug speichern."
+                            description="Fahrzeugschein direkt mit dem Fahrzeug speichern."
                         />
 
                         <VehicleDocumentUploadFields
@@ -165,11 +152,6 @@ export function VehicleForm({
                                 {
                                     name: "vehicle_registration_file",
                                     label: "Fahrzeugschein",
-                                    description: "PDF, JPG, JPEG oder PNG auswählen.",
-                                },
-                                {
-                                    name: "purchase_invoice_file",
-                                    label: "Einkaufsrechnung",
                                     description: "PDF, JPG, JPEG oder PNG auswählen.",
                                 },
                             ]}
@@ -181,10 +163,12 @@ export function VehicleForm({
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
-                                Preise & Verkäufer
+                                Bestandswert
                             </h2>
                             <p className="mt-1 text-sm font-medium text-slate-500">
-                                Einkaufspreis und optionale Kundenzuordnung.
+                                Informativer Einkaufspreis für den Fahrzeugbestand. Für einen
+                                echten Ankauf mit Verkäufer, Steuerangaben und Zahlungsstatus
+                                bitte „Fahrzeug ankaufen“ verwenden.
                             </p>
                         </div>
 
@@ -196,19 +180,6 @@ export function VehicleForm({
                                 step="0.01"
                                 required
                             />
-                            <div className="space-y-2 md:col-span-2 xl:col-span-3">
-                                <CustomerCombobox
-                                    customers={customers}
-                                    name="seller_customer_id"
-                                    label="Verkäufer-Kunde"
-                                    placeholder="Name, Firma, Ort, E-Mail oder USt-ID suchen..."
-                                    emptyText="Kein Verkäufer gefunden."
-                                />
-                                <p className="text-xs font-semibold text-slate-500">
-                                    Wenn du einen Verkäufer auswählst, wird zusätzlich ein Ankauf
-                                    in der Tabelle purchases gespeichert.
-                                </p>
-                            </div>
                         </div>
                     </CardContent>
                 </Card>

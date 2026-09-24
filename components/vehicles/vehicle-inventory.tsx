@@ -152,11 +152,21 @@ export function VehicleInventory({
 
                         <Button
                             asChild
-                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                            variant="outline"
+                            className="rounded-2xl border-slate-200 bg-white font-bold"
                         >
                             <Link href="/dashboard/vehicles/new">
+                                Fahrzeug anlegen (ohne Ankauf)
+                            </Link>
+                        </Button>
+
+                        <Button
+                            asChild
+                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                        >
+                            <Link href="/dashboard/ankauf/new">
                                 <Plus className="mr-2 size-4" />
-                                Ankauf erfassen
+                                Fahrzeug ankaufen
                             </Link>
                         </Button>
                     </div>

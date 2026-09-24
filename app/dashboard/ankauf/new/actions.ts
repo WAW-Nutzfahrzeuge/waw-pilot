@@ -27,6 +27,10 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeVin } from "@/lib/vehicles/vin";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
+    createPurchasePaymentAndSync,
+    isValidPurchasePaymentMethod,
+} from "@/lib/purchases/purchase-payment-sync";
+import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
@@ -761,6 +765,10 @@ export async function createPurchaseCaseAction(
     const netAmount = getNumberValue(formData, "net_amount");
     const vatRate = getNumberValue(formData, "vat_rate") ?? 19;
     const paymentStatus = getStringValue(formData, "payment_status") ?? "open";
+    const rawPaymentMethod = getStringValue(formData, "payment_method");
+    const paymentMethod = isValidPurchasePaymentMethod(rawPaymentMethod)
+        ? rawPaymentMethod
+        : "bank";
     const notes = getStringValue(formData, "notes");
     const documentUploads = [
         ...getFileValues(formData, "vehicle_registration_file").map((file) => ({
@@ -1089,6 +1097,28 @@ export async function createPurchaseCaseAction(
             entityType: "purchase",
             entityId: purchaseCaseId,
         });
+
+        const paymentResult = await measurePurchaseStep(
+            requestId,
+            "purchase_payment_sync",
+            () =>
+                createPurchasePaymentAndSync({
+                    companyId,
+                    purchaseId: purchaseCaseId,
+                    purchaseNumber,
+                    grossAmount,
+                    paymentMethod,
+                    authUserId: userContext?.authUserId ?? null,
+                }),
+        );
+
+        if (!paymentResult.success) {
+            logPurchaseWorkflowError(
+                requestId,
+                "purchase_payment_sync_failed_non_blocking",
+                new Error(paymentResult.message),
+            );
+        }
     }
 
     logPurchaseWorkflow(requestId, "success", {

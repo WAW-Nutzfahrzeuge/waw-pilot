@@ -45,6 +45,7 @@ import {
     type VehicleDeleteDependencyCounts,
 } from "@/lib/admin-delete/admin-delete-policies";
 import { getVehicleSaleAction } from "@/lib/sales/sale-create-prefill";
+import { getVehiclePurchaseAction } from "@/lib/purchases/vehicle-purchase-eligibility";
 
 function getVehicleDocumentDisplayFileName(
     document: VehicleDetailType["documents"][number],
@@ -123,6 +124,11 @@ export function VehicleDetail({
             : null,
     ].filter((item): item is string => Boolean(item));
     const vehicleSaleAction = getVehicleSaleAction(vehicle);
+    const vehiclePurchaseAction = getVehiclePurchaseAction({
+        id: vehicle.id,
+        status: vehicle.status,
+        purchase_id: vehicle.purchase_id,
+    });
 
     return (
         <div className="space-y-6">
@@ -132,6 +138,18 @@ export function VehicleDetail({
                 description="Detailansicht mit Fahrzeugdaten, Kundenbezug, Verkäufen und Dokumenten."
                 action={
                     <div className="flex flex-wrap justify-end gap-2">
+                        {vehiclePurchaseAction.kind === "create" ? (
+                            <Button
+                                asChild
+                                variant="outline"
+                                className="rounded-2xl border-slate-200 bg-white font-bold"
+                            >
+                                <Link href={vehiclePurchaseAction.href}>
+                                    <Truck className="mr-2 size-4" />
+                                    {vehiclePurchaseAction.label}
+                                </Link>
+                            </Button>
+                        ) : null}
                         {vehicleSaleAction.kind !== "none" ? (
                             <Button
                                 asChild
