@@ -19,6 +19,12 @@ export async function updatePurchaseVehicleAction(formData: FormData) {
         throw new Error("Fahrzeug fehlt.");
     }
 
+    const constructionYear = getStringValue(formData, "construction_year");
+
+    if (!constructionYear) {
+        throw new Error("Baujahr ist ein Pflichtfeld.");
+    }
+
     const result = await updateVehicleAction(
         vehicleId,
         { success: false, message: "" },

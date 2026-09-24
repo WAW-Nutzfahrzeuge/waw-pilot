@@ -664,11 +664,11 @@ async function resolveVehicleId({
     const vehicleCategory = getStringValue(formData, "new_vehicle_category");
     const damageNotes = getStringValue(formData, "new_vehicle_damage_notes");
 
-    if (!manufacturer || !model || !vehicleType || !vin || !vehicleCategory) {
+    if (!manufacturer || !model || !vehicleType || !vin || !vehicleCategory || constructionYear === null) {
         return {
             success: false as const,
             message:
-                "Hersteller, Modell, Typ, Fahrzeugkategorie und VIN des Fahrzeugs sind Pflichtfelder.",
+                "Hersteller, Modell, Typ, Fahrzeugkategorie, VIN und Baujahr des Fahrzeugs sind Pflichtfelder.",
         };
     }
 

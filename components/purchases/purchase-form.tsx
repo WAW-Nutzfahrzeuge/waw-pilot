@@ -504,7 +504,7 @@ function VehicleCreateFields() {
             <FormField label="Modell *" name="new_vehicle_model" required />
             <FormField label="Typ *" name="new_vehicle_type" required />
             <FormField label="Fahrgestellnummer / VIN *" name="new_vehicle_vin" required normalize={normalizeVin} />
-            <FormField label="Baujahr" name="new_vehicle_construction_year" type="number" />
+            <FormField label="Baujahr *" name="new_vehicle_construction_year" type="number" required />
             <FormField label="Kilometerstand" name="new_vehicle_mileage" type="number" />
             <FormField label="Farbe" name="new_vehicle_color" />
             <FormField label="Fahrzeugkategorie *" name="new_vehicle_category" required />

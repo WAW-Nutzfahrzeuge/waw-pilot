@@ -201,6 +201,7 @@ export function PurchaseVehicleEditDialog({
                             label="Baujahr"
                             name="construction_year"
                             type="number"
+                            required
                             defaultValue={vehicle.construction_year ?? ""}
                         />
                         <FormField
