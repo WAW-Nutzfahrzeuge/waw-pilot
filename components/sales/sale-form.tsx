@@ -737,6 +737,7 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
+                {saleType === "export_third_country" ? null : (
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
@@ -745,9 +746,7 @@ export function SaleForm({
                             description={
                                 requiresExportDetails
                                     ? "Pflichtangaben für Gelangensbestätigung und Verbringungsnachweis."
-                                    : saleType === "export_third_country"
-                                        ? "Für Drittlandexporte nicht erforderlich (Gelangensbestätigung/Verbringungsnachweis gelten nur für EU-Verkäufe)."
-                                        : "Optionale Angaben für Gelangensbestätigung und Verbringungsnachweis."
+                                    : "Optionale Angaben für Gelangensbestätigung und Verbringungsnachweis."
                             }
                         />
 
@@ -906,6 +905,7 @@ export function SaleForm({
                         </div>
                     </CardContent>
                 </Card>
+                )}
 
                 <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">

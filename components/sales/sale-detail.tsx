@@ -802,7 +802,9 @@ export async function SaleDetail({
 
                 <div className="mx-auto min-w-0 w-full space-y-6">
 
-                    <SaleExportDetailsForm details={exportDetails} />
+                    {exportDetails.sale_type === "export_third_country" ? null : (
+                        <SaleExportDetailsForm details={exportDetails} />
+                    )}
 
                     {generatedDocuments.length > 0 ? (
                         <SaleGeneratedDocumentsCard
