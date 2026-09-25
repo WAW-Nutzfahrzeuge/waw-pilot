@@ -3,6 +3,7 @@ import { cache } from "react";
 
 import { getCurrentCompanyId } from "@/lib/company";
 import { normalizeUserRole, type UserRole } from "@/lib/auth/roles";
+import { isSessionIdleExpired, shouldRefreshLastSeen } from "@/lib/auth/session-policy";
 import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 
 export type CurrentUserContext = {
@@ -32,7 +33,7 @@ const getCurrentUserContextResult = cache(async (): Promise<CurrentUserContext |
 
     const { data: profile } = await supabase
         .from("profiles")
-        .select("id, role, first_name, last_name, email")
+        .select("id, role, first_name, last_name, email, last_seen_at")
         .eq("auth_user_id", user.id)
         .eq("company_id", companyId)
         .maybeSingle();
@@ -41,6 +42,25 @@ const getCurrentUserContextResult = cache(async (): Promise<CurrentUserContext |
 
     if (!profile || !role) {
         return null;
+    }
+
+    // Serverseitiges Inaktivitäts-Limit: unabhängig davon, ob der Refresh-Token
+    // im Cookie clientseitig noch gültig ist, wird die Session hier zusätzlich
+    // beendet, wenn der Nutzer zu lange inaktiv war. Das kann nicht durch
+    // deaktiviertes JavaScript oder manipulierte Cookies umgangen werden.
+    const lastSeenAt = (profile.last_seen_at as string | null) ?? null;
+
+    if (isSessionIdleExpired(lastSeenAt)) {
+        await supabase.auth.signOut();
+
+        return null;
+    }
+
+    if (shouldRefreshLastSeen(lastSeenAt)) {
+        await supabase
+            .from("profiles")
+            .update({ last_seen_at: new Date().toISOString() })
+            .eq("id", profile.id as string);
     }
 
     return {

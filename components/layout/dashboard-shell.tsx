@@ -4,6 +4,7 @@ import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { StatusLegendTrigger } from "@/components/shared/status-legend-trigger";
+import { IdleLogoutWatcher } from "@/components/auth/idle-logout-watcher";
 
 type DashboardShellProps = {
     children: ReactNode;
@@ -14,6 +15,7 @@ export async function DashboardShell({ children }: DashboardShellProps) {
 
     return (
         <div className="min-h-screen bg-transparent">
+            <IdleLogoutWatcher />
             <AppSidebar role={role} />
             <MobileHeader role={role} />
 
