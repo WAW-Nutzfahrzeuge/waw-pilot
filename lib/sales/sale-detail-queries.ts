@@ -36,6 +36,7 @@ type InvoiceRelation = {
     payment_status: PaymentStatus;
     correction_of_invoice_id: string | null;
     root_invoice_id: string | null;
+    source_proforma_invoice_id: string | null;
     correction_reason_code: string | null;
     correction_reason_text: string | null;
     customer_visible_reason: string | null;
@@ -231,6 +232,11 @@ export type SaleDetailInvoice = {
     payment_status: PaymentStatus;
     correction_of_invoice_id: string | null;
     root_invoice_id: string | null;
+    source_proforma_invoice_id: string | null;
+    /** Invoice number of the final invoice created from this proforma, if any. */
+    linked_final_invoice_number: string | null;
+    /** Invoice number of the proforma this invoice was created from, if any. */
+    source_proforma_invoice_number: string | null;
     correction_reason_code: string | null;
     correction_reason_text: string | null;
     customer_visible_reason: string | null;
@@ -439,6 +445,7 @@ function mapLegacyInvoice(invoice: LegacyInvoiceRelation): InvoiceRelation {
         payment_status: invoice.payment_status,
         correction_of_invoice_id: null,
         root_invoice_id: null,
+        source_proforma_invoice_id: null,
         correction_reason_code: null,
         correction_reason_text: null,
         customer_visible_reason: null,
@@ -557,6 +564,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         payment_status,
         correction_of_invoice_id,
         root_invoice_id,
+        source_proforma_invoice_id,
         correction_reason_code,
         correction_reason_text,
         customer_visible_reason,
@@ -769,6 +777,9 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             payment_status: invoice.payment_status,
             correction_of_invoice_id: invoice.correction_of_invoice_id,
             root_invoice_id: invoice.root_invoice_id,
+            source_proforma_invoice_id: invoice.source_proforma_invoice_id,
+            linked_final_invoice_number: null as string | null,
+            source_proforma_invoice_number: null as string | null,
             correction_reason_code: invoice.correction_reason_code,
             correction_reason_text: invoice.correction_reason_text,
             customer_visible_reason: invoice.customer_visible_reason,
@@ -810,6 +821,19 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
 
             return a.created_at.localeCompare(b.created_at);
         });
+
+    for (const invoice of invoices) {
+        if (invoice.source_proforma_invoice_id) {
+            const sourceProforma = invoices.find(
+                (candidate) => candidate.id === invoice.source_proforma_invoice_id,
+            );
+            invoice.source_proforma_invoice_number = sourceProforma?.invoice_number ?? null;
+
+            if (sourceProforma) {
+                sourceProforma.linked_final_invoice_number = invoice.invoice_number;
+            }
+        }
+    }
 
     const mainInvoice =
         invoices.find((invoice) => invoice.invoice_type === "standard") ??

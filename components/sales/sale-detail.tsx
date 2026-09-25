@@ -1130,7 +1130,7 @@ function InvoiceCard({
                         {getInvoiceTypeLabel(invoice.invoice_type)}
                     </h3>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
-                        {formatDate(invoice.invoice_date)}
+                        {invoice.invoice_number} · {formatDate(invoice.invoice_date)}
                     </p>
                 </div>
 
@@ -1205,6 +1205,18 @@ function InvoiceCard({
                 <p className="mt-3 text-xs font-bold text-slate-500">
                     Zuletzt gesendet am {formatDate(invoice.email_sent_at)} an{" "}
                     {invoice.email_sent_to}
+                </p>
+            ) : null}
+
+            {invoice.invoice_type === "proforma" && invoice.linked_final_invoice_number ? (
+                <p className="mt-3 text-xs font-bold text-cyan-700">
+                    Finale Rechnung: {invoice.linked_final_invoice_number}
+                </p>
+            ) : null}
+
+            {invoice.source_proforma_invoice_number ? (
+                <p className="mt-3 text-xs font-bold text-cyan-700">
+                    Erstellt aus Proforma: {invoice.source_proforma_invoice_number}
                 </p>
             ) : null}
 

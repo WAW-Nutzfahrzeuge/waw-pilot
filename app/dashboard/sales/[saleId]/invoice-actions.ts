@@ -473,6 +473,28 @@ export async function createSaleInvoiceAction(formData: FormData) {
         redirect(`/dashboard/sales/${saleId}`);
     }
 
+    let sourceProformaInvoiceId: string | null = null;
+
+    if (invoiceType === "standard") {
+        const { data: existingProformaData, error: existingProformaError } =
+            await supabase
+                .from("invoices")
+                .select("id")
+                .eq("company_id", companyId)
+                .eq("sale_id", saleId)
+                .eq("invoice_type", "proforma")
+                .is("source_proforma_invoice_id", null)
+                .maybeSingle();
+
+        if (existingProformaError) {
+            throw new Error(
+                `Vorhandene Proforma-Rechnung konnte nicht geprüft werden: ${existingProformaError.message}`,
+            );
+        }
+
+        sourceProformaInvoiceId = existingProformaData?.id ?? null;
+    }
+
     const invoiceNumber = await getNextInvoiceNumber({
         invoiceType,
         invoiceDate: sale.sale_date,
@@ -499,6 +521,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
             include_signature_stamp: includeSignatureStamp,
             include_terms_pdf: includeTermsPdf,
             paid_at: null,
+            source_proforma_invoice_id: sourceProformaInvoiceId,
         })
         .select("id")
         .single();
@@ -514,8 +537,20 @@ export async function createSaleInvoiceAction(formData: FormData) {
     const invoiceId = invoiceData.id as string;
     const invoiceLabel = getInvoiceActivityLabel(invoiceType);
 
+    // If this number came from the manual gap-fill reservation queue (see
+    // 20260925182900_reserve_gap_invoice_numbers.sql), record which invoice
+    // finally consumed it for auditability. No-op for normal, counter-based
+    // numbers since no reservation row will match.
+    await supabase
+        .from("invoice_number_reservations")
+        .update({ used_by_invoice_id: invoiceId })
+        .eq("company_id", companyId)
+        .eq("invoice_number", invoiceNumber);
+
     await logActivity({
-        action: `${invoiceLabel} ${invoiceNumber} erzeugt`,
+        action: sourceProformaInvoiceId
+            ? `${invoiceLabel} ${invoiceNumber} erzeugt (aus Proforma-Rechnung erstellt)`
+            : `${invoiceLabel} ${invoiceNumber} erzeugt`,
         entityType: "invoice",
         entityId: invoiceId,
     });
