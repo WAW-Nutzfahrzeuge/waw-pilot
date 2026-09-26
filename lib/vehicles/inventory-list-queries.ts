@@ -6,6 +6,9 @@ export type InventoryListRow = {
 
     stockNumber: string;
     vehicleLabel: string;
+    manufacturer: string | null;
+    model: string | null;
+    vehicleType: string | null;
     vin: string;
     vinLastSix: string;
     licensePlate: string | null;
@@ -17,6 +20,9 @@ export type InventoryListRow = {
     purchaseDate: string | null;
     sellerName: string | null;
     purchaseNetAmount: number;
+    purchaseVatRate: number;
+    purchaseVatAmount: number;
+    purchaseGrossAmount: number;
 
     additionalCostsNet: number;
 
@@ -62,6 +68,9 @@ type PurchaseQueryRow = {
     purchase_number: string | null;
     purchase_date: string | null;
     net_amount: number | string | null;
+    vat_rate: number | string | null;
+    vat_amount: number | string | null;
+    gross_amount: number | string | null;
 };
 
 type SaleQueryRow = {
@@ -195,7 +204,10 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             vehicle_id,
             purchase_number,
             purchase_date,
-            net_amount
+            net_amount,
+            vat_rate,
+            vat_amount,
+            gross_amount
         `,
         )
         .eq("company_id", companyId)
@@ -327,10 +339,25 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
         const sale = salesByVehicleId.get(vehicle.id) ?? null;
         const invoice = sale ? invoicesBySaleId.get(sale.id) ?? null : null;
 
-        const purchaseNetAmount =
-            purchase?.net_amount !== null && purchase?.net_amount !== undefined
-                ? toNumber(purchase.net_amount)
-                : toNumber(vehicle.purchase_price_net);
+        const hasPurchaseCaseAmount =
+            purchase?.net_amount !== null && purchase?.net_amount !== undefined;
+
+        const purchaseNetAmount = hasPurchaseCaseAmount
+            ? toNumber(purchase!.net_amount)
+            : toNumber(vehicle.purchase_price_net);
+
+        // Fahrzeuge ohne purchase_cases-Datensatz (sehr alte Altdaten) haben keine
+        // erfasste MwSt.: Brutto entspricht dann dem Netto-Wert, statt eine
+        // MwSt.-Rate zu erfinden.
+        const purchaseVatRate = hasPurchaseCaseAmount
+            ? toNumber(purchase!.vat_rate)
+            : 0;
+        const purchaseVatAmount = hasPurchaseCaseAmount
+            ? toNumber(purchase!.vat_amount)
+            : 0;
+        const purchaseGrossAmount = hasPurchaseCaseAmount
+            ? toNumber(purchase!.gross_amount)
+            : purchaseNetAmount;
 
         const additionalCostsNet = toNumber(vehicle.additional_costs_net);
 
@@ -353,6 +380,9 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
 
             stockNumber: getStockNumber(vehicle, index),
             vehicleLabel: getVehicleLabel(vehicle),
+            manufacturer: vehicle.manufacturer,
+            model: vehicle.model,
+            vehicleType: vehicle.vehicle_type,
             vin,
             vinLastSix: vin === "—" ? "" : vin.slice(-6),
             licensePlate: vehicle.license_plate,
@@ -368,6 +398,9 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
                     : null,
             ),
             purchaseNetAmount,
+            purchaseVatRate,
+            purchaseVatAmount,
+            purchaseGrossAmount,
 
             additionalCostsNet,
 

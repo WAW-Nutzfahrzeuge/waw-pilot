@@ -1,10 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
-    ArrowLeft,
     CalendarDays,
     ClipboardList,
     Printer,
@@ -13,7 +11,7 @@ import {
 } from "lucide-react";
 
 import type { InventoryListRow } from "@/lib/vehicles/inventory-list-queries";
-import { PageHeader } from "@/components/shared/page-header";
+import { InventoryPrintStyles } from "@/components/vehicles/inventory-print-styles";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -213,35 +211,24 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
 
     return (
         <div className="space-y-6 print:space-y-4">
-            <div className="print:hidden">
-                <PageHeader
-                    eyebrow="Fahrzeugbestand"
-                    title="Bestandsliste"
-                    description="Kaufmännische Übersicht mit Bestandsnummer, Einkauf, Verkauf, Rechnungsnummer, Rohgewinn und Inventur-Zeitraumfilter."
-                    action={
-                        <div className="flex flex-col gap-2 sm:flex-row">
-                            <Button
-                                asChild
-                                variant="outline"
-                                className="rounded-2xl border-slate-200 bg-white font-bold"
-                            >
-                                <Link href="/dashboard/vehicles">
-                                    <ArrowLeft className="mr-2 size-4" />
-                                    Zurück
-                                </Link>
-                            </Button>
+            <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+                <div>
+                    <h2 className="text-lg font-black text-slate-950">
+                        Bestandsliste
+                    </h2>
+                    <p className="text-sm font-medium text-slate-500">
+                        Kaufmännische Übersicht mit Bestandsnummer, Einkauf, Verkauf, Rechnungsnummer, Rohgewinn und Inventur-Zeitraumfilter.
+                    </p>
+                </div>
 
-                            <Button
-                                type="button"
-                                onClick={() => window.print()}
-                                className="rounded-2xl bg-slate-950 font-extrabold text-white hover:bg-slate-800"
-                            >
-                                <Printer className="mr-2 size-4" />
-                                Bestandsliste drucken
-                            </Button>
-                        </div>
-                    }
-                />
+                <Button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="rounded-2xl bg-slate-950 font-extrabold text-white hover:bg-slate-800"
+                >
+                    <Printer className="mr-2 size-4" />
+                    Bestandsliste drucken
+                </Button>
             </div>
 
             <div className="hidden print:block">
@@ -551,73 +538,7 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
                 </CardContent>
             </Card>
 
-            <style jsx global>{`
-                @media print {
-                    @page {
-                        size: A4 landscape;
-                        margin: 8mm 8mm 13mm;
-
-                        @bottom-right {
-                            content: "Seite " counter(page) " von " counter(pages);
-                            color: #475569;
-                            font-family: Helvetica, Arial, sans-serif;
-                            font-size: 7pt;
-                            font-weight: 700;
-                        }
-                    }
-
-                    body {
-                        background: white !important;
-                    }
-
-                    aside,
-                    header,
-                    nav {
-                        display: none !important;
-                    }
-
-                    main {
-                        padding: 0 !important;
-                        margin: 0 !important;
-                    }
-
-                    .inventory-print-header {
-                        display: flex !important;
-                        align-items: flex-start;
-                        justify-content: space-between;
-                        gap: 12mm;
-                    }
-
-                    .inventory-print-logo {
-                        width: 24mm;
-                        height: auto;
-                        object-fit: contain;
-                        flex: 0 0 auto;
-                        margin-top: 1mm;
-                    }
-
-                    table {
-                        page-break-inside: auto;
-                    }
-
-                    thead {
-                        display: table-header-group;
-                    }
-
-                    tfoot {
-                        display: table-footer-group;
-                    }
-
-                    tr {
-                        page-break-inside: avoid;
-                        break-inside: avoid;
-                    }
-
-                    .inventory-sale-start {
-                        border-left: 1.6pt solid #64748b !important;
-                    }
-                }
-            `}</style>
+            <InventoryPrintStyles />
         </div>
     );
 }

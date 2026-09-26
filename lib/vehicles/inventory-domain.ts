@@ -87,6 +87,33 @@ export function calculateHistoricalInventoryValueNet(
     return rows.reduce((total, row) => total + row.purchaseNetAmount, 0);
 }
 
+/**
+ * Zentrale Inventur-Stichtagsregel: War dieses Fahrzeug am Ende des
+ * angegebenen Stichtags im wirtschaftlichen Bestand?
+ *
+ * - Ankauf am Stichtag selbst zählt bereits als "im Bestand".
+ * - Verkauf am Stichtag selbst zählt bereits als "nicht mehr im Bestand"
+ *   (der Stichtag wird zum Ende des Tages betrachtet).
+ * - Ein fehlendes Ankaufdatum bedeutet, dass das Fahrzeug nie im Bestand war.
+ *
+ * Diese Funktion ist die einzige Stelle, die diese Regel implementiert. Sie
+ * wird sowohl von der Inventurliste (Stichtag) als auch intern von
+ * wasVehicleInInventoryPeriod (Zeitraumfilter der Bestandsliste) verwendet.
+ */
+export function isVehicleInStockAtDate({
+    purchaseDate,
+    saleDate,
+    asOfDate,
+}: {
+    purchaseDate: string | null;
+    saleDate: string | null;
+    asOfDate: string;
+}): boolean {
+    if (!purchaseDate) return false;
+
+    return purchaseDate <= asOfDate && (!saleDate || saleDate > asOfDate);
+}
+
 export function wasVehicleInInventoryPeriod({
     row,
     fromDate,
@@ -102,7 +129,11 @@ export function wasVehicleInInventoryPeriod({
     const saleDate = row.saleDate;
 
     if (toDate && (!fromDate || fromDate === toDate)) {
-        return row.purchaseDate <= toDate && (!saleDate || saleDate > toDate);
+        return isVehicleInStockAtDate({
+            purchaseDate: row.purchaseDate,
+            saleDate,
+            asOfDate: toDate,
+        });
     }
 
     const filterFromDate = fromDate || "0001-01-01";
@@ -111,5 +142,41 @@ export function wasVehicleInInventoryPeriod({
     return (
         row.purchaseDate <= filterToDate &&
         (!saleDate || saleDate > filterFromDate)
+    );
+}
+
+export type InventorySnapshotValueRow = {
+    purchaseNetAmount: number;
+    purchaseVatAmount: number;
+    purchaseGrossAmount: number;
+};
+
+export type InventorySnapshotTotals = {
+    vehicleCount: number;
+    totalNetAmount: number;
+    totalVatAmount: number;
+    totalGrossAmount: number;
+};
+
+/**
+ * Summenbildung für die Inventurliste. Rechnet ausschließlich über die
+ * übergebenen (bereits nach Stichtag gefilterten) Fahrzeuge.
+ */
+export function calculateInventorySnapshotTotals(
+    rows: InventorySnapshotValueRow[],
+): InventorySnapshotTotals {
+    return rows.reduce<InventorySnapshotTotals>(
+        (totals, row) => ({
+            vehicleCount: totals.vehicleCount + 1,
+            totalNetAmount: totals.totalNetAmount + row.purchaseNetAmount,
+            totalVatAmount: totals.totalVatAmount + row.purchaseVatAmount,
+            totalGrossAmount: totals.totalGrossAmount + row.purchaseGrossAmount,
+        }),
+        {
+            vehicleCount: 0,
+            totalNetAmount: 0,
+            totalVatAmount: 0,
+            totalGrossAmount: 0,
+        },
     );
 }

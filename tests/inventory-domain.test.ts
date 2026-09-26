@@ -4,7 +4,9 @@ import test from "node:test";
 import {
     buildInventorySearchText,
     calculateHistoricalInventoryValueNet,
+    calculateInventorySnapshotTotals,
     calculateInventoryValueNet,
+    isVehicleInStockAtDate,
     wasVehicleInInventoryPeriod,
 } from "../lib/vehicles/inventory-domain.ts";
 
@@ -99,5 +101,147 @@ test("historical inventory value includes vehicles that are sold today but were 
             { purchaseNetAmount: 90000 },
         ]),
         190000,
+    );
+});
+
+// ===========================================================================
+// Inventurliste (historischer Stichtags-Bestand) - isVehicleInStockAtDate
+// ===========================================================================
+
+test("TEST 1: Ankauf vor Stichtag, kein Verkauf -> im Bestand", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-05-01",
+            saleDate: null,
+            asOfDate: "2026-06-15",
+        }),
+        true,
+    );
+});
+
+test("TEST 2: Ankauf vor Stichtag, Verkauf nach Stichtag -> im Bestand", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-05-10",
+            saleDate: "2026-07-20",
+            asOfDate: "2026-06-15",
+        }),
+        true,
+    );
+});
+
+test("TEST 3: Ankauf vor Stichtag, Verkauf vor Stichtag -> nicht im Bestand", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-01-01",
+            saleDate: "2026-06-01",
+            asOfDate: "2026-06-15",
+        }),
+        false,
+    );
+});
+
+test("TEST 4: Ankauf nach Stichtag -> nicht im Bestand", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-06-20",
+            saleDate: null,
+            asOfDate: "2026-06-15",
+        }),
+        false,
+    );
+});
+
+test("TEST 5: Ankauf genau am Stichtag, kein Verkauf -> im Bestand (Ankauf am Stichtag zählt)", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-06-15",
+            saleDate: null,
+            asOfDate: "2026-06-15",
+        }),
+        true,
+    );
+});
+
+test("TEST 6: Verkauf genau am Stichtag -> nicht im Bestand (Stichtag = Ende des Tages)", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-01-01",
+            saleDate: "2026-06-15",
+            asOfDate: "2026-06-15",
+        }),
+        false,
+    );
+});
+
+test("TEST 7: stornierter Verkauf darf das Fahrzeug nicht aus dem Bestand entfernen", () => {
+    // Nach lib/sales/cancellation-release.ts wird ein Verkauf bei voller
+    // Stornierung auf status "cancelled" gesetzt. inventory-list-queries.ts
+    // filtert cancelled-Verkäufe bereits per `.neq("status", "cancelled")"
+    // heraus, sodass für ein storniertes Fahrzeug kein saleDate ankommt - die
+    // Inventurliste bekommt dafür effektiv saleDate: null.
+    const activeSales = [
+        { id: "sale-1", status: "cancelled", sale_date: "2026-06-01" },
+    ].filter((sale) => sale.status !== "cancelled");
+
+    const saleDateAfterCancellationFilter = activeSales[0]?.sale_date ?? null;
+
+    assert.equal(saleDateAfterCancellationFilter, null);
+
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-05-01",
+            saleDate: saleDateAfterCancellationFilter,
+            asOfDate: "2026-06-15",
+        }),
+        true,
+        "Fahrzeug mit ausschließlich storniertem Verkauf muss zum Stichtag im Bestand erscheinen",
+    );
+});
+
+test("TEST 9: heutiger Stichtag stimmt mit dem fachlich aktuellen Bestand überein", () => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: today,
+            saleDate: null,
+            asOfDate: today,
+        }),
+        true,
+        "Heute angekauftes, nicht verkauftes Fahrzeug ist heute im Bestand (entspricht status in_stock)",
+    );
+
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: "2026-01-01",
+            saleDate: today,
+            asOfDate: today,
+        }),
+        false,
+        "Heute verkauftes Fahrzeug ist zum heutigen Stichtag nicht mehr im Bestand (entspricht status sold)",
+    );
+});
+
+test("TEST 10: Summenberechnung (Netto/MwSt./Brutto) entspricht exakt den enthaltenen Fahrzeugen", () => {
+    const totals = calculateInventorySnapshotTotals([
+        { purchaseNetAmount: 10000, purchaseVatAmount: 1900, purchaseGrossAmount: 11900 },
+        { purchaseNetAmount: 5000, purchaseVatAmount: 0, purchaseGrossAmount: 5000 },
+    ]);
+
+    assert.equal(totals.vehicleCount, 2);
+    assert.equal(totals.totalNetAmount, 15000);
+    assert.equal(totals.totalVatAmount, 1900);
+    assert.equal(totals.totalGrossAmount, 16900);
+});
+
+test("kein Ankaufdatum bedeutet niemals im Bestand", () => {
+    assert.equal(
+        isVehicleInStockAtDate({
+            purchaseDate: null,
+            saleDate: null,
+            asOfDate: "2026-06-15",
+        }),
+        false,
     );
 });

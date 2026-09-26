@@ -1,10 +1,10 @@
 export const dynamic = "force-dynamic";
 
-import { VehicleInventoryList } from "@/components/vehicles/vehicle-inventory-list";
+import { VehicleStockOverview } from "@/components/vehicles/vehicle-stock-overview";
 import { getInventoryListRows } from "@/lib/vehicles/inventory-list-queries";
 
 export default async function VehicleInventoryListPage() {
     const rows = await getInventoryListRows();
 
-    return <VehicleInventoryList rows={rows} />;
+    return <VehicleStockOverview rows={rows} />;
 }
