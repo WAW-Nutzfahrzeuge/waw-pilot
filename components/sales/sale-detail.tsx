@@ -82,6 +82,9 @@ type SaleDetailProps = {
     isZugferdServiceConfigured: boolean;
     generatedDocumentType?: string | null;
     invoiceCreatedNumber?: string | null;
+    invoiceConvertedFromNumber?: string | null;
+    invoiceDeletedNumber?: string | null;
+    invoiceActionError?: string | null;
     invoiceRegeneratedNumber?: string | null;
     invoiceEmailSent?: string | null;
     invoiceEmailError?: string | null;
@@ -133,6 +136,9 @@ export async function SaleDetail({
                                isZugferdServiceConfigured,
                                generatedDocumentType = null,
                                invoiceCreatedNumber = null,
+                               invoiceConvertedFromNumber = null,
+                               invoiceDeletedNumber = null,
+                               invoiceActionError = null,
                                invoiceRegeneratedNumber = null,
                                invoiceEmailSent = null,
                                invoiceEmailError = null,
@@ -169,9 +175,14 @@ export async function SaleDetail({
         missingRequiredData: sale.missing_required_data_labels.length,
     });
     const isRequirementComplete = saleDocumentStatus === "complete";
-    const existingInvoiceTypes = sale.invoices.map(
-        (invoice) => invoice.invoice_type,
-    );
+    const proformaInvoice =
+        sale.invoices.find(
+            (invoice) =>
+                invoice.invoice_type === "proforma" && invoice.status !== "converted",
+        ) ?? null;
+    const standardInvoice =
+        sale.invoices.find((invoice) => invoice.invoice_type === "standard") ??
+        null;
     const showBzstVerification = new GetVatVerificationRequirementUseCase().execute({
         saleType: sale.sale_type,
         buyerType: sale.customer.type,
@@ -246,9 +257,42 @@ export async function SaleDetail({
 
             {invoiceCreatedNumber ? (
                 <FlashMessage
-                    message="Rechnung wurde erstellt."
-                    description={`Rechnung ${invoiceCreatedNumber} ist unten im Bereich „Rechnungen & Zahlung“ verfügbar und kann dort geöffnet oder heruntergeladen werden.`}
+                    message={
+                        invoiceConvertedFromNumber
+                            ? "Proforma wurde in Rechnung umgewandelt."
+                            : "Rechnung wurde erstellt."
+                    }
+                    description={
+                        invoiceConvertedFromNumber
+                            ? `Proforma-Rechnung ${invoiceConvertedFromNumber} wurde als finale Rechnung ${invoiceCreatedNumber} übernommen. Beide Dokumente sind unten im Bereich „Rechnungen & Zahlung“ verfügbar.`
+                            : `Rechnung ${invoiceCreatedNumber} ist unten im Bereich „Rechnungen & Zahlung“ verfügbar und kann dort geöffnet oder heruntergeladen werden.`
+                    }
                 />
+            ) : null}
+
+            {invoiceDeletedNumber ? (
+                <FlashMessage
+                    message="Proforma-Rechnung wurde gelöscht."
+                    description={`Proforma-Rechnung ${invoiceDeletedNumber} wurde entfernt. Der Nummernkreis bleibt unverändert.`}
+                />
+            ) : null}
+
+            {invoiceActionError ? (
+                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
+                            <FileWarning className="size-5" />
+                        </div>
+                        <div>
+                            <p className="font-extrabold text-red-950">
+                                Aktion konnte nicht ausgeführt werden.
+                            </p>
+                            <p className="mt-1 text-sm font-semibold text-red-800">
+                                {getInvoiceActionErrorMessage(invoiceActionError)}
+                            </p>
+                        </div>
+                    </div>
+                </div>
             ) : null}
 
             {invoiceRegeneratedNumber ? (
@@ -685,7 +729,22 @@ export async function SaleDetail({
 
                                 <SaleInvoiceTypeActions
                                     saleId={sale.id}
-                                    existingInvoiceTypes={existingInvoiceTypes}
+                                    proformaInvoice={
+                                        proformaInvoice
+                                            ? {
+                                                  id: proformaInvoice.id,
+                                                  invoiceNumber: proformaInvoice.invoice_number,
+                                              }
+                                            : null
+                                    }
+                                    standardInvoice={
+                                        standardInvoice
+                                            ? {
+                                                  id: standardInvoice.id,
+                                                  invoiceNumber: standardInvoice.invoice_number,
+                                              }
+                                            : null
+                                    }
                                     damageNotes={sale.vehicle.damage_notes}
                                     allowDamageNotesOnInvoice={Boolean(sale.vehicle.damage_notes?.trim())}
                                     includeDamageNotesOnInvoice={
@@ -1310,6 +1369,23 @@ function getInvoiceEmailErrorMessage(errorCode: string): string {
     };
 
     return messages[errorCode] ?? messages.sendFailed;
+}
+
+function getInvoiceActionErrorMessage(errorCode: string): string {
+    const messages: Record<string, string> = {
+        invoiceAlreadyExists:
+            "Für diesen Verkauf existiert bereits eine Rechnung. Es wurde keine zweite erzeugt.",
+        proformaAlreadyExists:
+            "Für diesen Verkauf existiert bereits eine Proforma-Rechnung. Es wurde keine zweite erzeugt.",
+        alreadyConverted:
+            "Diese Proforma-Rechnung wurde bereits in eine Rechnung umgewandelt und kann nicht mehr gelöscht werden.",
+        onlyProformaDeletable:
+            "Nur nicht umgewandelte Proforma-Rechnungen können gelöscht werden. Für finale Rechnungen bitte den Storno-Prozess verwenden.",
+        notFound:
+            "Die Proforma-Rechnung wurde nicht gefunden oder ist bereits gelöscht.",
+    };
+
+    return messages[errorCode] ?? "Bitte versuche es erneut.";
 }
 
 function getDatevInvoiceErrorMessage(errorCode: string): string {

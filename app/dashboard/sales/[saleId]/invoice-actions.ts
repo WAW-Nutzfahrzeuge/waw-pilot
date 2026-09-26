@@ -474,12 +474,13 @@ export async function createSaleInvoiceAction(formData: FormData) {
     }
 
     let sourceProformaInvoiceId: string | null = null;
+    let sourceProformaInvoiceNumber: string | null = null;
 
     if (invoiceType === "standard") {
         const { data: existingProformaData, error: existingProformaError } =
             await supabase
                 .from("invoices")
-                .select("id")
+                .select("id, invoice_number")
                 .eq("company_id", companyId)
                 .eq("sale_id", saleId)
                 .eq("invoice_type", "proforma")
@@ -493,6 +494,8 @@ export async function createSaleInvoiceAction(formData: FormData) {
         }
 
         sourceProformaInvoiceId = existingProformaData?.id ?? null;
+        sourceProformaInvoiceNumber =
+            (existingProformaData?.invoice_number as string | undefined) ?? null;
     }
 
     const invoiceNumber = await getNextInvoiceNumber({
@@ -527,6 +530,24 @@ export async function createSaleInvoiceAction(formData: FormData) {
         .single();
 
     if (invoiceError || !invoiceData) {
+        // Race protection: two concurrent requests (doubleclick, two tabs)
+        // can both pass the existence checks above before either INSERT
+        // completes. The database-level unique index (see migration
+        // 20260926190000_add_proforma_conversion_safeguards.sql) then
+        // rejects the second INSERT instead of creating a duplicate
+        // standard/proforma invoice for this sale.
+        if (invoiceError?.code === "23505") {
+            revalidateInvoiceCreationPaths(saleId);
+
+            redirect(
+                `/dashboard/sales/${saleId}?invoiceActionError=${
+                    invoiceType === "proforma"
+                        ? "proformaAlreadyExists"
+                        : "invoiceAlreadyExists"
+                }`,
+            );
+        }
+
         throw new Error(
             `${getInvoiceTypeLabel(invoiceType)} konnte nicht erzeugt werden: ${
                 invoiceError?.message ?? "Keine Rechnungs-ID erhalten"
@@ -633,12 +654,198 @@ export async function createSaleInvoiceAction(formData: FormData) {
         );
     }
 
+    // Diese finale Rechnung entstand aus einer Proforma-Rechnung ("In
+    // Rechnung umwandeln") - die Proforma bleibt als Datensatz erhalten,
+    // wird aber als umgewandelt markiert, damit sie nicht mehr wie eine
+    // offene Proforma behandelt wird (siehe SaleInvoiceTypeActions/Zustand 3).
+    // Ein Fehler hier soll die bereits erfolgreich erstellte finale Rechnung
+    // nicht als fehlgeschlagen erscheinen lassen, deshalb nur geloggt.
+    if (sourceProformaInvoiceId) {
+        const { error: proformaConversionError } = await supabase
+            .from("invoices")
+            .update({ status: "converted" })
+            .eq("id", sourceProformaInvoiceId)
+            .eq("company_id", companyId);
+
+        if (proformaConversionError) {
+            console.error(
+                "[invoice-actions] Proforma konnte nicht als umgewandelt markiert werden",
+                proformaConversionError,
+            );
+        }
+    }
+
     revalidateInvoiceCreationPaths(saleId);
 
     redirect(
         `/dashboard/sales/${saleId}?invoiceCreated=${encodeURIComponent(
             invoiceNumber,
-        )}&highlightInvoiceId=${invoiceId}`,
+        )}${
+            sourceProformaInvoiceNumber
+                ? `&invoiceConvertedFrom=${encodeURIComponent(sourceProformaInvoiceNumber)}`
+                : ""
+        }&highlightInvoiceId=${invoiceId}`,
+    );
+}
+
+type DeletableProformaRow = {
+    id: string;
+    sale_id: string;
+    invoice_type: InvoiceType;
+    invoice_number: string;
+    status: string;
+};
+
+/**
+ * Löscht eine noch nicht umgewandelte Proforma-Rechnung inklusive ihres
+ * generierten PDF-Dokuments (DB-Zeile + Storage-Objekt).
+ *
+ * Bewusst NUR für invoice_type "proforma" ohne source_proforma_invoice_id-
+ * Verweis einer finalen Rechnung: Eine finale Rechnung mit vergebener
+ * Rechnungsnummer darf laut bestehender Fachlogik nie hart gelöscht werden
+ * (steuerlich relevante Historie) - dafür existiert der Storno-/
+ * Korrekturprozess (SaleCorrectionsCard/correction-actions.ts). Die
+ * Proforma-Nummer selbst wird nicht in den Nummernkreis zurückgelegt, der
+ * Counter zählt beim Löschen nicht zurück.
+ */
+export async function deleteProformaInvoiceAction(formData: FormData) {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const saleId = getStringValue(formData, "sale_id");
+    const invoiceId = getStringValue(formData, "invoice_id");
+
+    if (!saleId) throw new Error("Verkauf fehlt.");
+    if (!invoiceId) throw new Error("Proforma-Rechnung fehlt.");
+
+    const { data: invoiceRow, error: invoiceLoadError } = await supabase
+        .from("invoices")
+        .select("id, sale_id, invoice_type, invoice_number, status")
+        .eq("id", invoiceId)
+        .eq("company_id", companyId)
+        .eq("sale_id", saleId)
+        .maybeSingle();
+
+    if (invoiceLoadError) {
+        throw new Error(
+            `Proforma-Rechnung konnte nicht geladen werden: ${invoiceLoadError.message}`,
+        );
+    }
+
+    if (!invoiceRow) {
+        redirect(
+            `/dashboard/sales/${saleId}?invoiceActionError=notFound`,
+        );
+    }
+
+    const invoice = invoiceRow as DeletableProformaRow;
+
+    if (invoice.invoice_type !== "proforma") {
+        redirect(
+            `/dashboard/sales/${saleId}?invoiceActionError=onlyProformaDeletable`,
+        );
+    }
+
+    if (invoice.status === "converted") {
+        redirect(
+            `/dashboard/sales/${saleId}?invoiceActionError=alreadyConverted`,
+        );
+    }
+
+    // Doppelte Absicherung: falls doch bereits eine finale Rechnung auf diese
+    // Proforma verweist (z. B. Statusaktualisierung ist fehlgeschlagen),
+    // trotzdem nicht löschen.
+    const { data: linkedFinalInvoice, error: linkedFinalInvoiceError } =
+        await supabase
+            .from("invoices")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("source_proforma_invoice_id", invoice.id)
+            .maybeSingle();
+
+    if (linkedFinalInvoiceError) {
+        throw new Error(
+            `Verknüpfte Rechnung konnte nicht geprüft werden: ${linkedFinalInvoiceError.message}`,
+        );
+    }
+
+    if (linkedFinalInvoice) {
+        redirect(
+            `/dashboard/sales/${saleId}?invoiceActionError=alreadyConverted`,
+        );
+    }
+
+    const { data: linkedDocuments, error: linkedDocumentsError } =
+        await supabase
+            .from("documents")
+            .select("id, file_path")
+            .eq("company_id", companyId)
+            .eq("invoice_id", invoice.id);
+
+    if (linkedDocumentsError) {
+        throw new Error(
+            `Rechnungsdokumente konnten nicht geladen werden: ${linkedDocumentsError.message}`,
+        );
+    }
+
+    const storagePaths = (linkedDocuments ?? [])
+        .map((document) => document.file_path as string | null)
+        .filter((filePath): filePath is string => Boolean(filePath));
+
+    if (storagePaths.length > 0) {
+        const { error: storageRemoveError } = await supabase.storage
+            .from("documents")
+            .remove(storagePaths);
+
+        // Best-effort: fehlende/bereits gelöschte Storage-Objekte sollen das
+        // Löschen der Proforma nicht verhindern, werden aber geloggt.
+        if (storageRemoveError) {
+            console.error(
+                "[invoice-actions] Storage-Objekte der Proforma konnten nicht entfernt werden",
+                storageRemoveError,
+            );
+        }
+    }
+
+    if ((linkedDocuments ?? []).length > 0) {
+        const { error: documentsDeleteError } = await supabase
+            .from("documents")
+            .delete()
+            .eq("company_id", companyId)
+            .eq("invoice_id", invoice.id);
+
+        if (documentsDeleteError) {
+            throw new Error(
+                `Rechnungsdokumente konnten nicht gelöscht werden: ${documentsDeleteError.message}`,
+            );
+        }
+    }
+
+    const { error: invoiceDeleteError } = await supabase
+        .from("invoices")
+        .delete()
+        .eq("id", invoice.id)
+        .eq("company_id", companyId)
+        .eq("invoice_type", "proforma");
+
+    if (invoiceDeleteError) {
+        throw new Error(
+            `Proforma-Rechnung konnte nicht gelöscht werden: ${invoiceDeleteError.message}`,
+        );
+    }
+
+    await logActivity({
+        action: `Proforma-Rechnung ${invoice.invoice_number} gelöscht`,
+        entityType: "invoice",
+        entityId: invoice.id,
+    });
+
+    revalidateInvoiceCreationPaths(saleId);
+
+    redirect(
+        `/dashboard/sales/${saleId}?invoiceDeleted=${encodeURIComponent(
+            invoice.invoice_number,
+        )}`,
     );
 }
 

@@ -11,6 +11,7 @@ export function getInvoiceStatusLabel(status: InvoiceStatus): string {
         sent: "Gesendet",
         paid: "Bezahlt",
         cancelled: "Storniert",
+        converted: "Umgewandelt",
     };
 
     return labels[status];
@@ -44,6 +45,7 @@ export function getInvoiceStatusTone(
     if (status === "sent") return "info";
     if (status === "created") return "warning";
     if (status === "cancelled") return "danger";
+    if (status === "converted") return "info";
 
     return "neutral";
 }

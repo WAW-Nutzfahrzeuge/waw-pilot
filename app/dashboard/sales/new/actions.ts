@@ -830,6 +830,12 @@ export async function createSaleAction(
     const shouldCreateInvoice =
         getStringValue(formData, "create_invoice") === "yes";
 
+    const requestedInvoiceType =
+        getStringValue(formData, "invoice_type") === "proforma"
+            ? "proforma"
+            : "standard";
+    const isProformaInvoice = shouldCreateInvoice && requestedInvoiceType === "proforma";
+
     if (shouldCreateInvoice && includeSignatureStamp) {
         try {
             await assertCompanySignatureStampConfigured();
@@ -845,6 +851,7 @@ export async function createSaleAction(
     }
 
     const shouldCreateCashbookEntry =
+        !isProformaInvoice &&
         getStringValue(formData, "create_cashbook_entry") === "yes";
 
     const paymentMethod = getStringValue(formData, "payment_method") ?? "bank";
@@ -1342,7 +1349,7 @@ export async function createSaleAction(
     if (shouldCreateInvoice) {
         try {
             invoiceNumber = await getNextInvoiceNumber({
-                invoiceType: "standard",
+                invoiceType: requestedInvoiceType,
                 invoiceDate: saleDate,
             });
         } catch (error) {
@@ -1362,7 +1369,7 @@ export async function createSaleAction(
                 sale_id: saleId,
                 customer_id: buyerCustomerId,
                 vehicle_id: vehicleId,
-                invoice_type: "standard",
+                invoice_type: requestedInvoiceType,
                 invoice_number: invoiceNumber,
                 invoice_date: saleDate,
                 due_date: calculateInvoiceDueDate(saleDate),
@@ -1370,12 +1377,23 @@ export async function createSaleAction(
                 vat_rate: vatRate,
                 vat_amount: vatAmount,
                 gross_amount: grossAmount,
-                status: shouldCreateCashbookEntry ? "paid" : "created",
-                payment_status: shouldCreateCashbookEntry ? "paid" : "open",
+                status: isProformaInvoice
+                    ? "created"
+                    : shouldCreateCashbookEntry
+                        ? "paid"
+                        : "created",
+                payment_status: isProformaInvoice
+                    ? "open"
+                    : shouldCreateCashbookEntry
+                        ? "paid"
+                        : "open",
                 datev_status: "not_sent",
                 include_signature_stamp: includeSignatureStamp,
                 include_terms_pdf: includeTermsPdf,
-                paid_at: shouldCreateCashbookEntry ? new Date().toISOString() : null,
+                paid_at:
+                    !isProformaInvoice && shouldCreateCashbookEntry
+                        ? new Date().toISOString()
+                        : null,
             })
             .select("id")
             .single();
@@ -1383,7 +1401,9 @@ export async function createSaleAction(
         if (invoiceError || !invoice) {
             return {
                 success: false,
-                message: `Verkauf wurde gespeichert, aber Rechnung konnte nicht erzeugt werden: ${
+                message: `Verkauf wurde gespeichert, aber ${
+                    isProformaInvoice ? "Proforma-Rechnung" : "Rechnung"
+                } konnte nicht erzeugt werden: ${
                     invoiceError?.message ?? "Keine Rechnungs-ID erhalten"
                 }`,
             };
@@ -1393,14 +1413,16 @@ export async function createSaleAction(
         invoiceId = createdInvoiceId;
 
         await logActivity({
-            action: `Rechnung ${invoiceNumber} für Verkauf ${saleNumber} erzeugt`,
+            action: `${
+                isProformaInvoice ? "Proforma-Rechnung" : "Rechnung"
+            } ${invoiceNumber} für Verkauf ${saleNumber} erzeugt`,
             entityType: "invoice",
             entityId: createdInvoiceId,
         });
 
         const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
             saleReference: invoiceNumber,
-            documentType: getInvoiceTypeDocumentType("standard"),
+            documentType: getInvoiceTypeDocumentType(requestedInvoiceType),
             mimeType: "application/pdf",
         });
         const invoiceFilePath = `invoices/${invoiceFileName}`;
@@ -1409,7 +1431,7 @@ export async function createSaleAction(
             .from("documents")
             .insert({
                 company_id: companyId,
-                document_type: getInvoiceTypeDocumentType("standard"),
+                document_type: getInvoiceTypeDocumentType(requestedInvoiceType),
                 source: "generated",
                 status: "needs_review",
                 file_name: invoiceFileName,

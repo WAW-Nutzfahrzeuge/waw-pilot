@@ -14,6 +14,9 @@ type SaleDetailPageProps = {
     searchParams: Promise<{
         generatedDocument?: string;
         invoiceCreated?: string;
+        invoiceConvertedFrom?: string;
+        invoiceDeleted?: string;
+        invoiceActionError?: string;
         invoiceRegenerated?: string;
         invoiceEmailSent?: string;
         invoiceEmailError?: string;
@@ -76,6 +79,9 @@ export default async function SaleDetailPage({
             isZugferdServiceConfigured={isZugferdServiceConfigured()}
             generatedDocumentType={resolvedSearchParams.generatedDocument ?? null}
             invoiceCreatedNumber={resolvedSearchParams.invoiceCreated ?? null}
+            invoiceConvertedFromNumber={resolvedSearchParams.invoiceConvertedFrom ?? null}
+            invoiceDeletedNumber={resolvedSearchParams.invoiceDeleted ?? null}
+            invoiceActionError={resolvedSearchParams.invoiceActionError ?? null}
             invoiceRegeneratedNumber={resolvedSearchParams.invoiceRegenerated ?? null}
             invoiceEmailSent={resolvedSearchParams.invoiceEmailSent ?? null}
             invoiceEmailError={resolvedSearchParams.invoiceEmailError ?? null}

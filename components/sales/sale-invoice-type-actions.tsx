@@ -3,21 +3,43 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
+    ArrowRightLeft,
     CheckCircle2,
     FileSignature,
     FileText,
     Loader2,
     Receipt,
     ScrollText,
+    Trash2,
 } from "lucide-react";
 
-import { createSaleInvoiceAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
-import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
+import {
+    createSaleInvoiceAction,
+    deleteProformaInvoiceAction,
+} from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogClose,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+
+type InvoiceRef = {
+    id: string;
+    invoiceNumber: string;
+};
 
 type SaleInvoiceTypeActionsProps = {
     saleId: string;
-    existingInvoiceTypes?: InvoiceType[];
+    /** Nicht umgewandelte Proforma-Rechnung für diesen Verkauf, falls vorhanden. */
+    proformaInvoice?: InvoiceRef | null;
+    /** Finale ("standard") Rechnung für diesen Verkauf, falls vorhanden. */
+    standardInvoice?: InvoiceRef | null;
     damageNotes?: string | null;
     allowDamageNotesOnInvoice?: boolean;
     includeDamageNotesOnInvoice?: boolean;
@@ -28,7 +50,8 @@ type SaleInvoiceTypeActionsProps = {
 
 export function SaleInvoiceTypeActions({
                                            saleId,
-                                           existingInvoiceTypes = [],
+                                           proformaInvoice = null,
+                                           standardInvoice = null,
                                            damageNotes = null,
                                            allowDamageNotesOnInvoice = false,
                                            includeDamageNotesOnInvoice = false,
@@ -36,8 +59,6 @@ export function SaleInvoiceTypeActions({
                                            initialIncludeSignatureStamp = false,
                                            initialIncludeTermsPdf = false,
                                        }: SaleInvoiceTypeActionsProps) {
-    const hasStandard = existingInvoiceTypes.includes("standard");
-    const hasProforma = existingInvoiceTypes.includes("proforma");
     const hasDamageNotes = Boolean(damageNotes?.trim());
     const canIncludeDamageNotes = hasDamageNotes && allowDamageNotesOnInvoice;
     const [includeDamageNotes, setIncludeDamageNotes] = useState(
@@ -47,6 +68,26 @@ export function SaleInvoiceTypeActions({
         hasSignatureStampAssets && initialIncludeSignatureStamp,
     );
     const [includeTermsPdf, setIncludeTermsPdf] = useState(initialIncludeTermsPdf);
+
+    const hiddenOptionInputs = (
+        <>
+            <input
+                type="hidden"
+                name="include_damage_notes_on_invoice"
+                value={includeDamageNotes ? "yes" : "no"}
+            />
+            <input
+                type="hidden"
+                name="include_signature_stamp"
+                value={includeSignatureStamp ? "yes" : "no"}
+            />
+            <input
+                type="hidden"
+                name="include_terms_pdf"
+                value={includeTermsPdf ? "yes" : "no"}
+            />
+        </>
+    );
 
     return (
         <div className="mt-5 space-y-3">
@@ -134,75 +175,270 @@ export function SaleInvoiceTypeActions({
                 </span>
             </label>
 
-            <div className="grid gap-3 lg:grid-cols-2">
+            {standardInvoice ? (
+                <InvoiceStateCard
+                    icon="receipt"
+                    label="Rechnung vorhanden"
+                    description="Bereits in der Rechnungsliste unten sichtbar"
+                />
+            ) : proformaInvoice ? (
+                <div className="grid gap-3 lg:grid-cols-2">
+                    <ProformaExistsCard
+                        saleId={saleId}
+                        proformaInvoice={proformaInvoice}
+                    />
+                    <ConvertProformaCard
+                        saleId={saleId}
+                        proformaInvoice={proformaInvoice}
+                        hiddenOptionInputs={hiddenOptionInputs}
+                    />
+                </div>
+            ) : (
+                <div className="grid gap-3 lg:grid-cols-2">
+                    <form action={createSaleInvoiceAction}>
+                        <input type="hidden" name="sale_id" value={saleId} />
+                        <input type="hidden" name="invoice_type" value="standard" />
+                        {hiddenOptionInputs}
+
+                        <InvoiceSubmitButton
+                            icon="receipt"
+                            label="Rechnung erstellen"
+                            description="Erstellt direkt die endgültige Rechnung mit der nächsten regulären Rechnungsnummer."
+                        />
+                    </form>
+
+                    <form action={createSaleInvoiceAction}>
+                        <input type="hidden" name="sale_id" value={saleId} />
+                        <input type="hidden" name="invoice_type" value="proforma" />
+                        {hiddenOptionInputs}
+
+                        <InvoiceSubmitButton
+                            icon="file"
+                            label="Proforma-Rechnung erstellen"
+                            description="Erstellt zunächst eine Proforma-Rechnung. Es wird keine reguläre Rechnungsnummer vergeben."
+                        />
+                    </form>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ProformaExistsCard({
+                                saleId,
+                                proformaInvoice,
+                             }: {
+    saleId: string;
+    proformaInvoice: InvoiceRef;
+}) {
+    return (
+        <div className="flex h-full flex-col justify-between rounded-3xl border border-slate-900/20 bg-white p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-violet-50 text-violet-700">
+                    <FileText className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                    <span className="block whitespace-normal break-words text-lg font-black leading-snug text-slate-950">
+                        Proforma-Rechnung vorhanden
+                    </span>
+                    <span className="mt-1 block whitespace-normal break-words text-xs font-semibold leading-relaxed text-slate-500">
+                        {proformaInvoice.invoiceNumber} · unten in der Rechnungsliste
+                        einsehbar und herunterladbar
+                    </span>
+                </span>
+            </div>
+
+            <DeleteProformaDialog saleId={saleId} proformaInvoice={proformaInvoice} />
+        </div>
+    );
+}
+
+function DeleteProformaDialog({
+                                  saleId,
+                                  proformaInvoice,
+                              }: {
+    saleId: string;
+    proformaInvoice: InvoiceRef;
+}) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="mt-4 w-full rounded-2xl border-red-200 bg-white font-bold text-red-700 hover:bg-red-50"
+                >
+                    <Trash2 className="mr-2 size-4" />
+                    Proforma löschen
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md rounded-3xl bg-white">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-extrabold text-slate-950">
+                        Proforma-Rechnung löschen?
+                    </DialogTitle>
+                    <DialogDescription className="text-sm font-medium leading-6 text-slate-600">
+                        Proforma-Rechnung {proformaInvoice.invoiceNumber} und das
+                        zugehörige PDF werden endgültig gelöscht. Dies kann nicht
+                        rückgängig gemacht werden. Die Proforma-Nummer wird nicht erneut
+                        vergeben.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form action={deleteProformaInvoiceAction}>
+                    <input type="hidden" name="sale_id" value={saleId} />
+                    <input
+                        type="hidden"
+                        name="invoice_id"
+                        value={proformaInvoice.id}
+                    />
+
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-2xl font-bold"
+                            >
+                                Abbrechen
+                            </Button>
+                        </DialogClose>
+                        <DeleteProformaSubmitButton />
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function DeleteProformaSubmitButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <Button
+            type="submit"
+            disabled={pending}
+            className="rounded-2xl bg-red-700 font-bold text-white hover:bg-red-800"
+        >
+            {pending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+                <Trash2 className="mr-2 size-4" />
+            )}
+            {pending ? "Wird gelöscht..." : "Proforma löschen"}
+        </Button>
+    );
+}
+
+function ConvertProformaCard({
+                                 saleId,
+                                 proformaInvoice,
+                                 hiddenOptionInputs,
+                             }: {
+    saleId: string;
+    proformaInvoice: InvoiceRef;
+    hiddenOptionInputs: React.ReactNode;
+}) {
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="h-auto min-h-28 w-full items-start justify-start rounded-3xl border-cyan-700 bg-cyan-700 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-cyan-800"
+                >
+                    <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-white">
+                        <ArrowRightLeft className="size-5" />
+                    </span>
+                    <span className="ml-3 min-w-0 flex-1 overflow-hidden">
+                        <span className="block whitespace-normal break-words text-lg font-black leading-snug text-white">
+                            In Rechnung umwandeln
+                        </span>
+                        <span className="mt-1 block whitespace-normal break-words text-xs font-semibold leading-relaxed text-cyan-50">
+                            Vergibt die nächste reguläre Rechnungsnummer
+                        </span>
+                    </span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md rounded-3xl bg-white">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-extrabold text-slate-950">
+                        Proforma in Rechnung umwandeln?
+                    </DialogTitle>
+                    <DialogDescription className="text-sm font-medium leading-6 text-slate-600">
+                        Die Proforma-Rechnung {proformaInvoice.invoiceNumber} wird als
+                        endgültige Rechnung übernommen. Dabei wird die nächste freie
+                        Rechnungsnummer aus dem regulären Rechnungsnummernkreis vergeben.
+                    </DialogDescription>
+                </DialogHeader>
+
                 <form action={createSaleInvoiceAction}>
                     <input type="hidden" name="sale_id" value={saleId} />
                     <input type="hidden" name="invoice_type" value="standard" />
-                    <input
-                        type="hidden"
-                        name="include_damage_notes_on_invoice"
-                        value={includeDamageNotes ? "yes" : "no"}
-                    />
-                    <input
-                        type="hidden"
-                        name="include_signature_stamp"
-                        value={includeSignatureStamp ? "yes" : "no"}
-                    />
-                    <input
-                        type="hidden"
-                        name="include_terms_pdf"
-                        value={includeTermsPdf ? "yes" : "no"}
-                    />
+                    {hiddenOptionInputs}
 
-                    <InvoiceSubmitButton
-                        icon="receipt"
-                        label={hasStandard ? "Rechnung vorhanden" : "Rechnung erstellen"}
-                        description={
-                            hasStandard
-                                ? "Bereits in der Rechnungsliste unten sichtbar"
-                                : "Erstellt die normale Verkaufsrechnung"
-                        }
-                        disabled={hasStandard}
-                        done={hasStandard}
-                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="rounded-2xl font-bold"
+                            >
+                                Abbrechen
+                            </Button>
+                        </DialogClose>
+                        <ConvertProformaSubmitButton />
+                    </DialogFooter>
                 </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
-                <form action={createSaleInvoiceAction}>
-                    <input type="hidden" name="sale_id" value={saleId} />
-                    <input type="hidden" name="invoice_type" value="proforma" />
-                    <input
-                        type="hidden"
-                        name="include_damage_notes_on_invoice"
-                        value={includeDamageNotes ? "yes" : "no"}
-                    />
-                    <input
-                        type="hidden"
-                        name="include_signature_stamp"
-                        value={includeSignatureStamp ? "yes" : "no"}
-                    />
-                    <input
-                        type="hidden"
-                        name="include_terms_pdf"
-                        value={includeTermsPdf ? "yes" : "no"}
-                    />
+function ConvertProformaSubmitButton() {
+    const { pending } = useFormStatus();
 
-                    <InvoiceSubmitButton
-                        icon="file"
-                        label={
-                            hasProforma
-                                ? "Proforma-Rechnung vorhanden"
-                                : "Proforma-Rechnung erstellen"
-                        }
-                        description={
-                            hasProforma
-                                ? "Bereits in der Rechnungsliste unten sichtbar"
-                                : "Eigener Nummernkreis PRO-026"
-                        }
-                        disabled={hasProforma}
-                        done={hasProforma}
-                    />
-                </form>
-            </div>
+    return (
+        <Button
+            type="submit"
+            disabled={pending}
+            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+        >
+            {pending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+                <ArrowRightLeft className="mr-2 size-4" />
+            )}
+            {pending ? "Wird umgewandelt..." : "In Rechnung umwandeln"}
+        </Button>
+    );
+}
+
+function InvoiceStateCard({
+                              icon,
+                              label,
+                              description,
+                          }: {
+    icon: "file" | "receipt";
+    label: string;
+    description: string;
+}) {
+    const Icon = icon === "file" ? FileText : Receipt;
+
+    return (
+        <div className="flex h-auto min-h-28 w-full items-start justify-start rounded-3xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <CheckCircle2 className="size-5" />
+            </span>
+            <span className="ml-3 min-w-0 flex-1 overflow-hidden">
+                <span className="block whitespace-normal break-words text-lg font-black leading-snug text-slate-950">
+                    {label}
+                </span>
+                <span className="mt-1 block whitespace-normal break-words text-xs font-semibold leading-relaxed text-slate-500">
+                    {description}
+                </span>
+            </span>
+            <Icon className="size-5 shrink-0 text-emerald-700" />
         </div>
     );
 }
@@ -211,36 +447,22 @@ function InvoiceSubmitButton({
                                  icon,
                                  label,
                                  description,
-                                 disabled = false,
-                                 done = false,
                              }: {
     icon: "file" | "receipt";
     label: string;
     description: string;
-    disabled?: boolean;
-    done?: boolean;
 }) {
     const { pending } = useFormStatus();
-    const Icon = done ? CheckCircle2 : icon === "file" ? FileText : Receipt;
+    const Icon = icon === "file" ? FileText : Receipt;
 
     return (
         <Button
             type="submit"
-            disabled={disabled || pending}
+            disabled={pending}
             variant="outline"
-            className={
-                done
-                    ? "h-auto min-h-28 w-full items-start justify-start rounded-3xl border-emerald-200 bg-emerald-50 p-4 text-left shadow-sm disabled:cursor-default disabled:opacity-100"
-                    : "h-auto min-h-28 w-full items-start justify-start rounded-3xl border-slate-900/20 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
-            }
+            className="h-auto min-h-28 w-full items-start justify-start rounded-3xl border-slate-900/20 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-200 hover:bg-cyan-50/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70"
         >
-            <span
-                className={
-                    done
-                        ? "flex size-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700"
-                        : "flex size-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700"
-                }
-            >
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-cyan-50 text-cyan-700">
                 {pending ? (
                     <Loader2 className="size-5 animate-spin" />
                 ) : (

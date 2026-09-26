@@ -10,7 +10,17 @@ import {
     type MonthFilterValue,
 } from "@/utils/month-filter";
 
-export type InvoiceStatus = "draft" | "created" | "sent" | "paid" | "cancelled";
+export type InvoiceStatus =
+    | "draft"
+    | "created"
+    | "sent"
+    | "paid"
+    | "cancelled"
+    // Nur für invoice_type "proforma": gesetzt, sobald die Proforma-Rechnung
+    // kontrolliert in eine finale Rechnung umgewandelt wurde. Die Proforma
+    // bleibt als historischer Datensatz erhalten (siehe
+    // invoices.source_proforma_invoice_id auf der finalen Rechnung).
+    | "converted";
 export type InvoicePaymentStatus = "open" | "partial" | "paid";
 export type InvoiceDatevStatus = "not_sent" | "sent";
 

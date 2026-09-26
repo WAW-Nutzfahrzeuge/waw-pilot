@@ -142,6 +142,11 @@ export function SaleForm({
     const [netAmount, setNetAmount] = useState("");
     const [vatRate, setVatRate] = useState("19");
     const [includeTermsPdf, setIncludeTermsPdf] = useState(false);
+    const [createInvoice, setCreateInvoice] = useState(true);
+    const [invoiceType, setInvoiceType] = useState<"standard" | "proforma">(
+        "standard",
+    );
+    const isProformaSelected = createInvoice && invoiceType === "proforma";
     const requiresExportDetails = saleType === "eu";
     const selectedCustomer =
         customers.find((customer) => customer.id === selectedCustomerId) ?? null;
@@ -963,7 +968,10 @@ export function SaleForm({
                                 type="checkbox"
                                 name="create_invoice"
                                 value="yes"
-                                defaultChecked
+                                checked={createInvoice}
+                                onChange={(event) =>
+                                    setCreateInvoice(event.currentTarget.checked)
+                                }
                                 className="mt-1 size-4 rounded border-cyan-300 text-cyan-700"
                             />
                             <div>
@@ -976,6 +984,28 @@ export function SaleForm({
                                 </p>
                             </div>
                         </label>
+
+                        {createInvoice ? (
+                            <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
+                                <Label className="font-bold text-slate-700">
+                                    Rechnungsart
+                                </Label>
+                                <ModeTabs
+                                    name="invoice_type"
+                                    value={invoiceType}
+                                    firstValue="standard"
+                                    secondValue="proforma"
+                                    firstLabel="Rechnung"
+                                    secondLabel="Proforma-Rechnung"
+                                    onChange={setInvoiceType}
+                                />
+                                <p className="text-sm font-medium leading-6 text-slate-600">
+                                    {invoiceType === "proforma"
+                                        ? "Erstellt zunächst eine Proforma-Rechnung. Es wird keine reguläre Rechnungsnummer vergeben."
+                                        : "Erstellt direkt die endgültige Rechnung mit der nächsten regulären Rechnungsnummer."}
+                                </p>
+                            </div>
+                        ) : null}
 
                         <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4">
                             <Label htmlFor="invoice_notes" className="font-bold text-slate-700">
@@ -1033,43 +1063,56 @@ export function SaleForm({
                             </div>
                         </label>
 
-                        <div className="grid gap-4 md:grid-cols-[1fr_0.6fr]">
-                            <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
-                                <input
-                                    type="checkbox"
-                                    name="create_cashbook_entry"
-                                    value="yes"
-                                    defaultChecked
-                                    className="mt-1 size-4 rounded border-emerald-300 text-emerald-700"
-                                />
-                                <div>
-                                    <p className="font-extrabold text-emerald-950">
-                                        Zahlung direkt im Kassenbuch erfassen
-                                    </p>
-                                    <p className="mt-1 text-sm font-medium text-emerald-800">
-                                        Erstellt automatisch eine Einnahme mit dem Bruttobetrag.
-                                    </p>
-                                </div>
-                            </label>
-
-                            <div className="space-y-2">
-                                <Label
-                                    htmlFor="payment_method"
-                                    className="font-bold text-slate-700"
-                                >
-                                    Zahlungsart
-                                </Label>
-                                <select
-                                    id="payment_method"
-                                    name="payment_method"
-                                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
-                                    defaultValue="bank"
-                                >
-                                    <option value="bank">Bank</option>
-                                    <option value="cash">Bar</option>
-                                </select>
+                        {isProformaSelected ? (
+                            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="font-extrabold text-slate-950">
+                                    Zahlungserfassung folgt später
+                                </p>
+                                <p className="mt-1 text-sm font-medium leading-6 text-slate-600">
+                                    Eine Proforma-Rechnung darf nicht als bezahlt gebucht
+                                    werden. Erfasse die Zahlung, sobald der Verkauf in eine
+                                    endgültige Rechnung umgewandelt wurde.
+                                </p>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="grid gap-4 md:grid-cols-[1fr_0.6fr]">
+                                <label className="flex cursor-pointer items-start gap-3 rounded-3xl border border-emerald-100 bg-emerald-50 p-4">
+                                    <input
+                                        type="checkbox"
+                                        name="create_cashbook_entry"
+                                        value="yes"
+                                        defaultChecked
+                                        className="mt-1 size-4 rounded border-emerald-300 text-emerald-700"
+                                    />
+                                    <div>
+                                        <p className="font-extrabold text-emerald-950">
+                                            Zahlung direkt im Kassenbuch erfassen
+                                        </p>
+                                        <p className="mt-1 text-sm font-medium text-emerald-800">
+                                            Erstellt automatisch eine Einnahme mit dem Bruttobetrag.
+                                        </p>
+                                    </div>
+                                </label>
+
+                                <div className="space-y-2">
+                                    <Label
+                                        htmlFor="payment_method"
+                                        className="font-bold text-slate-700"
+                                    >
+                                        Zahlungsart
+                                    </Label>
+                                    <select
+                                        id="payment_method"
+                                        name="payment_method"
+                                        className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
+                                        defaultValue="bank"
+                                    >
+                                        <option value="bank">Bank</option>
+                                        <option value="cash">Bar</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
