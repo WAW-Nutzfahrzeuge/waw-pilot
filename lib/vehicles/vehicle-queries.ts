@@ -357,6 +357,33 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
     };
 }
 
+/**
+ * Returns the acquisition value of vehicles that are still economically in stock.
+ * Keep this aligned with the dashboard and inventory list: sold vehicles are not
+ * part of the current stock value.
+ */
+export async function getCurrentInventoryValueNet(): Promise<number> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+
+    const { data, error } = await supabase
+        .from("vehicles")
+        .select("status, purchase_price_net")
+        .eq("company_id", companyId)
+        .in("status", ["in_stock", "reserved"]);
+
+    if (error) {
+        throw new Error(`Aktueller Bestandswert konnte nicht geladen werden: ${error.message}`);
+    }
+
+    return calculateInventoryValueNet(
+        ((data ?? []) as VehicleDashboardRow[]).map((vehicle) => ({
+            status: vehicle.status,
+            purchaseNetAmount: Number(vehicle.purchase_price_net ?? 0),
+        })),
+    );
+}
+
 export async function getVehicleReportSummary(): Promise<VehicleReportSummary> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();

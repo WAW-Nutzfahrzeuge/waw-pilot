@@ -32,11 +32,15 @@ import { Input } from "@/components/ui/input";
 
 type PurchasesOverviewProps = {
     purchases: PurchaseCaseRow[];
+    currentInventoryValueNet: number;
 };
 
 type PurchaseFilter = "all" | "open" | "paid" | "documents" | "completed";
 
-export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
+export function PurchasesOverview({
+    purchases,
+    currentInventoryValueNet,
+}: PurchasesOverviewProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
@@ -47,7 +51,6 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
             incompleteDocuments: 0,
             openPayments: 0,
             paidPurchases: 0,
-            totalNet: 0,
         };
 
         for (const purchase of purchases) {
@@ -82,7 +85,6 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                 summary.completedPurchases += 1;
             }
 
-            summary.totalNet += purchase.net_amount;
         }
 
         return {
@@ -141,9 +143,9 @@ export function PurchasesOverview({ purchases }: PurchasesOverviewProps) {
                     icon={ShoppingCart}
                 />
                 <PurchaseStatCard
-                    label="Einkauf netto"
-                    value={formatCurrency(purchaseSummary.totalNet)}
-                    description="Summe aller Ankäufe"
+                    label="Aktueller Bestandswert netto"
+                    value={formatCurrency(currentInventoryValueNet)}
+                    description="nicht verkaufte Fahrzeuge"
                     icon={Wallet}
                 />
                 <PurchaseStatCard

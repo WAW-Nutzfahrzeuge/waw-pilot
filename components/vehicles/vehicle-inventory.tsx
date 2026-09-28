@@ -32,6 +32,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { FlashMessage } from "@/components/shared/flash-message";
 import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
+import { calculateInventoryValueNet } from "@/lib/vehicles/inventory-domain";
 
 type VehicleTab = "current" | "sold";
 
@@ -92,14 +93,10 @@ export function VehicleInventory({
     }, [query, sortedVehicles, vehicleSearchIndex]);
 
     const inventorySummary = useMemo(() => {
-        return vehicles.reduce(
+        const documentSummary = vehicles.reduce(
             (summary, vehicle) => {
                 if (vehicle.document_status !== "complete") {
                     summary.missingDocumentsCount += 1;
-                }
-
-                if (vehicle.status !== "sold") {
-                    summary.totalStockValue += vehicle.purchase_price_net;
                 }
 
                 return summary;
@@ -109,6 +106,16 @@ export function VehicleInventory({
                 totalStockValue: 0,
             },
         );
+
+        return {
+            ...documentSummary,
+            totalStockValue: calculateInventoryValueNet(
+                vehicles.map((vehicle) => ({
+                    status: vehicle.status,
+                    purchaseNetAmount: vehicle.purchase_price_net,
+                })),
+            ),
+        };
     }, [vehicles]);
 
     const visibleVehicleGroups = useMemo(() => {
