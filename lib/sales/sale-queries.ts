@@ -520,8 +520,16 @@ export async function getSales(): Promise<SaleRow[]> {
     return ((data ?? []) as unknown as SaleQueryRow[]).map((sale) => {
         const vehicle = sale.vehicles;
         const customer = sale.customers;
-        const invoice = getSingleRelation(sale.invoices);
         const invoices = getManyRelation(sale.invoices);
+        // Für die Übersicht ist immer die finale Rechnung die "primäre" Anzeige-
+        // Rechnung eines Verkaufs, auch wenn zusätzlich noch eine (bereits
+        // umgewandelte) Proforma-Rechnung existiert. Ohne diese Priorisierung
+        // würde getSingleRelation() einfach den erstbesten Datensatz
+        // zurückgeben - nach einer Proforma->Rechnung-Umwandlung wäre das oft
+        // noch die ältere Proforma statt der neuen finalen Rechnung.
+        const invoice =
+            invoices.find((item) => item.invoice_type === "standard") ??
+            getSingleRelation(sale.invoices);
         const saleType = sale.sale_type ?? "inland";
 
         const relatedDocuments = getManyRelation(sale.documents);
