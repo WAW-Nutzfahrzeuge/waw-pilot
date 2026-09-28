@@ -1,5 +1,6 @@
 import { SaleForm } from "@/components/sales/sale-form";
 import { getSaleFormCustomers } from "@/lib/customers/customer-queries";
+import { getCompanySettings } from "@/lib/settings/company-settings-queries";
 import { getSellableVehicles } from "@/lib/vehicles/vehicle-queries";
 import { resolveSalePrefillVehicleId } from "@/lib/sales/sale-create-prefill";
 
@@ -11,10 +12,11 @@ type NewSalePageProps = {
 };
 
 export default async function NewSalePage({ searchParams }: NewSalePageProps) {
-    const [{ vehicleId, customerId }, customers, vehicles] = await Promise.all([
+    const [{ vehicleId, customerId }, customers, vehicles, company] = await Promise.all([
         searchParams,
         getSaleFormCustomers(),
         getSellableVehicles(),
+        getCompanySettings(),
     ]);
     const defaultVehicleId = resolveSalePrefillVehicleId(vehicles, vehicleId);
 
@@ -22,6 +24,7 @@ export default async function NewSalePage({ searchParams }: NewSalePageProps) {
         <SaleForm
             customers={customers}
             vehicles={vehicles}
+            companyTaxNumber={company.tax_number}
             defaultVehicleId={defaultVehicleId}
             defaultCustomerId={customerId ?? null}
         />
