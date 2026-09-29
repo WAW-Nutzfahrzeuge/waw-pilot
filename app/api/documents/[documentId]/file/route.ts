@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getCurrentCompanyId } from "@/lib/company";
 import { getDocumentDownloadFileName } from "@/lib/documents/visible-file-names";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/factories/document-use-case.factory";
 
 export const runtime = "nodejs";
@@ -20,6 +21,86 @@ type RouteContext = {
         documentId: string;
     }>;
 };
+
+type VehicleRegistrationDownloadContext = {
+    manufacturer: string | null;
+    vehicleType: string | null;
+    model: string | null;
+    vin: string | null;
+    purchaseCustomerName: string | null;
+};
+
+function getCustomerName(customer: {
+    type: "company" | "private" | null;
+    company_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+} | null): string | null {
+    if (!customer) return null;
+
+    if (customer.type === "company") {
+        return customer.company_name?.trim() || null;
+    }
+
+    const name = [customer.first_name, customer.last_name]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+    return name || null;
+}
+
+async function getVehicleRegistrationDownloadContext({
+    companyId,
+    documentId,
+}: {
+    companyId: string;
+    documentId: string;
+}): Promise<VehicleRegistrationDownloadContext | null> {
+    const supabase = createServerSupabaseClient();
+    const { data: document } = await supabase
+        .from("documents")
+        .select("vehicle_id, customer_id")
+        .eq("company_id", companyId)
+        .eq("id", documentId)
+        .maybeSingle();
+
+    if (!document?.vehicle_id) return null;
+
+    const { data: vehicle } = await supabase
+        .from("vehicles")
+        .select("manufacturer, vehicle_type, model, vin, seller_customer_id")
+        .eq("company_id", companyId)
+        .eq("id", document.vehicle_id)
+        .maybeSingle();
+
+    if (!vehicle) return null;
+
+    const purchaseCustomerId =
+        (document.customer_id as string | null) ??
+        (vehicle.seller_customer_id as string | null) ??
+        null;
+    let purchaseCustomerName: string | null = null;
+
+    if (purchaseCustomerId) {
+        const { data: customer } = await supabase
+            .from("customers")
+            .select("type, company_name, first_name, last_name")
+            .eq("company_id", companyId)
+            .eq("id", purchaseCustomerId)
+            .maybeSingle();
+
+        purchaseCustomerName = getCustomerName(customer);
+    }
+
+    return {
+        manufacturer: (vehicle.manufacturer as string | null) ?? null,
+        vehicleType: (vehicle.vehicle_type as string | null) ?? null,
+        model: (vehicle.model as string | null) ?? null,
+        vin: (vehicle.vin as string | null) ?? null,
+        purchaseCustomerName,
+    };
+}
 
 function createContentDisposition(disposition: "attachment" | "inline", fileName: string): string {
     const asciiFallback = fileName
@@ -82,6 +163,13 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const arrayBuffer = await response.arrayBuffer();
+    const vehicleRegistration =
+        file.documentType === "vehicle_registration"
+            ? await getVehicleRegistrationDownloadContext({
+                  companyId,
+                  documentId,
+              })
+            : null;
     const fileName = getDocumentDownloadFileName({
         storedFileName: file.fileName,
         documentType: file.documentType,
@@ -89,6 +177,7 @@ export async function GET(request: Request, context: RouteContext) {
         invoiceNumber: file.invoiceNumber,
         storagePath: file.storagePath,
         versionNumber: file.versionNumber,
+        vehicleRegistration,
     });
     const contentType = file.mimeType || "application/octet-stream";
     const disposition = shouldDownload ? "attachment" : "inline";

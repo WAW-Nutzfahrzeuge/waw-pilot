@@ -33,6 +33,25 @@ test("download replaces technical crop names with a fachlicher fallback", () => 
     );
 });
 
+test("vehicle registration downloads use vehicle and purchase customer data over the original upload name", () => {
+    assert.equal(
+        getDocumentDownloadFileName({
+            storedFileName: "upload.jpg",
+            documentType: "vehicle_registration",
+            mimeType: "application/pdf",
+            storagePath: "vehicles/abc/upload.jpg",
+            vehicleRegistration: {
+                manufacturer: "Mercedes-Benz",
+                vehicleType: "Sattelzugmaschine",
+                model: "Actros 1845",
+                vin: "WDB123456789",
+                purchaseCustomerName: "Muster Transporte GmbH",
+            },
+        }),
+        "Mercedes-Benz_Sattelzugmaschine_Actros_1845_WDB123456789_Muster_Transporte_GmbH.pdf",
+    );
+});
+
 test("download replaces technical purchase invoice names with Einkaufsrechnung fallback", () => {
     assert.equal(
         getDocumentDownloadFileName({

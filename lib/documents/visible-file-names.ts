@@ -83,6 +83,13 @@ type DownloadFileNameInput = {
     invoiceNumber?: string | null;
     storagePath?: string | null;
     versionNumber?: number | null;
+    vehicleRegistration?: {
+        manufacturer: string | null;
+        vehicleType: string | null;
+        model: string | null;
+        vin: string | null;
+        purchaseCustomerName: string | null;
+    } | null;
 };
 
 function getBaseName(fileName: string): string {
@@ -172,6 +179,25 @@ export function getVisibleCroppedFileName(fileName: string, mimeType: string): s
 
 export function getDocumentDownloadFileName(input: DownloadFileNameInput): string {
     const extension = getExtensionForFile(input);
+    const vehicleRegistration = input.vehicleRegistration;
+
+    if (input.documentType === "vehicle_registration" && vehicleRegistration) {
+        const vehicleRegistrationName = [
+            vehicleRegistration.manufacturer,
+            vehicleRegistration.vehicleType,
+            vehicleRegistration.model,
+            vehicleRegistration.vin,
+            vehicleRegistration.purchaseCustomerName,
+        ]
+            .map((value) => value?.trim() ?? "")
+            .filter(Boolean)
+            .join("_");
+
+        if (vehicleRegistrationName) {
+            return `${sanitizeFallbackBaseName(vehicleRegistrationName)}.${extension}`;
+        }
+    }
+
     const storedFileName = input.storedFileName?.trim();
 
     if (storedFileName && !isTechnicalGeneratedFileName(storedFileName)) {
