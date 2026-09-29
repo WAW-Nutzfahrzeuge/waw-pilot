@@ -667,6 +667,46 @@ export async function SaleDetail({
                                     strong
                                 />
                             </div>
+
+                            {sale.vehicle_registration_document ? (
+                                <div className="mt-5 border-t border-slate-200 pt-4">
+                                    <p className="text-sm font-extrabold text-slate-950">
+                                        Fahrzeugschein
+                                    </p>
+                                    <p className="mt-1 break-words text-sm font-medium text-slate-600">
+                                        {sale.vehicle_registration_document.file_name}
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="sm"
+                                            className="rounded-xl font-bold"
+                                        >
+                                            <Link
+                                                href={`/api/documents/${sale.vehicle_registration_document.id}/file`}
+                                                target="_blank"
+                                            >
+                                                <ExternalLink className="mr-1 size-3.5" />
+                                                Öffnen
+                                            </Link>
+                                        </Button>
+                                        <Button
+                                            asChild
+                                            variant="outline"
+                                            size="sm"
+                                            className="rounded-xl font-bold"
+                                        >
+                                            <Link
+                                                href={`/api/documents/${sale.vehicle_registration_document.id}/file?download=1`}
+                                            >
+                                                <Download className="mr-1 size-3.5" />
+                                                Download
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : null}
                         </CardContent>
                     </Card>
 

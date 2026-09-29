@@ -14,6 +14,7 @@ import type {
 import type { InvoiceType } from "@/lib/invoices/invoice-numbering";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getSaleTaxConfiguration } from "@/utils/sale-tax-rules";
+import { selectCurrentVehicleDocument } from "@/lib/vehicles/vehicle-document-selection";
 import type { PaymentMethod } from "@/lib/payments/payment-methods";
 import {
     calculatePaidAmount,
@@ -387,6 +388,7 @@ export type SaleDetail = {
     };
 
     documents: SaleDetailDocument[];
+    vehicle_registration_document: SaleDetailDocument | null;
     required_documents: RequiredDocumentStatus[];
     required_documents_count: number;
     available_required_documents_count: number;
@@ -403,6 +405,39 @@ function getManyRelation<T>(relation: SupabaseRelation<T>): T[] {
     }
 
     return [relation];
+}
+
+async function attachVehicleRegistrationDocument({
+    sale,
+    companyId,
+}: {
+    sale: SaleDetail;
+    companyId: string;
+}): Promise<SaleDetail> {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+        .from("documents")
+        .select(
+            "id, document_type, source, status, file_name, file_path, mime_type, file_size, created_at",
+        )
+        .eq("company_id", companyId)
+        .eq("vehicle_id", sale.vehicle.id)
+        .eq("document_type", "vehicle_registration")
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        throw new Error(`Fahrzeugschein konnte nicht geladen werden: ${error.message}`);
+    }
+
+    const document = selectCurrentVehicleDocument(
+        (data ?? []) as SaleDetailDocument[],
+        "vehicle_registration",
+    );
+
+    return {
+        ...sale,
+        vehicle_registration_document: document,
+    };
 }
 
 function getCustomerName(customer: SaleDetailQueryRow["customers"]): string {
@@ -753,10 +788,18 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
             notFound();
         }
 
-        return buildSaleDetail(mapLegacySaleDetailRow(fallbackData as unknown as LegacySaleDetailQueryRow));
+        return attachVehicleRegistrationDocument({
+            sale: buildSaleDetail(
+                mapLegacySaleDetailRow(fallbackData as unknown as LegacySaleDetailQueryRow),
+            ),
+            companyId,
+        });
     }
 
-    return buildSaleDetail(data as unknown as SaleDetailQueryRow);
+    return attachVehicleRegistrationDocument({
+        sale: buildSaleDetail(data as unknown as SaleDetailQueryRow),
+        companyId,
+    });
 }
 
 function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
@@ -1119,6 +1162,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         },
 
         documents,
+        vehicle_registration_document: null,
         required_documents: requiredDocumentStatuses,
         required_documents_count: requiredDocumentStatuses.length,
         available_required_documents_count: availableRequiredDocumentsCount,
