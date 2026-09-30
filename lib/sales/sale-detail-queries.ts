@@ -71,6 +71,7 @@ type InvoiceRelation = {
 type DocumentRelation = {
     id: string;
     document_type: string;
+    title: string | null;
     source: string;
     status: "available" | "missing" | "needs_review";
     file_name: string;
@@ -212,6 +213,7 @@ type LegacySaleDetailQueryRow = Omit<
 export type SaleDetailDocument = {
     id: string;
     document_type: string;
+    title: string | null;
     source: string;
     status: "available" | "missing" | "needs_review";
     file_name: string;
@@ -418,7 +420,7 @@ async function attachVehicleRegistrationDocument({
     const { data, error } = await supabase
         .from("documents")
         .select(
-            "id, document_type, source, status, file_name, file_path, mime_type, file_size, created_at",
+            "id, document_type, title, source, status, file_name, file_path, mime_type, file_size, created_at",
         )
         .eq("company_id", companyId)
         .eq("vehicle_id", sale.vehicle.id)
@@ -473,7 +475,7 @@ async function attachCustomerScopedRequiredDocuments({
     const { data, error } = await supabase
         .from("documents")
         .select(
-            "id, document_type, source, status, file_name, file_path, mime_type, file_size, created_at",
+            "id, document_type, title, source, status, file_name, file_path, mime_type, file_size, created_at",
         )
         .eq("company_id", companyId)
         .eq("customer_id", sale.customer.id)
@@ -733,6 +735,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
       documents (
         id,
         document_type,
+        title,
         source,
         status,
         file_name,
@@ -853,6 +856,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
       documents (
         id,
         document_type,
+        title,
         source,
         status,
         file_name,
@@ -997,6 +1001,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
     const documents = getManyRelation(sale.documents).map((document) => ({
         id: document.id,
         document_type: document.document_type,
+        title: document.title,
         source: document.source,
         status: document.status,
         file_name: document.file_name,

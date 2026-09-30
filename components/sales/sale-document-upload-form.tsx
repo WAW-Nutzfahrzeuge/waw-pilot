@@ -6,6 +6,7 @@ import { CheckCircle2, Crop, FileUp, Loader2 } from "lucide-react";
 import { uploadSaleDocumentAction } from "@/app/dashboard/sales/[saleId]/actions";
 import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { isConvertibleVehicleDocumentImage } from "@/lib/documents/client-image-compression";
 import {
     documentAcceptMimeTypes,
@@ -17,6 +18,7 @@ type SaleDocumentUploadFormProps = {
     saleId: string;
     documentType: string;
     documentLabel: string;
+    isCustomDocument?: boolean;
     existingDocumentId?: string | null;
     existingFileName?: string | null;
 };
@@ -39,7 +41,8 @@ function isNextRedirectError(error: unknown): boolean {
 export function SaleDocumentUploadForm({
                                            saleId,
                                            documentType,
-                                           documentLabel,
+    documentLabel,
+    isCustomDocument = false,
                                            existingDocumentId = null,
                                            existingFileName = null,
                                        }: SaleDocumentUploadFormProps) {
@@ -48,6 +51,7 @@ export function SaleDocumentUploadForm({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cropInputRef = useRef<HTMLInputElement>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const [customDocumentLabel, setCustomDocumentLabel] = useState(documentLabel);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [cropOpen, setCropOpen] = useState(false);
     const [cropImageFile, setCropImageFile] = useState<File | null>(null);
@@ -70,6 +74,11 @@ export function SaleDocumentUploadForm({
         if (!isAllowedDocumentFile(file)) {
             setErrorMessage(getUnsupportedDocumentTypeMessage());
             setSelectedFileName(null);
+            return;
+        }
+
+        if (isCustomDocument && !customDocumentLabel.trim()) {
+            setErrorMessage("Bitte gib zuerst eine Dokumentbezeichnung ein.");
             return;
         }
 
@@ -135,7 +144,29 @@ export function SaleDocumentUploadForm({
         >
             <input type="hidden" name="sale_id" value={saleId} />
             <input type="hidden" name="document_type" value={documentType} />
-            <input type="hidden" name="document_label" value={documentLabel} />
+            {isCustomDocument ? (
+                <div className="mb-3 space-y-2">
+                    <label
+                        htmlFor={`${inputId}-label`}
+                        className="text-sm font-extrabold text-slate-900"
+                    >
+                        Dokumentbezeichnung
+                    </label>
+                    <Input
+                        id={`${inputId}-label`}
+                        name="document_label"
+                        value={customDocumentLabel}
+                        maxLength={120}
+                        required
+                        disabled={isPending}
+                        placeholder="z. B. Handelsregisterauszug"
+                        onChange={(event) => setCustomDocumentLabel(event.target.value)}
+                        className="h-11 rounded-xl border-slate-200 bg-white font-semibold text-slate-900 placeholder:text-slate-400"
+                    />
+                </div>
+            ) : (
+                <input type="hidden" name="document_label" value={documentLabel} />
+            )}
 
             {existingDocumentId ? (
                 <input
@@ -145,9 +176,11 @@ export function SaleDocumentUploadForm({
                 />
             ) : null}
 
-            <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                {documentLabel}
-            </p>
+            {!isCustomDocument ? (
+                <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                    {documentLabel}
+                </p>
+            ) : null}
 
             <div
                 className={

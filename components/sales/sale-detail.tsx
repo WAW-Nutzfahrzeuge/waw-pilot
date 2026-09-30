@@ -73,6 +73,7 @@ import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/inv
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import { isSaleCustomDocument, saleCustomDocumentType } from "@/lib/sales/sale-custom-documents";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
@@ -197,6 +198,12 @@ export async function SaleDetail({
     const travelExpenseHref = `/dashboard/travel-expenses/new?${travelExpenseSearchParams.toString()}`;
     const visibleDocuments = sale.documents.filter(
         (document) => document.status !== "missing",
+    );
+    const customDocuments = visibleDocuments.filter((document) =>
+        isSaleCustomDocument(document.document_type),
+    );
+    const standardSaleDocuments = visibleDocuments.filter(
+        (document) => !isSaleCustomDocument(document.document_type),
     );
     const saleTitleNumber = sale.invoice?.invoice_number ?? sale.sale_number;
     const saleDeleteDependencies = [
@@ -1138,6 +1145,85 @@ export async function SaleDetail({
                     </Card>
 
                     <Card
+                        id="custom-documents"
+                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                    >
+                        <CardContent className="p-0">
+                            <div className="border-b border-slate-200 p-5">
+                                <SectionTitle
+                                    icon={FileText}
+                                    title="Weitere Dokumente"
+                                    description="Optionale Unterlagen zur Verkaufsakte, z. B. Handelsregisterauszug, Ausweiskopie oder Vollmacht."
+                                />
+                            </div>
+
+                            <div className="space-y-4 p-5">
+                                {customDocuments.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {customDocuments.map((document) => (
+                                            <div
+                                                key={document.id}
+                                                className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4"
+                                            >
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div className="min-w-0">
+                                                        <p className="break-words font-extrabold text-slate-950">
+                                                            {document.title?.trim() || "Weiteres Dokument"}
+                                                        </p>
+                                                        <p className="mt-1 break-all text-sm font-medium text-slate-500">
+                                                            {document.file_name}
+                                                        </p>
+                                                        <p className="mt-1 text-xs font-semibold text-slate-400">
+                                                            Hochgeladen am {formatDate(document.created_at)}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                                        <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                            <Link href={`/api/documents/${document.id}/file`} target="_blank">
+                                                                <ExternalLink className="mr-1 size-3.5" />
+                                                                Öffnen
+                                                            </Link>
+                                                        </Button>
+                                                        <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                            <Link href={`/api/documents/${document.id}/file?download=1`}>
+                                                                <Download className="mr-1 size-3.5" />
+                                                                Download
+                                                            </Link>
+                                                        </Button>
+                                                        <DeleteSaleDocumentForm saleId={sale.id} documentId={document.id} />
+                                                    </div>
+                                                </div>
+
+                                                <SaleDocumentUploadForm
+                                                    saleId={sale.id}
+                                                    documentType={saleCustomDocumentType}
+                                                    documentLabel={document.title?.trim() || "Weiteres Dokument"}
+                                                    isCustomDocument
+                                                    existingDocumentId={document.id}
+                                                    existingFileName={document.file_name}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : null}
+
+                                {Array.from({ length: Math.max(0, 2 - customDocuments.length) }).map(
+                                    (_, index) => (
+                                        <SaleDocumentUploadForm
+                                            key={`new-custom-document-${index}`}
+                                            saleId={sale.id}
+                                            documentType={saleCustomDocumentType}
+                                            documentLabel=""
+                                            isCustomDocument
+                                        />
+                                    ),
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card
                         id="documents"
                         className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
                     >
@@ -1150,9 +1236,9 @@ export async function SaleDetail({
                                 />
                             </div>
 
-                            {visibleDocuments.length > 0 ? (
+                            {standardSaleDocuments.length > 0 ? (
                                 <div className="divide-y divide-slate-100">
-                                    {visibleDocuments.map((document) => (
+                                    {standardSaleDocuments.map((document) => (
                                         <div
                                             key={document.id}
                                             id={`document-${document.document_type}`}

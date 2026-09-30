@@ -16,10 +16,18 @@ import {
 } from "@/lib/documents/upload-validation";
 import {
     cleanupPrivateDocumentFile,
+    finalizeStagedPrivateDocumentDeletes,
     getRequiredFileFromFormData,
+    restoreStagedPrivateDocumentFiles,
+    stagePrivateDocumentFilesForDelete,
     uploadPrivateDocumentFile,
 } from "@/lib/documents/private-document-upload";
 import { logActivity } from "@/lib/activity/activity-log";
+import {
+    isSaleCustomDocument,
+    normalizeSaleCustomDocumentLabel,
+    saleCustomDocumentType,
+} from "@/lib/sales/sale-custom-documents";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type SaleUploadQueryResult = {
@@ -47,6 +55,7 @@ type SaleUploadQueryResult = {
 type ExistingDocumentQueryResult = {
     id: string;
     file_path: string | null;
+    document_type: string;
 };
 
 type SaleDocumentDeleteQueryResult = {
@@ -55,6 +64,7 @@ type SaleDocumentDeleteQueryResult = {
     file_path: string | null;
     source: string;
     generated_by_system: boolean | null;
+    document_type: string;
 };
 
 function isBzstVerificationDocument(documentType: string): boolean {
@@ -90,7 +100,8 @@ export async function uploadSaleDocumentAction(formData: FormData) {
 
     const saleId = getStringFormValue(formData, "sale_id");
     const documentType = getStringFormValue(formData, "document_type");
-    const documentLabel = getStringFormValue(formData, "document_label") ?? documentType;
+    const submittedDocumentLabel = getStringFormValue(formData, "document_label");
+    const documentLabel = submittedDocumentLabel ?? documentType;
     const existingDocumentId = getStringFormValue(formData, "existing_document_id");
     const fileValue = getRequiredFileFromFormData(formData);
 
@@ -100,6 +111,14 @@ export async function uploadSaleDocumentAction(formData: FormData) {
 
     if (!documentType) {
         throw new Error("Dokumenttyp fehlt.");
+    }
+
+    const customDocumentLabel = isSaleCustomDocument(documentType)
+        ? normalizeSaleCustomDocumentLabel(submittedDocumentLabel)
+        : null;
+
+    if (isSaleCustomDocument(documentType) && !customDocumentLabel) {
+        throw new Error("Bitte gib eine Dokumentbezeichnung mit maximal 120 Zeichen ein.");
     }
 
     if (!fileValue) {
@@ -177,7 +196,7 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         // kundengebundene Dokumente dieses Kunden finden, nicht nur verkaufsgebundene.
         let existingDocumentQuery = supabase
             .from("documents")
-            .select("id, file_path")
+            .select("id, file_path, document_type")
             .eq("id", existingDocumentId)
             .eq("company_id", companyId);
 
@@ -199,6 +218,13 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         }
 
         existingDocument = existingDocumentData as ExistingDocumentQueryResult;
+
+        if (
+            isSaleCustomDocument(documentType) &&
+            existingDocument.document_type !== saleCustomDocumentType
+        ) {
+            throw new Error("Dieses Zusatzdokument kann nicht ersetzt werden.");
+        }
     }
 
     const uploadResult = await uploadPrivateDocumentFile({
@@ -215,7 +241,9 @@ export async function uploadSaleDocumentAction(formData: FormData) {
 
     const { originalFileName, filePath, mimeType, fileSize } =
         uploadResult.uploadedFile;
-    const displayFileName = documentLabel
+    const displayFileName = isSaleCustomDocument(documentType)
+        ? originalFileName
+        : documentLabel
         ? `${documentLabel} - ${originalFileName}`
         : originalFileName;
 
@@ -234,6 +262,9 @@ export async function uploadSaleDocumentAction(formData: FormData) {
                 sale_id: sale.id,
                 generated_by_system: false,
                 metadata,
+                ...(isSaleCustomDocument(documentType)
+                    ? { title: customDocumentLabel }
+                    : {}),
             })
             .eq("id", existingDocument.id)
             .eq("company_id", companyId);
@@ -270,6 +301,9 @@ export async function uploadSaleDocumentAction(formData: FormData) {
             invoice_id: null,
             generated_by_system: false,
             metadata,
+            ...(isSaleCustomDocument(documentType)
+                ? { title: customDocumentLabel }
+                : {}),
         });
 
         if (documentError) {
@@ -281,9 +315,9 @@ export async function uploadSaleDocumentAction(formData: FormData) {
             );
         }
 
-        if (isBzstVerificationDocument(documentType)) {
+        if (isBzstVerificationDocument(documentType) || isSaleCustomDocument(documentType)) {
             await logActivity({
-                action: `${documentLabel} wurde hochgeladen.`,
+                action: `${customDocumentLabel ?? documentLabel} wurde hochgeladen.`,
                 entityType: "sale",
                 entityId: sale.id,
             });
@@ -316,7 +350,7 @@ export async function deleteSaleDocumentAction(formData: FormData) {
 
     const { data: documentData, error: documentError } = await supabase
         .from("documents")
-        .select("id, sale_id, file_path, source, generated_by_system")
+        .select("id, sale_id, file_path, source, generated_by_system, document_type")
         .eq("id", documentId)
         .eq("company_id", companyId)
         .eq("sale_id", saleId)
@@ -338,6 +372,14 @@ export async function deleteSaleDocumentAction(formData: FormData) {
         );
     }
 
+    const stagedFiles = isSaleCustomDocument(document.document_type)
+        ? await stagePrivateDocumentFilesForDelete({
+              supabase,
+              filePaths: [document.file_path],
+              operationId: `sale-custom-document-${document.id}`,
+          })
+        : [];
+
     const { error: documentUpdateError } = await supabase
         .from("documents")
         .update({
@@ -353,9 +395,22 @@ export async function deleteSaleDocumentAction(formData: FormData) {
         .eq("sale_id", saleId);
 
     if (documentUpdateError) {
+        await restoreStagedPrivateDocumentFiles({ supabase, stagedFiles });
         throw new Error(
             `Dokumentstatus konnte nicht aktualisiert werden: ${documentUpdateError.message}`,
         );
+    }
+
+    if (stagedFiles.length > 0) {
+        await finalizeStagedPrivateDocumentDeletes({ supabase, stagedFiles });
+    }
+
+    if (isSaleCustomDocument(document.document_type)) {
+        await logActivity({
+            action: "Weiteres Dokument wurde gelöscht.",
+            entityType: "document",
+            entityId: document.id,
+        });
     }
 
     revalidatePaths([
