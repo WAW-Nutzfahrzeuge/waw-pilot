@@ -165,6 +165,36 @@ async function getSaleStoragePaths({
     ]);
 }
 
+async function assertSaleCanBeHardDeleted({
+    supabase,
+    companyId,
+    saleId,
+}: {
+    supabase: SupabaseServerClient;
+    companyId: string;
+    saleId: string;
+}): Promise<void> {
+    const { data, error } = await supabase
+        .from("invoices")
+        .select("invoice_type")
+        .eq("company_id", companyId)
+        .eq("sale_id", saleId);
+
+    if (error) {
+        throw new Error(`Rechnungen zum Verkauf konnten nicht geprüft werden: ${error.message}`);
+    }
+
+    const hasFinalInvoice = (data ?? []).some(
+        (invoice) => invoice.invoice_type !== "proforma",
+    );
+
+    if (hasFinalInvoice) {
+        throw new Error(
+            "Ein Verkauf mit finaler Rechnung darf nicht endgültig gelöscht werden. Bitte erstelle stattdessen eine Stornorechnung.",
+        );
+    }
+}
+
 async function getPurchaseStoragePaths({
     supabase,
     companyId,
@@ -295,6 +325,7 @@ export async function deleteSaleAdminAction(
 
         const supabase = createServerSupabaseClient();
         const companyId = getCurrentCompanyId();
+        await assertSaleCanBeHardDeleted({ supabase, companyId, saleId });
         const storagePaths = await getSaleStoragePaths({ supabase, companyId, saleId });
 
         await runAdminHardDelete({

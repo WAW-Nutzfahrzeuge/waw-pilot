@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
     ArrowLeft,
+    Ban,
     CheckCircle2,
     Download,
     ExternalLink,
@@ -218,6 +219,9 @@ export async function SaleDetail({
                 invoice.invoice_type === "cancellation_invoice" ||
                 invoice.invoice_type === "credit_note",
         );
+    const saleHasFinalInvoice = sale.invoices.some(
+        (invoice) => invoice.invoice_type !== "proforma",
+    );
 
     return (
         <div className="min-w-0 space-y-6">
@@ -227,7 +231,18 @@ export async function SaleDetail({
                 description="Detailansicht mit Kunde, Fahrzeug, Rechnungen, Zahlung und Pflichtdokumenten."
                 action={
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                        {canAdminDelete ? (
+                        {canAdminDelete && saleHasFinalInvoice ? (
+                            <Button
+                                asChild
+                                variant="outline"
+                                className="h-10 rounded-xl border-red-100 bg-white px-3 font-bold text-red-700 hover:bg-red-50 hover:text-red-800"
+                            >
+                                <a href="#invoice-corrections">
+                                    <Ban className="mr-2 size-4" />
+                                    Stornorechnung erstellen
+                                </a>
+                            </Button>
+                        ) : canAdminDelete ? (
                             <AdminDeleteDialog
                                 subjectLabel="Verkauf"
                                 hiddenInputName="sale_id"

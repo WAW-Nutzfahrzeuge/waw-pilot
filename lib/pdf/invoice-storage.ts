@@ -47,7 +47,13 @@ export async function generateAndStoreInvoicePdf(
         documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
         mimeType: "application/pdf",
     });
-    const filePath = `invoices/${fileName}`;
+    // The number is deliberately only part of the download name, never the
+    // storage identity. A corrected/renumbered invoice may legitimately use
+    // a number whose former PDF is still retained as a historical document
+    // version. Keeping each invoice in its own folder avoids a collision with
+    // that immutable version while still making subsequent regenerations of
+    // the same invoice overwrite its current PDF.
+    const filePath = `invoices/${invoiceId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
         .from("documents")
