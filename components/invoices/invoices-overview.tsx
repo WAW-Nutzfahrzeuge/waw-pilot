@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import {
     ArrowUpRight,
     Download,
@@ -35,6 +35,9 @@ import { Input } from "@/components/ui/input";
 import { FlashMessage } from "@/components/shared/flash-message";
 import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
 import { cn } from "@/lib/utils";
+import { sendInvoicesToDatevAction } from "@/app/dashboard/invoices/actions";
+import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
+import { ActionMessage } from "@/components/shared/action-message";
 
 type InvoicesOverviewProps = {
     invoices: InvoiceRow[];
@@ -191,6 +194,15 @@ export function InvoicesOverview({
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
+    const [selectedDatevInvoiceIds, setSelectedDatevInvoiceIds] = useState<
+        Set<string>
+    >(new Set());
+    const [datevBatchFeedback, setDatevBatchFeedback] = useState<{
+        sentCount: number;
+        failedCount: number;
+        failedMessages: string[];
+    } | null>(null);
+    const [isDatevBatchPending, startDatevBatchTransition] = useTransition();
     const activeHighlightId = useTemporaryHighlight(
         highlightedInvoiceId,
     );
@@ -229,7 +241,7 @@ export function InvoicesOverview({
                 summary.openInvoices += 1;
             }
 
-            if (invoice.datev_status === "not_sent") {
+            if (isDatevInvoiceSendable(invoice)) {
                 summary.notSentToDatev += 1;
             }
 
@@ -278,6 +290,68 @@ export function InvoicesOverview({
         });
     }, [query, invoices, invoiceFilter, invoiceSearchIndex]);
 
+    const selectableDatevInvoices = useMemo(
+        () => filteredInvoices.filter(isDatevInvoiceSendable),
+        [filteredInvoices],
+    );
+    const selectedDatevInvoiceCount = [...selectedDatevInvoiceIds].filter((id) =>
+        invoices.some(
+            (invoice) => invoice.id === id && isDatevInvoiceSendable(invoice),
+        ),
+    ).length;
+    const allVisibleDatevInvoicesSelected =
+        selectableDatevInvoices.length > 0 &&
+        selectableDatevInvoices.every((invoice) => selectedDatevInvoiceIds.has(invoice.id));
+
+    function toggleDatevInvoiceSelection(invoiceId: string) {
+        setSelectedDatevInvoiceIds((currentIds) => {
+            const nextIds = new Set(currentIds);
+
+            if (nextIds.has(invoiceId)) {
+                nextIds.delete(invoiceId);
+            } else {
+                nextIds.add(invoiceId);
+            }
+
+            return nextIds;
+        });
+    }
+
+    function toggleVisibleDatevInvoiceSelection() {
+        setSelectedDatevInvoiceIds((currentIds) => {
+            const nextIds = new Set(currentIds);
+
+            if (allVisibleDatevInvoicesSelected) {
+                selectableDatevInvoices.forEach((invoice) => nextIds.delete(invoice.id));
+            } else {
+                selectableDatevInvoices.forEach((invoice) => nextIds.add(invoice.id));
+            }
+
+            return nextIds;
+        });
+    }
+
+    function sendSelectedInvoicesToDatev() {
+        const selectedInvoiceIds = [...selectedDatevInvoiceIds];
+
+        if (selectedInvoiceIds.length === 0) return;
+
+        startDatevBatchTransition(async () => {
+            const result = await sendInvoicesToDatevAction(selectedInvoiceIds);
+            const failedInvoiceIds = new Set(
+                result.failures.map((failure) => failure.invoiceId).filter(Boolean),
+            );
+
+            setSelectedDatevInvoiceIds(failedInvoiceIds);
+            setDatevBatchFeedback({
+                sentCount: result.sentInvoiceIds.length,
+                failedCount: result.failures.length,
+                failedMessages: [...new Set(result.failures.map((failure) => failure.message))],
+            });
+            router.refresh();
+        });
+    }
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -303,6 +377,22 @@ export function InvoicesOverview({
 
             {invoiceRegenerated ? (
                 <FlashMessage message="Rechnung wurde neu generiert." />
+            ) : null}
+
+            {datevBatchFeedback ? (
+                <ActionMessage
+                    tone={datevBatchFeedback.failedCount > 0 ? "danger" : "success"}
+                    title={
+                        datevBatchFeedback.failedCount > 0
+                            ? `${datevBatchFeedback.sentCount} Rechnung(en) an DATEV gesendet, ${datevBatchFeedback.failedCount} fehlgeschlagen.`
+                            : `${datevBatchFeedback.sentCount} Rechnung(en) an DATEV gesendet.`
+                    }
+                    description={
+                        datevBatchFeedback.failedCount > 0
+                            ? datevBatchFeedback.failedMessages.join(" ")
+                            : "Der DATEV-Status wurde für die gesendeten Rechnungen aktualisiert."
+                    }
+                />
             ) : null}
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -380,6 +470,46 @@ export function InvoicesOverview({
                                 />
                             </div>
                         </div>
+
+                        {selectableDatevInvoices.length > 0 || selectedDatevInvoiceCount > 0 ? (
+                            <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-cyan-100 bg-cyan-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="font-extrabold text-cyan-950">
+                                        {selectedDatevInvoiceCount} für DATEV ausgewählt
+                                    </p>
+                                    <p className="mt-0.5 text-sm font-semibold text-cyan-800">
+                                        Nur noch nicht gesendete Standardrechnungen sind auswählbar.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={toggleVisibleDatevInvoiceSelection}
+                                        disabled={selectableDatevInvoices.length === 0 || isDatevBatchPending}
+                                        className="rounded-xl border-cyan-200 bg-white font-bold text-cyan-800 hover:bg-cyan-100"
+                                    >
+                                        {allVisibleDatevInvoicesSelected
+                                            ? "Sichtbare Auswahl aufheben"
+                                            : "Sichtbare auswählen"}
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={sendSelectedInvoicesToDatev}
+                                        disabled={selectedDatevInvoiceCount === 0 || isDatevBatchPending}
+                                        className="rounded-xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                                    >
+                                        <Send className="mr-1.5 size-3.5" />
+                                        {isDatevBatchPending
+                                            ? "Wird an DATEV gesendet..."
+                                            : "Auswahl an DATEV senden"}
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
 
                     <div>
@@ -397,7 +527,7 @@ export function InvoicesOverview({
                                             : "hover:border-cyan-200 hover:bg-cyan-50/30",
                                     )}
                                 >
-                                    <div className="flex items-start gap-3">
+                                    <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <InvoiceTypePill invoice={invoice} />
 
@@ -412,6 +542,15 @@ export function InvoicesOverview({
                                                 {formatDate(invoice.due_date)}
                                             </p>
                                         </div>
+
+                                        {isDatevInvoiceSendable(invoice) ? (
+                                            <InvoiceDatevCheckbox
+                                                invoiceId={invoice.id}
+                                                checked={selectedDatevInvoiceIds.has(invoice.id)}
+                                                disabled={isDatevBatchPending}
+                                                onChange={() => toggleDatevInvoiceSelection(invoice.id)}
+                                            />
+                                        ) : null}
                                     </div>
 
                                     <div className="mt-4 rounded-2xl bg-slate-50 p-3">
@@ -524,9 +663,21 @@ export function InvoicesOverview({
                         </div>
 
                         <div className="hidden overflow-x-auto md:block">
-                            <table className="w-full min-w-[1220px] text-left">
+                            <table className="w-full min-w-[1280px] text-left">
                                 <thead className="bg-slate-50 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                                 <tr>
+                                    <th className="w-12 px-3 py-4">
+                                        {selectableDatevInvoices.length > 0 ? (
+                                            <input
+                                                type="checkbox"
+                                                aria-label="Alle sichtbaren DATEV-Rechnungen auswählen"
+                                                checked={allVisibleDatevInvoicesSelected}
+                                                onChange={toggleVisibleDatevInvoiceSelection}
+                                                disabled={isDatevBatchPending}
+                                                className="size-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
+                                            />
+                                        ) : null}
+                                    </th>
                                     <th className="px-5 py-4">Rechnung</th>
                                     <th className="px-5 py-4">Kunde</th>
                                     <th className="px-5 py-4">Fahrzeug</th>
@@ -554,6 +705,19 @@ export function InvoicesOverview({
                                                 : "bg-white",
                                         )}
                                     >
+                                        <td
+                                            className="px-3 py-5"
+                                            onClick={(event) => event.stopPropagation()}
+                                        >
+                                            {isDatevInvoiceSendable(invoice) ? (
+                                                <InvoiceDatevCheckbox
+                                                    invoiceId={invoice.id}
+                                                    checked={selectedDatevInvoiceIds.has(invoice.id)}
+                                                    disabled={isDatevBatchPending}
+                                                    onChange={() => toggleDatevInvoiceSelection(invoice.id)}
+                                                />
+                                            ) : null}
+                                        </td>
                                         <td className="px-5 py-5">
                                             <InvoiceTypePill invoice={invoice} />
 
@@ -720,6 +884,37 @@ function InvoiceFilterButton({
                 {count}
             </span>
         </button>
+    );
+}
+
+function InvoiceDatevCheckbox({
+    invoiceId,
+    checked,
+    disabled,
+    onChange,
+}: {
+    invoiceId: string;
+    checked: boolean;
+    disabled: boolean;
+    onChange: () => void;
+}) {
+    return (
+        <label
+            className="inline-flex cursor-pointer items-center justify-center rounded-lg p-1.5 hover:bg-cyan-50"
+            onClick={(event) => event.stopPropagation()}
+        >
+            <span className="sr-only">Rechnung für DATEV auswählen</span>
+            <input
+                type="checkbox"
+                name="datev_invoice_ids"
+                value={invoiceId}
+                aria-label="Rechnung für DATEV auswählen"
+                checked={checked}
+                disabled={disabled}
+                onChange={onChange}
+                className="size-4 rounded border-slate-300 text-cyan-700 focus:ring-cyan-600"
+            />
+        </label>
     );
 }
 

@@ -15,10 +15,8 @@ import {
 } from "@/lib/invoices/invoice-numbering";
 import {
     getInvoiceEmailTemplate,
-    getDatevInvoiceEmailTemplate,
     getZugferdInvoiceEmailTemplate,
 } from "@/lib/email/templates/invoice-email";
-import { DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient";
 import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
@@ -47,6 +45,11 @@ import {
     type ZugferdServiceValidationSummary,
 } from "@/lib/zugferd/zugferd-service-client";
 import { createSendEmailUseCase } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
+import {
+    sendDatevInvoice,
+    type DatevInvoiceCandidate,
+} from "@/lib/invoices/datev-invoice-delivery";
+import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
 
 type SaleInvoiceVehicleRelation = {
     damage_notes: string | null;
@@ -1432,7 +1435,9 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
       id,
       sale_id,
       invoice_number,
-      invoice_type
+      invoice_type,
+      status,
+      datev_status
     `,
         )
         .eq("id", invoiceId)
@@ -1445,68 +1450,27 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
         redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "sendFailed"));
     }
 
-    const invoice = data as unknown as InvoiceEmailQueryRow;
+    const invoice = data as unknown as DatevInvoiceCandidate;
 
     if (invoice.invoice_type !== "standard") {
         redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
     }
 
-    try {
-        const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
-        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: pdfData.invoiceNumber,
-            documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
-            mimeType: "application/pdf",
-        });
-        const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getOptionalCurrentAuthUserId();
-        const template = getDatevInvoiceEmailTemplate(invoice.invoice_number);
-        const sendEmail = await createSendEmailUseCase();
-
-        await sendEmail.execute({
-            companyId,
-            actorId,
-            contextType: "INVOICE",
-            contextId: invoiceId,
-            templateKey: "invoice.send.datev",
-            senderName: sender.senderName,
-            senderEmail: sender.senderEmail,
-            toRecipients: [{ email: DATEV_INVOICE_UPLOAD_EMAIL, name: "DATEV" }],
-            subject: template.subject,
-            bodyText: template.text,
-            bodyHtml: template.html,
-            resolvedAttachments: [
-                {
-                    fileName: invoiceFileName,
-                    content: Buffer.from(pdfBytes),
-                    mimeType: "application/pdf",
-                    fileSizeBytes: pdfBytes.byteLength,
-                    attachmentType: "invoice_pdf_datev",
-                },
-            ],
-            relations: [
-                { relationType: "INVOICE", relationId: invoiceId },
-                { relationType: "SALE", relationId: saleId },
-            ],
-            idempotencyKey: `datev-invoice-email:${companyId}:${invoiceId}`,
-            metadata: {
-                recipient: DATEV_INVOICE_UPLOAD_EMAIL,
-                invoiceNumber: invoice.invoice_number,
-            },
-        });
-    } catch (sendError) {
-        console.error("[email] DATEV invoice delivery failed", sendError);
-        const errorCode = sendError instanceof EmailConfigurationError
-            ? "mailNotConfigured"
-            : "sendFailed";
-        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, errorCode));
+    if (!isDatevInvoiceSendable(invoice)) {
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
     }
 
-    await logActivity({
-        action: `Rechnung ${invoice.invoice_number} separat an DATEV gesendet`,
-        entityType: "invoice",
-        entityId: invoiceId,
-    });
+    const delivery = await sendDatevInvoice(companyId, invoice);
+
+    if (!delivery.success) {
+        redirect(
+            getDatevInvoiceErrorRedirect(
+                saleId,
+                invoiceId,
+                delivery.message.includes("konfiguriert") ? "mailNotConfigured" : "sendFailed",
+            ),
+        );
+    }
 
     revalidateInvoiceEmailPaths(saleId);
     redirect(getDatevInvoiceSuccessRedirect(saleId, invoiceId));

@@ -17,6 +17,7 @@ import { clearCompanyTermsPdfCache } from "@/lib/pdf/company-terms";
 import { isValidBic, isValidIban, normalizeBic, normalizeIban } from "@/lib/settings/company-bank-details";
 import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient-default";
 
 export type UpdateCompanySettingsState = {
     success: boolean;
@@ -29,6 +30,7 @@ export type UpdateCompanySettingsState = {
         country: string;
         email: string;
         invoice_sender_email: string;
+        datev_invoice_upload_email: string;
         website: string;
         phone: string;
         mobile_phone_1: string;
@@ -103,6 +105,10 @@ function getFormValues(formData: FormData): UpdateCompanySettingsState["values"]
         invoice_sender_email: normalizeEmailAddressInput(
             getStringValue(formData, "invoice_sender_email"),
         ),
+        datev_invoice_upload_email:
+            normalizeEmailAddressInput(
+                getStringValue(formData, "datev_invoice_upload_email"),
+            ) || DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL,
         website: getStringValue(formData, "website"),
         phone: getStringValue(formData, "phone"),
         mobile_phone_1: getStringValue(formData, "mobile_phone_1"),
@@ -228,6 +234,14 @@ export async function updateCompanySettingsAction(
         };
     }
 
+    if (!isValidEmailAddress(values.datev_invoice_upload_email)) {
+        return {
+            success: false,
+            message: "Bitte gib eine gültige DATEV-Upload-E-Mail ein.",
+            values,
+        };
+    }
+
     const { data, error } = await supabase
         .from("companies")
         .update({
@@ -238,6 +252,7 @@ export async function updateCompanySettingsAction(
             country: values.country,
             email: values.email || null,
             invoice_sender_email: values.invoice_sender_email || null,
+            datev_invoice_upload_email: values.datev_invoice_upload_email,
             website: values.website || null,
             phone: values.phone || null,
             mobile_phone_1: values.mobile_phone_1 || null,

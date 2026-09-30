@@ -47,6 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient-default";
 
 type CompanySettingsFormProps = {
     company: CompanySettings;
@@ -72,6 +73,8 @@ function createInitialState(company: CompanySettings): UpdateCompanySettingsStat
             country: company.country ?? "Deutschland",
             email: company.email ?? "",
             invoice_sender_email: company.invoice_sender_email ?? "",
+            datev_invoice_upload_email:
+                company.datev_invoice_upload_email ?? DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL,
             website: company.website ?? "",
             phone: company.phone ?? "",
             mobile_phone_1: company.mobile_phone_1 ?? "",
@@ -366,6 +369,14 @@ export function CompanySettingsForm({
                                 label="Rechnungs-Absender-E-Mail"
                                 name="invoice_sender_email"
                                 defaultValue={values.invoice_sender_email}
+                            />
+
+                            <FormField
+                                label="DATEV-Upload-E-Mail"
+                                name="datev_invoice_upload_email"
+                                type="email"
+                                defaultValue={values.datev_invoice_upload_email}
+                                description="Empfänger für einzelne und gesammelt an DATEV gesendete Rechnungen."
                             />
 
                             <FormField

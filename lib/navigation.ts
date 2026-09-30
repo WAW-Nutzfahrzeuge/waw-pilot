@@ -10,6 +10,7 @@ import {
     FileText,
     Landmark,
     LayoutDashboard,
+    Receipt,
     Route,
     Settings,
     ShoppingCart,
@@ -44,6 +45,11 @@ export const mainNavigation = [
         title: "Verkäufe",
         href: "/dashboard/sales",
         icon: BookOpen,
+    },
+    {
+        title: "Rechnungen",
+        href: "/dashboard/invoices",
+        icon: Receipt,
     },
     {
         title: "Dokumente",
