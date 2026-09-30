@@ -10,6 +10,7 @@ export type GeneratedDocumentType =
     | "handover_protocol"
     | "entry_certificate"
     | "transport_proof"
+    | "end_use_declaration"
     | "license_plate_consent"
     | "travel_expense_form"
     | "purchase_contract"
@@ -82,6 +83,15 @@ export const generatedDocumentDefinitions: GeneratedDocumentDefinition[] = [
         requiresSignature: true,
         description:
             "Nachweis und Empfangsbestätigung zur Verbringung in das übrige Gemeinschaftsgebiet.",
+    },
+    {
+        type: "end_use_declaration",
+        documentType: "end_use_declaration",
+        label: "Endverbleibserklärung",
+        context: "sale",
+        requiresSignature: true,
+        description:
+            "Erklärung zum Endverbleib für Verkäufe nach Russland, Kasachstan, Kirgisistan, Tadschikistan oder Syrien.",
     },
     {
         type: "license_plate_consent",
@@ -165,6 +175,7 @@ export const supportedSaleGeneratedDocumentTypes = [
     "handover_protocol",
     "entry_certificate",
     "transport_proof",
+    "end_use_declaration",
 ] as const satisfies readonly GeneratedDocumentType[];
 
 export type SupportedSaleGeneratedDocumentType =

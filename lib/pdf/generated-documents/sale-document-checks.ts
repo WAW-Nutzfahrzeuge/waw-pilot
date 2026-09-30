@@ -22,6 +22,7 @@ import {
     DocumentDatePolicy,
     type DocumentDateSuggestion,
 } from "@/src/modules/documents/domain/policies/document-date-policy";
+import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 export type SaleGeneratedDocumentCheck = {
     type: GeneratedDocumentType;
@@ -80,6 +81,7 @@ const saleGeneratedDocumentTypes = new Set<GeneratedDocumentType>([
     "handover_protocol",
     "entry_certificate",
     "transport_proof",
+    "end_use_declaration",
 ]);
 
 type SaleDocumentGenerationMode =
@@ -98,6 +100,7 @@ function getSaleType(
 function getGenerationMode(params: {
     definition: GeneratedDocumentDefinition;
     saleType: "inland" | "eu" | "export_third_country";
+    destinationCountry: string | null | undefined;
 }): SaleDocumentGenerationMode {
     if (
         params.definition.type === "invoice_pdf" ||
@@ -111,6 +114,14 @@ function getGenerationMode(params: {
     }
 
     if (params.definition.type === "transport_proof" && params.saleType !== "eu") {
+        return "not_relevant";
+    }
+
+    if (
+        params.definition.type === "end_use_declaration" &&
+        (params.saleType !== "export_third_country" ||
+            !requiresEndUseDeclaration(params.destinationCountry))
+    ) {
         return "not_relevant";
     }
 
@@ -255,7 +266,11 @@ export async function getSaleGeneratedDocumentChecks(
     const saleType = getSaleType(documentData.sale?.saleType);
     const visibleDefinitions = definitions.filter(
         (definition) =>
-            getGenerationMode({ definition, saleType }) !== "not_relevant",
+            getGenerationMode({
+                definition,
+                saleType,
+                destinationCountry: documentData.export?.destinationCountry,
+            }) !== "not_relevant",
     );
 
     return visibleDefinitions.map((definition) => {
@@ -269,7 +284,11 @@ export async function getSaleGeneratedDocumentChecks(
             definition.documentType,
         );
 
-        const generationMode = getGenerationMode({ definition, saleType });
+        const generationMode = getGenerationMode({
+            definition,
+            saleType,
+            destinationCountry: documentData.export?.destinationCountry,
+        });
         const externalAction = getExternalAction();
         const dateSuggestion =
             isSupportedSaleGeneratedDocumentType(definition.type)

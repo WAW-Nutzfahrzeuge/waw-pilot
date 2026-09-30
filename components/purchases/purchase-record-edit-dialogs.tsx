@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/forms/form-field";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 
 type PurchaseSellerEditDialogProps = {
     purchaseId: string;
@@ -126,11 +127,7 @@ export function PurchaseSellerEditDialog({
                             name="city"
                             defaultValue={seller.city ?? ""}
                         />
-                        <FormField
-                            label="Land"
-                            name="country"
-                            defaultValue={seller.country ?? ""}
-                        />
+                        <CountryCombobox defaultValue={seller.country} required />
                         <FormField
                             label="USt-ID | VAT | NIP"
                             name="vat_id"

@@ -17,6 +17,7 @@ export type DocumentTypeCode =
     | "handover_protocol"
     | "entry_certificate"
     | "transport_proof"
+    | "end_use_declaration"
     | "bzst_vat_verification_primary"
     | "bzst_vat_verification_secondary"
     | "abd_checklist"
@@ -221,6 +222,19 @@ export const documentTypeDefinitions: readonly DocumentTypeDefinition[] = [
         archiveAllowed: true,
         allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
         sortOrder: 52,
+        badgeTone: "success",
+        defaultStatus: "ACTIVE",
+    }),
+    defineDocumentType({
+        code: "end_use_declaration",
+        label: "Endverbleibserklärung",
+        description:
+            "Endverbleibserklärung für ausgewählte Drittlandverkäufe.",
+        canBeRequired: true,
+        replacementAllowed: true,
+        archiveAllowed: true,
+        allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
+        sortOrder: 54,
         badgeTone: "success",
         defaultStatus: "ACTIVE",
     }),

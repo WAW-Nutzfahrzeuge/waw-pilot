@@ -36,6 +36,7 @@ type SendStampDocumentsDialogProps = {
     vehicleLabel: string;
     documents: StampDocumentCandidate[];
     saleType: SaleType;
+    destinationCountry?: string | null;
 };
 
 const initialState: SendStampDocumentsEmailState = {
@@ -49,14 +50,15 @@ export function SendStampDocumentsDialog({
                                              vehicleLabel,
                                              documents,
                                              saleType,
+                                             destinationCountry = null,
                                          }: SendStampDocumentsDialogProps) {
     const availableDocuments = useMemo(
-        () => getAvailableStampDocuments(documents, saleType),
-        [documents, saleType],
+        () => getAvailableStampDocuments(documents, saleType, destinationCountry),
+        [destinationCountry, documents, saleType],
     );
     const missingDocumentLabels = useMemo(
-        () => getMissingStampDocumentLabels(documents, saleType),
-        [documents, saleType],
+        () => getMissingStampDocumentLabels(documents, saleType, destinationCountry),
+        [destinationCountry, documents, saleType],
     );
     const suggestedLanguage = getSuggestedEmailLanguage({
         country: customer.country,

@@ -1,6 +1,7 @@
 import type { EmailLanguage } from "@/lib/customers/email-languages";
 import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
 import type { SaleType } from "@/lib/sales/sale-queries";
+import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 export const STAMP_DOCUMENT_TYPES = [
     {
@@ -25,6 +26,12 @@ export const STAMP_DOCUMENT_TYPES = [
         ],
         filePatterns: [/uebergabe/i, /übergabe/i, /handover/i],
     },
+    {
+        key: "end_use_declaration",
+        label: "Endverbleibserklärung",
+        acceptedDocumentTypes: ["end_use_declaration"],
+        filePatterns: [/endverbleib/i, /end[_\s-]?use[_\s-]?declaration/i],
+    },
 ] as const;
 
 export type StampDocumentKey = (typeof STAMP_DOCUMENT_TYPES)[number]["key"];
@@ -37,7 +44,14 @@ const STAMP_DOCUMENT_KEYS_BY_SALE_TYPE: Record<SaleType, readonly StampDocumentK
 
 export function getStampDocumentKeysForSaleType(
     saleType: SaleType,
+    destinationCountry?: string | null,
 ): readonly StampDocumentKey[] {
+    if (saleType === "export_third_country") {
+        return requiresEndUseDeclaration(destinationCountry)
+            ? ["end_use_declaration"]
+            : [];
+    }
+
     return STAMP_DOCUMENT_KEYS_BY_SALE_TYPE[saleType];
 }
 
@@ -68,9 +82,12 @@ export function getStampDocumentType(
 export function getAvailableStampDocuments(
     documents: StampDocumentCandidate[],
     saleType: SaleType = "eu",
+    destinationCountry?: string | null,
 ): Array<StampDocumentCandidate & { stampKey: StampDocumentKey; label: string }> {
     const usedKeys = new Set<StampDocumentKey>();
-    const allowedKeys = new Set(getStampDocumentKeysForSaleType(saleType));
+    const allowedKeys = new Set(
+        getStampDocumentKeysForSaleType(saleType, destinationCountry),
+    );
     const result: Array<StampDocumentCandidate & { stampKey: StampDocumentKey; label: string }> = [];
 
     for (const document of documents) {
@@ -93,14 +110,19 @@ export function getAvailableStampDocuments(
 export function getMissingStampDocumentLabels(
     documents: StampDocumentCandidate[],
     saleType: SaleType = "eu",
+    destinationCountry?: string | null,
 ): string[] {
     const availableKeys = new Set(
-        getAvailableStampDocuments(documents, saleType).map((document) => document.stampKey),
+        getAvailableStampDocuments(documents, saleType, destinationCountry).map(
+            (document) => document.stampKey,
+        ),
     );
 
     return STAMP_DOCUMENT_TYPES.filter(
         (definition) =>
-            getStampDocumentKeysForSaleType(saleType).includes(definition.key) &&
+            getStampDocumentKeysForSaleType(saleType, destinationCountry).includes(
+                definition.key,
+            ) &&
             !availableKeys.has(definition.key),
     ).map((definition) => definition.label);
 }

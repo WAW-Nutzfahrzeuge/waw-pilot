@@ -31,6 +31,7 @@ export function getDocumentTypeLabel(type: string): string {
 
         entry_certificate: "Gelangensbestätigung",
         transport_proof: "Verbringungsnachweis",
+        end_use_declaration: "Endverbleibserklärung",
         bzst_vat_verification_primary: "BZSt-Prüfnachweis – Ergebnisübersicht",
         bzst_vat_verification_secondary:
             "BZSt-Prüfnachweis – qualifizierte Bestätigung",

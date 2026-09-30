@@ -198,8 +198,7 @@ export async function getSaleGeneratedDocumentData(
             .eq("company_id", companyId)
             .eq("sale_id", saleId)
             .order("invoice_date", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+            .limit(20),
     ]);
 
     if (saleError || !saleData) {
@@ -222,7 +221,13 @@ export async function getSaleGeneratedDocumentData(
         );
     }
 
-    const invoice = invoiceData as InvoiceQueryRow | null;
+    const invoices = (invoiceData ?? []) as InvoiceQueryRow[];
+    // A converted proforma remains in the database. The end-use declaration
+    // must nevertheless show the final invoice number whenever one exists.
+    const invoice =
+        invoices.find((candidate) => candidate.invoice_type === "standard") ??
+        invoices[0] ??
+        null;
 
     return {
         saleId: sale.id,

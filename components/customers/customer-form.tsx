@@ -19,6 +19,7 @@ import {
 } from "@/lib/forms/form-snapshot";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import { PersonTypeCards, type PersonType } from "@/components/customers/person-type-cards";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { ActionMessage } from "@/components/shared/action-message";
 import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
@@ -175,7 +176,7 @@ export function CustomerForm() {
                             <FormField label="Straße und Hausnummer *" name="street" required />
                             <FormField label="PLZ *" name="postal_code" required />
                             <FormField label="Ort *" name="city" required />
-                            <FormField label="Land" name="country" defaultValue="Deutschland" />
+                            <CountryCombobox required />
                         </div>
                     </CardContent>
                 </Card>

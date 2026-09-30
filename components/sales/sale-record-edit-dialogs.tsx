@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/forms/form-field";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 
 type SaleCustomerEditDialogProps = {
     saleId: string;
@@ -131,12 +132,7 @@ export function SaleCustomerEditDialog({
                             required
                             defaultValue={customer.city ?? ""}
                         />
-                        <FormField
-                            label="Land *"
-                            name="country"
-                            required
-                            defaultValue={customer.country ?? ""}
-                        />
+                        <CountryCombobox defaultValue={customer.country} required />
                         <FormField
                             label="USt-ID | VAT | NIP"
                             name="vat_id"

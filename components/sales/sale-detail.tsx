@@ -71,6 +71,7 @@ import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
 import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
@@ -923,7 +924,10 @@ export async function SaleDetail({
                                     description="Fehlende Unterlagen direkt hochladen und automatisch der Verkaufsakte zuordnen."
                                 />
 
-                                {sale.sale_type !== "export_third_country" ? (
+                                {sale.sale_type !== "export_third_country" ||
+                                requiresEndUseDeclaration(
+                                    exportDetails.export_destination_country,
+                                ) ? (
                                     <div className="mt-4">
                                         <SendStampDocumentsDialog
                                             saleId={sale.id}
@@ -937,6 +941,9 @@ export async function SaleDetail({
                                             }}
                                             vehicleLabel={sale.vehicle.name}
                                             documents={sale.documents}
+                                            destinationCountry={
+                                                exportDetails.export_destination_country
+                                            }
                                         />
                                     </div>
                                 ) : null}

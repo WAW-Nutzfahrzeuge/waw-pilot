@@ -95,6 +95,7 @@ const vehicleDocumentTypes = [
     "handover_protocol",
     "entry_certificate",
     "transport_proof",
+    "end_use_declaration",
     "abd_checklist",
     "exit_note_checklist",
     "customs",

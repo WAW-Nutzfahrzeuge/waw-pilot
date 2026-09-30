@@ -12,6 +12,7 @@ import {
     normalizeEmailLanguage,
     type EmailLanguage,
 } from "@/lib/customers/email-languages";
+import { normalizeCustomerCountry } from "@/lib/countries/country-options";
 
 function hasFormField(formData: FormData, key: string): boolean {
     return formData.has(key);
@@ -70,7 +71,8 @@ export async function updateCustomerMasterDataAction(formData: FormData) {
     const lastName = getStringFormValue(formData, "last_name");
     const postalCode = getStringFormValue(formData, "postal_code");
     const city = getStringFormValue(formData, "city");
-    const country = getStringFormValue(formData, "country");
+    const countryInput = getStringFormValue(formData, "country");
+    const country = normalizeCustomerCountry(countryInput);
     const email = getStringFormValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
     const phone = getStringFormValue(formData, "phone");
@@ -84,6 +86,10 @@ export async function updateCustomerMasterDataAction(formData: FormData) {
 
     if (!isValidPhoneNumber(phone)) {
         throw new Error("Bitte gib eine gültige Telefonnummer ein.");
+    }
+
+    if (!country) {
+        throw new Error("Bitte wähle ein Land aus der Liste aus.");
     }
 
     const nameUpdate =

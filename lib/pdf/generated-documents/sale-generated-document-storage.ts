@@ -10,6 +10,7 @@ import { generateHandoverProtocolPdf } from "@/lib/pdf/templates/handover-protoc
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { generateEntryCertificatePdf } from "@/lib/pdf/templates/entry-certificate-pdf";
 import { generateTransportProofPdf } from "@/lib/pdf/templates/transport-proof-pdf";
+import { generateEndUseDeclarationPdf } from "@/lib/pdf/templates/end-use-declaration-pdf";
 import { getCompanySignatureStampAssets } from "@/lib/pdf/company-signature-assets";
 import { logActivity } from "@/lib/activity/activity-log";
 import { MissingInvoiceDateError } from "@/src/modules/documents/domain/errors/document-rule-errors";
@@ -19,6 +20,7 @@ import {
     type DocumentDateSuggestion,
 } from "@/src/modules/documents/domain/policies/document-date-policy";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
+import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 export type GenerateSaleDocumentResult = {
     documentId: string;
@@ -83,6 +85,15 @@ async function generatePdfBytesForSaleDocument(
         );
     }
 
+    if (
+        documentType === "end_use_declaration" &&
+        !requiresEndUseDeclaration(documentData.export?.destinationCountry)
+    ) {
+        throw new Error(
+            "Eine Endverbleibserklärung ist nur für Russland, Kasachstan, Kirgisistan, Tadschikistan und Syrien vorgesehen.",
+        );
+    }
+
     const documentDate = new DocumentDatePolicy().suggest({
         documentType,
         invoiceDate: documentData.sale?.invoiceDate,
@@ -97,7 +108,9 @@ async function generatePdfBytesForSaleDocument(
     }
 
     if (
-        (documentType === "entry_certificate" || documentType === "transport_proof") &&
+        (documentType === "entry_certificate" ||
+            documentType === "transport_proof" ||
+            documentType === "end_use_declaration") &&
         !documentDate.usedDate
     ) {
         throw new MissingDocumentDateError();
@@ -135,6 +148,14 @@ async function generatePdfBytesForSaleDocument(
     if (documentType === "transport_proof") {
         return {
             pdfBytes: await generateTransportProofPdf(documentDataWithDate),
+            documentData: documentDataWithDate,
+            documentDate,
+        };
+    }
+
+    if (documentType === "end_use_declaration") {
+        return {
+            pdfBytes: await generateEndUseDeclarationPdf(documentDataWithDate),
             documentData: documentDataWithDate,
             documentDate,
         };

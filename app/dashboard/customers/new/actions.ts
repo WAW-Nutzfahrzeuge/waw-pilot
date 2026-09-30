@@ -14,6 +14,7 @@ import {
     uploadCustomerBzstEvidenceDocuments,
     validateCustomerBzstEvidenceFiles,
 } from "@/lib/customers/customer-bzst-evidence-upload";
+import { normalizeCustomerCountry } from "@/lib/countries/country-options";
 
 type CreateCustomerState = {
     success: boolean;
@@ -76,7 +77,7 @@ export async function createCustomerAction(
     const street = getStringValue(formData, "street");
     const postalCode = getStringValue(formData, "postal_code");
     const city = getStringValue(formData, "city");
-    const country = getStringValue(formData, "country") ?? "Deutschland";
+    const country = normalizeCustomerCountry(getStringValue(formData, "country"));
 
     const email = getStringValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
@@ -93,6 +94,13 @@ export async function createCustomerAction(
         return {
             success: false,
             message: "Adresse, PLZ und Ort sind Pflichtfelder.",
+        };
+    }
+
+    if (!country) {
+        return {
+            success: false,
+            message: "Bitte wähle ein Land aus der Liste aus.",
         };
     }
 

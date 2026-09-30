@@ -26,7 +26,8 @@ function getGeneratedDocumentType(
     if (
         value === "handover_protocol" ||
         value === "entry_certificate" ||
-        value === "transport_proof"
+        value === "transport_proof" ||
+        value === "end_use_declaration"
     ) {
         return value;
     }
@@ -41,6 +42,7 @@ function getGeneratedDocumentActivityLabel(
         handover_protocol: "Übergabeprotokoll",
         entry_certificate: "Gelangensbestätigung",
         transport_proof: "Verbringungsnachweis",
+        end_use_declaration: "Endverbleibserklärung",
     };
 
     return labels[documentType] ?? documentType;

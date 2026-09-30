@@ -34,6 +34,7 @@ import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
+import { normalizeCustomerCountry } from "@/lib/countries/country-options";
 
 type CreatePurchaseCaseState = {
     success: boolean;
@@ -508,7 +509,9 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
     const street = getStringValue(formData, "new_seller_street");
     const postalCode = getStringValue(formData, "new_seller_postal_code");
     const city = getStringValue(formData, "new_seller_city");
-    const country = getStringValue(formData, "new_seller_country") ?? "Deutschland";
+    const country = normalizeCustomerCountry(
+        getStringValue(formData, "new_seller_country"),
+    );
     const email = getStringValue(formData, "new_seller_email");
     const phone = getStringValue(formData, "new_seller_phone");
 
@@ -524,8 +527,8 @@ async function resolveSellerCustomerId(formData: FormData, companyId: string) {
         return { success: false as const, message: "Bitte gib Vorname und Nachname des Verkäufers ein." };
     }
 
-    if (!street || !postalCode || !city) {
-        return { success: false as const, message: "Adresse, PLZ und Ort des Verkäufers sind Pflichtfelder." };
+    if (!street || !postalCode || !city || !country) {
+        return { success: false as const, message: "Adresse, PLZ, Ort und Land des Verkäufers sind Pflichtfelder." };
     }
 
     if (!isValidPhoneNumber(phone)) {

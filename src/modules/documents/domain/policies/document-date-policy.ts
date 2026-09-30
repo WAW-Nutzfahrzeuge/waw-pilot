@@ -3,7 +3,8 @@ import { EuTransitTimePolicy } from "@/src/modules/documents/domain/policies/eu-
 export type DateSuggestionDocumentType =
     | "handover_protocol"
     | "entry_certificate"
-    | "transport_proof";
+    | "transport_proof"
+    | "end_use_declaration";
 
 export type DocumentDateSuggestion = {
     suggestedDate: string | null;
@@ -36,18 +37,28 @@ export class DocumentDatePolicy {
         destinationCountry?: string | null;
         overrideDate?: string | null;
     }): DocumentDateSuggestion {
-        if (params.documentType === "handover_protocol") {
+        if (
+            params.documentType === "handover_protocol" ||
+            params.documentType === "end_use_declaration"
+        ) {
+            const sourceDate = params.invoiceDate ?? params.saleDate ?? null;
+
             return this.buildSuggestion({
-                suggestedDate: params.invoiceDate ?? null,
-                sourceDate: params.invoiceDate ?? null,
+                suggestedDate: sourceDate,
+                sourceDate,
                 calculationType: "invoice_date",
                 transitDays: null,
                 countryCode: null,
                 countryName: null,
                 overrideDate: params.overrideDate,
-                explanation: params.invoiceDate
-                    ? "Übergabebestätigung: Rechnungsdatum."
-                    : "Für die Übergabebestätigung fehlt das Rechnungsdatum.",
+                explanation:
+                    params.documentType === "handover_protocol"
+                        ? sourceDate
+                            ? "Übergabebestätigung: Rechnungs- bzw. Verkaufsdatum."
+                            : "Für die Übergabebestätigung fehlt das Rechnungs- bzw. Verkaufsdatum."
+                        : sourceDate
+                            ? "Endverbleibserklärung: Rechnungs- bzw. Verkaufsdatum."
+                            : "Für die Endverbleibserklärung fehlt das Rechnungs- bzw. Verkaufsdatum.",
             });
         }
 

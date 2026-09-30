@@ -71,8 +71,10 @@ export async function getSaleExportDetails(
         sale_date: data.sale_date,
         buyer_city: buyerCustomer?.city ?? null,
         buyer_country: buyerCustomer?.country ?? null,
-        export_destination_city: data.export_destination_city,
-        export_destination_country: data.export_destination_country,
+        export_destination_city:
+            data.export_destination_city ?? buyerCustomer?.city ?? null,
+        export_destination_country:
+            data.export_destination_country ?? buyerCustomer?.country ?? null,
         export_arrival_month: data.export_arrival_month,
         export_arrival_year: data.export_arrival_year,
         export_transport_date: data.export_transport_date,

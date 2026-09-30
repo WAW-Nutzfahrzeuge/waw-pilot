@@ -23,6 +23,7 @@ import {
     getSaleTaxConfiguration,
     type SaleBuyerType,
 } from "@/utils/sale-tax-rules";
+import { normalizeCustomerCountry } from "@/lib/countries/country-options";
 
 function getEmailLanguage(formData: FormData): EmailLanguage {
     return normalizeEmailLanguage(getStringFormValue(formData, "preferred_language"));
@@ -259,7 +260,7 @@ export async function updateSaleCustomerAction(formData: FormData) {
     const street = getStringFormValue(formData, "street");
     const postalCode = getStringFormValue(formData, "postal_code");
     const city = getStringFormValue(formData, "city");
-    const country = getStringFormValue(formData, "country");
+    const country = normalizeCustomerCountry(getStringFormValue(formData, "country"));
     const email = getStringFormValue(formData, "email");
     const preferredLanguage = getEmailLanguage(formData);
     const phone = getStringFormValue(formData, "phone");

@@ -39,6 +39,7 @@ import { Label } from "@/components/ui/label";
 import { FlashMessage } from "@/components/shared/flash-message";
 import { phoneInputPattern } from "@/lib/validation/phone";
 import { TemporaryHighlight } from "@/components/shared/temporary-highlight";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 
 type CustomerDetailProps = {
     customer: CustomerDetailType;
@@ -580,12 +581,7 @@ function CustomerMasterDataEditDialog({
                     defaultValue={customer.city ?? ""}
                     placeholder="z. B. Hamburg"
                 />
-                <CustomerFormField
-                    label="Land"
-                    name="country"
-                    defaultValue={customer.country ?? ""}
-                    placeholder="z. B. Deutschland"
-                />
+                <CountryCombobox defaultValue={customer.country} required />
                 <CustomerFormField
                     label="E-Mail"
                     name="email"

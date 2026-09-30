@@ -65,6 +65,7 @@ const contractDocumentTypes = new Set([
 const exportProofDocumentTypes = new Set([
     "entry_certificate",
     "transport_proof",
+    "end_use_declaration",
     "bzst_vat_verification_primary",
     "bzst_vat_verification_secondary",
     "abd_checklist",

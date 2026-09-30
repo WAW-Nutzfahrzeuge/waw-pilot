@@ -385,6 +385,14 @@ export const documentValidationRules: Record<
         },
     ],
 
+    end_use_declaration: [
+        ...companyBaseRules,
+        ...customerBaseRules,
+        ...vehicleBaseRules,
+        ...saleBaseRules,
+        ...exportBaseRules,
+    ],
+
     license_plate_consent: [
         ...companyBaseRules,
         ...customerBaseRules,

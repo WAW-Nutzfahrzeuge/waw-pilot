@@ -47,6 +47,7 @@ import {
 } from "@/utils/sale-tax-rules";
 import { useFormActionFeedback } from "@/components/forms/use-form-action-feedback";
 import { CustomerCombobox } from "@/components/customers/customer-combobox";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { CompanyTaxNumberCopyButton } from "@/components/shared/company-tax-number-copy-button";
@@ -592,14 +593,12 @@ export function SaleForm({
                                             handleNewCustomerCityChange(event.target.value)
                                         }
                                     />
-                                    <FormField
-                                        label="Land *"
+                                    <CountryCombobox
                                         name="new_customer_country"
-                                        required
+                                        label="Land"
                                         value={newCustomerCountry}
-                                        onChange={(event) =>
-                                            handleNewCustomerCountryChange(event.target.value)
-                                        }
+                                        onValueChange={handleNewCustomerCountryChange}
+                                        required
                                     />
                                     <FormField
                                         label="E-Mail"

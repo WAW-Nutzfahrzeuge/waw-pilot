@@ -46,6 +46,7 @@ const documentFilePrefixes: Record<string, string> = {
     handover_protocol: "Uebergabeprotokoll",
     entry_certificate: "Gelangensbestaetigung",
     transport_proof: "Verbringungsnachweis",
+    end_use_declaration: "Endverbleibserklaerung",
     bzst_vat_verification_primary: "BZSt_Nachweis_1",
     bzst_vat_verification_secondary: "BZSt_Nachweis_2",
     abd_checklist: "ABD_Checkliste",

@@ -20,6 +20,7 @@ import { GenerateSaleDocumentSubmitButton } from "@/components/sales/generate-sa
 import { TemporarySuccessMessage } from "@/components/shared/temporary-success-message";
 import { DocumentCard } from "@/components/shared/document-card";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
+import { SendEndUseDeclarationEmailButton } from "@/components/sales/send-end-use-declaration-email-button";
 
 type SaleGeneratedDocumentsCardProps = {
     saleId: string;
@@ -139,7 +140,7 @@ function GeneratedDocumentRow({
                     <div className="rounded-3xl border border-slate-900/20 bg-slate-50/70 p-4">
                         <DocumentCard
                             className="border-0 bg-transparent p-0 shadow-none"
-                            icon={<DocumentIcon status={document.status} />}
+                            icon={<DocumentIcon status={document.status} type={document.type} />}
                             title={<span className="text-xl font-extrabold text-slate-950">{document.label}</span>}
                             description={document.description}
                             status={
@@ -315,7 +316,8 @@ function GeneratedDocumentRow({
 
                 <div className="flex flex-col gap-2 border-t-2 border-slate-900/20 pt-4 xl:w-48 xl:border-t-0 xl:pl-4 xl:pt-0">
                     {isAutomaticDocument ? (
-                        <form action={generateSaleDocumentAction}>
+                        <>
+                            <form action={generateSaleDocumentAction}>
                             <input type="hidden" name="sale_id" value={saleId} />
                             <input type="hidden" name="document_type" value={document.type} />
 
@@ -344,7 +346,13 @@ function GeneratedDocumentRow({
                                 disabled={!canGenerateNow}
                                 isGenerated={Boolean(document.generatedDocument?.id)}
                             />
-                        </form>
+                            </form>
+
+                            {document.type === "end_use_declaration" &&
+                            document.generatedDocument ? (
+                                <SendEndUseDeclarationEmailButton saleId={saleId} />
+                            ) : null}
+                        </>
                     ) : (
                         <DocumentContextAction document={document} />
                     )}
@@ -499,8 +507,10 @@ function DocumentFileStatus({
 
 function DocumentIcon({
                           status,
+                          type,
                       }: {
     status: SaleGeneratedDocumentCheck["status"];
+    type: SaleGeneratedDocumentCheck["type"];
 }) {
     if (status === "missing_data") {
         return <AlertTriangle className="size-5 text-red-600" />;
@@ -508,6 +518,10 @@ function DocumentIcon({
 
     if (status === "signed_received" || status === "generated_available") {
         return <CheckCircle2 className="size-5 text-emerald-700" />;
+    }
+
+    if (type === "end_use_declaration") {
+        return <FileSignature className="size-5 text-cyan-700" />;
     }
 
     return <FileText className="size-5 text-cyan-700" />;

@@ -26,6 +26,7 @@ import { createPurchaseCaseAction } from "@/app/dashboard/ankauf/new/actions";
 import { updatePurchaseCaseAction } from "@/app/dashboard/ankauf/[purchaseId]/edit/actions";
 import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
+import { CountryCombobox } from "@/components/customers/country-combobox";
 import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
 import {
     getPurchaseCreateUploadTooLargeMessage,
@@ -586,7 +587,10 @@ function SellerCreateFields({
                 <FormField label="Straße und Hausnummer *" name="new_seller_street" required />
                 <FormField label="PLZ *" name="new_seller_postal_code" required />
                 <FormField label="Ort *" name="new_seller_city" required />
-                <FormField label="Land" name="new_seller_country" defaultValue="Deutschland" />
+                <CountryCombobox
+                    name="new_seller_country"
+                    required
+                />
                 <FormField label="E-Mail" name="new_seller_email" type="email" />
                 <FormField label="Telefon" name="new_seller_phone" type="tel" />
                 <div className="space-y-2">

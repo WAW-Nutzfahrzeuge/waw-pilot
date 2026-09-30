@@ -52,6 +52,7 @@ const documentTypeLabels: Record<string, string> = {
     handover_protocol: "Übergabeprotokoll",
     entry_certificate: "Gelangensbestätigung",
     transport_proof: "Verbringungsnachweis",
+    end_use_declaration: "Endverbleibserklärung",
     bzst_vat_verification_primary: "BZSt Prüfnachweis Ergebnisübersicht",
     bzst_vat_verification_secondary: "BZSt Prüfnachweis qualifizierte Bestätigung",
     abd_checklist: "ABD-Checkliste",

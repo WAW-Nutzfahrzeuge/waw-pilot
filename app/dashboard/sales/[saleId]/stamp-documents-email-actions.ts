@@ -5,6 +5,7 @@ import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getOptionalCurrentAuthUserId } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
+    getSuggestedEmailLanguage,
     normalizeEmailLanguage,
 } from "@/lib/customers/email-languages";
 import {
@@ -13,6 +14,7 @@ import {
 import { getInvoiceMailSender } from "@/lib/email/company-mail-sender";
 import {
     getAvailableStampDocuments,
+    getStampDocumentsEmailTemplate,
     getStampDocumentType,
 } from "@/lib/sales/stamp-documents";
 import type { SaleType } from "@/lib/sales/sale-queries";
@@ -40,20 +42,23 @@ type SaleEmailDocumentRow = {
     status: "available" | "missing" | "needs_review";
 };
 
+type SaleEmailCustomer = {
+    id: string;
+    type: "company" | "private";
+    company_name: string | null;
+    first_name: string | null;
+    last_name: string | null;
+    email: string | null;
+    preferred_language: string | null;
+    country: string | null;
+};
+
 type SaleEmailQueryRow = {
     id: string;
     sale_type: SaleType | null;
+    export_destination_country: string | null;
     buyer_customer_id: string;
-    customers: SupabaseRelation<{
-        id: string;
-        type: "company" | "private";
-        company_name: string | null;
-        first_name: string | null;
-        last_name: string | null;
-        email: string | null;
-        preferred_language: string | null;
-        country: string | null;
-    }>;
+    customers: SupabaseRelation<SaleEmailCustomer>;
     vehicles: SupabaseRelation<{
         internal_number: string;
         manufacturer: string;
@@ -106,6 +111,16 @@ function isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function getCustomerName(
+    customer: SaleEmailCustomer,
+): string {
+    if (customer.type === "company") {
+        return customer.company_name?.trim() || "Kunde";
+    }
+
+    return [customer.first_name, customer.last_name].filter(Boolean).join(" ") || "Kunde";
+}
+
 export async function sendStampDocumentsEmailAction(
     _previousState: SendStampDocumentsEmailState,
     formData: FormData,
@@ -153,6 +168,7 @@ export async function sendStampDocumentsEmailAction(
             `
             id,
             sale_type,
+            export_destination_country,
             buyer_customer_id,
             customers:buyer_customer_id (
                 id,
@@ -193,13 +209,6 @@ export async function sendStampDocumentsEmailAction(
     const customer = getSingleRelation(sale.customers);
     const vehicle = getSingleRelation(sale.vehicles);
 
-    if (sale.sale_type === "export_third_country") {
-        return {
-            success: false,
-            message: "Für Drittlandexporte werden keine Dokumente zum Stempeln versendet.",
-        };
-    }
-
     if (!customer || !vehicle) {
         return {
             success: false,
@@ -210,6 +219,7 @@ export async function sendStampDocumentsEmailAction(
     const availableStampDocuments = getAvailableStampDocuments(
         getManyRelation(sale.documents),
         sale.sale_type ?? "inland",
+        sale.export_destination_country ?? customer.country,
     ).filter((document) => selectedDocumentIds.has(document.id));
 
     if (availableStampDocuments.length === 0) {
@@ -296,5 +306,160 @@ export async function sendStampDocumentsEmailAction(
     return {
         success: true,
         message: `Dokumente zum Stempeln wurden an ${recipientEmail} gesendet.`,
+    };
+}
+
+export async function sendEndUseDeclarationEmailAction(
+    _previousState: SendStampDocumentsEmailState,
+    formData: FormData,
+): Promise<SendStampDocumentsEmailState> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+    const saleId = getStringValue(formData, "sale_id");
+
+    if (!saleId) {
+        return { success: false, message: "Verkaufsakte fehlt." };
+    }
+
+    const { data, error } = await supabase
+        .from("sales")
+        .select(
+            `
+            id,
+            sale_type,
+            export_destination_country,
+            customers:buyer_customer_id (
+                id,
+                type,
+                company_name,
+                first_name,
+                last_name,
+                email,
+                preferred_language,
+                country
+            ),
+            vehicles (
+                internal_number,
+                manufacturer,
+                model
+            ),
+            documents (
+                id,
+                document_type,
+                file_name,
+                file_path,
+                mime_type,
+                file_size,
+                status
+            )
+        `,
+        )
+        .eq("id", saleId)
+        .eq("company_id", companyId)
+        .single();
+
+    if (error || !data) {
+        console.error("[end-use-declaration-email] sale lookup failed", error);
+        return { success: false, message: "Verkaufsakte konnte nicht geladen werden." };
+    }
+
+    const sale = data as unknown as SaleEmailQueryRow;
+    const customer = getSingleRelation(sale.customers);
+    const vehicle = getSingleRelation(sale.vehicles);
+
+    if (!customer || !vehicle) {
+        return { success: false, message: "Für diesen Verkauf fehlen Kunde oder Fahrzeug." };
+    }
+
+    if (!customer.email || !isValidEmail(customer.email)) {
+        return {
+            success: false,
+            message: "Beim Kunden ist keine gültige E-Mail-Adresse hinterlegt.",
+        };
+    }
+
+    const declaration = getAvailableStampDocuments(
+        getManyRelation(sale.documents),
+        sale.sale_type ?? "inland",
+        sale.export_destination_country ?? customer.country,
+    ).find((document) => document.stampKey === "end_use_declaration");
+
+    if (!declaration?.file_path) {
+        return {
+            success: false,
+            message: "Die Endverbleibserklärung muss zuerst erzeugt werden.",
+        };
+    }
+
+    if ((declaration.file_size ?? 0) > maxAttachmentBytes) {
+        return {
+            success: false,
+            message: "Die Endverbleibserklärung ist zu groß für den E-Mail-Versand.",
+        };
+    }
+
+    const language = getSuggestedEmailLanguage({
+        country: customer.country,
+        preferredLanguage: customer.preferred_language,
+    });
+    const template = getStampDocumentsEmailTemplate({
+        language,
+        customerName: getCustomerName(customer),
+        vehicleLabel: `${vehicle.manufacturer} ${vehicle.model}`.trim(),
+        documentLabels: [declaration.label],
+    });
+
+    try {
+        const sender = await getInvoiceMailSender(companyId);
+        const actorId = await getOptionalCurrentAuthUserId();
+        const sendEmail = await createSendEmailUseCase();
+
+        await sendEmail.execute({
+            companyId,
+            actorId,
+            contextType: "SALE",
+            contextId: saleId,
+            templateKey: "documents.free",
+            senderName: sender.senderName,
+            senderEmail: sender.senderEmail,
+            toRecipients: [{ email: customer.email, name: getCustomerName(customer) }],
+            subject: template.subject,
+            bodyText: template.text,
+            bodyHtml: toHtml(template.text),
+            documentAttachments: [
+                {
+                    documentId: declaration.id,
+                    attachmentType: "end_use_declaration",
+                },
+            ],
+            relations: [{ relationType: "SALE", relationId: saleId }],
+            idempotencyKey: `end-use-declaration-email:${companyId}:${saleId}:${declaration.id}:${customer.email}:${template.subject}`,
+            metadata: {
+                language,
+                vehicle: `${vehicle.manufacturer} ${vehicle.model}`,
+                documentLabels: [declaration.label],
+            },
+        });
+    } catch (sendError) {
+        if (sendError instanceof EmailConfigurationError) {
+            return { success: false, message: sendError.message };
+        }
+
+        console.error("[end-use-declaration-email] delivery failed", sendError);
+        return {
+            success: false,
+            message: "Die Endverbleibserklärung konnte nicht per E-Mail gesendet werden.",
+        };
+    }
+
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/activities",
+        "/dashboard/emails",
+    ]);
+
+    return {
+        success: true,
+        message: `Endverbleibserklärung wurde an ${customer.email} gesendet.`,
     };
 }
