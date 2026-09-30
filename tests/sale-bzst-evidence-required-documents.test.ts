@@ -55,3 +55,52 @@ test("uploadSaleDocumentAction can replace a BZSt document that is still only li
         "replacing an existing BZSt document must also find customer-scoped documents (sale_id: null)",
     );
 });
+
+test("customer BZSt evidence upload uses the PDF-and-image validator, not the image-only validator", () => {
+    const uploadSource = readFileSync(
+        "lib/customers/customer-bzst-evidence-upload.ts",
+        "utf8",
+    );
+
+    assert.equal(
+        uploadSource.includes("isAllowedDocumentFile"),
+        true,
+        "BZSt evidence must accept PDF, as documented in the document type description",
+    );
+    assert.equal(
+        uploadSource.includes("isAllowedImageAssetFile"),
+        false,
+        "the image-only validator would incorrectly reject valid PDF evidence",
+    );
+});
+
+test("isAllowedDocumentFile (used for BZSt evidence) accepts PDF and rejects unsupported types", async () => {
+    const { isAllowedDocumentFile } = await import(
+        "../lib/documents/upload-validation.ts"
+    );
+
+    assert.equal(
+        isAllowedDocumentFile({
+            name: "bzst-nachweis.pdf",
+            type: "application/pdf",
+        } as File),
+        true,
+    );
+    assert.equal(
+        isAllowedDocumentFile({
+            name: "notes.txt",
+            type: "text/plain",
+        } as File),
+        false,
+    );
+});
+
+test("the BZSt evidence file inputs allow selecting a PDF (accept attribute includes application/pdf)", () => {
+    const customerForm = readFileSync("components/customers/customer-form.tsx", "utf8");
+    const saleForm = readFileSync("components/sales/sale-form.tsx", "utf8");
+    const purchaseForm = readFileSync("components/purchases/purchase-form.tsx", "utf8");
+
+    for (const source of [customerForm, saleForm, purchaseForm]) {
+        assert.match(source, /accept="image\/png,image\/jpeg,image\/webp,application\/pdf"/);
+    }
+});

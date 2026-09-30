@@ -1724,7 +1724,7 @@ function FileField({ label, name }: { label: string; name: string }) {
                 id={name}
                 name={name}
                 type="file"
-                accept="image/png,image/jpeg,image/webp"
+                accept="image/png,image/jpeg,image/webp,application/pdf"
                 className="h-12 rounded-2xl border-slate-200 bg-slate-50 px-1.5 py-1.5 font-medium file:mr-3 file:h-9 file:rounded-xl file:border-0 file:bg-cyan-50 file:px-3 file:py-0 file:text-sm file:font-bold file:leading-9 file:text-cyan-800"
             />
         </div>

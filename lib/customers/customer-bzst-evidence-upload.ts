@@ -3,8 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
     getBzstVerificationTooLargeMessage,
     getDocumentUploadFailedMessage,
-    getUnsupportedImageAssetTypeMessage,
-    isAllowedImageAssetFile,
+    getUnsupportedDocumentTypeMessage,
+    isAllowedDocumentFile,
     maxBzstVerificationFileSizeBytes,
 } from "@/lib/documents/upload-validation";
 
@@ -66,8 +66,8 @@ function getFileExtension(fileName: string): string {
 
 export function validateCustomerBzstEvidenceFiles(formData: FormData): string | null {
     for (const { file, label } of getSubmittedEvidenceFiles(formData)) {
-        if (!isAllowedImageAssetFile(file)) {
-            return `${label}: ${getUnsupportedImageAssetTypeMessage()}`;
+        if (!isAllowedDocumentFile(file)) {
+            return `${label}: ${getUnsupportedDocumentTypeMessage()}`;
         }
 
         if (file.size > maxBzstVerificationFileSizeBytes) {
@@ -103,7 +103,9 @@ export async function uploadCustomerBzstEvidenceDocuments({
     }
 
     for (const { file, documentType, label } of submittedFiles) {
-        const originalFileName = sanitizeFileName(file.name) || `${label}.png`;
+        const fallbackExtension = file.type === "application/pdf" ? "pdf" : "png";
+        const originalFileName =
+            sanitizeFileName(file.name) || `${label}.${fallbackExtension}`;
         const filePath = `customers/${customerId}/${documentType}-${Date.now()}${getFileExtension(originalFileName)}`;
         const fileBuffer = Buffer.from(await file.arrayBuffer());
 
