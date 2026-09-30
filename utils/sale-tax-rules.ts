@@ -98,6 +98,18 @@ export function getSaleTaxConfiguration({
         };
     }
 
+    if (normalizedBuyerType === "private") {
+        return {
+            defaultVatRate: 19,
+            forceVatRate: false,
+            showVatId: false,
+            showTaxNumber: false,
+            showCommercialRegister: false,
+            vatIdLabel: "USt-ID",
+            hint: "Inlandsverkauf an eine Privatperson mit deutscher Umsatzsteuer.",
+        };
+    }
+
     return {
         defaultVatRate: 19,
         forceVatRate: false,

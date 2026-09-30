@@ -606,21 +606,6 @@ export function SaleForm({
                                         type="email"
                                     />
                                     <EmailLanguageField />
-                                    {newCustomerType === "private" ? (
-                                        <div className="space-y-2">
-                                            <FormField
-                                                label={getRequiredLabel(
-                                                    "Steuernummer",
-                                                    requiresNewCustomerTaxNumber,
-                                                )}
-                                                name="new_customer_tax_number"
-                                                required={requiresNewCustomerTaxNumber}
-                                            />
-                                            <CompanyTaxNumberCopyButton
-                                                taxNumber={companyTaxNumber}
-                                            />
-                                        </div>
-                                    ) : null}
                                     <FormField
                                         label="Telefon"
                                         name="new_customer_phone"

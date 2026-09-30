@@ -235,6 +235,16 @@ export async function updateSaleBuyerTaxDataAction(
         };
     }
 
+    if (customer.type !== "company") {
+        return {
+            success: false,
+            message:
+                "Für Privatpersonen werden im Verkaufsprozess keine Steuerdaten benötigt.",
+            taxNumber: null,
+            vatId: null,
+        };
+    }
+
     const { error } = await supabase
         .from("customers")
         .update({
@@ -377,7 +387,7 @@ async function createBuyerCustomerFromSaleForm(
         billingCountry: country,
     });
     const vatId = type === "company" && rawVatId ? normalizeVatId(rawVatId) : null;
-    const relevantTaxNumber = taxNumber;
+    const relevantTaxNumber = type === "company" ? taxNumber : null;
 
     if (!street || !postalCode || !city || !country) {
         return {
@@ -512,7 +522,10 @@ async function validateBuyerCustomerFromSaleForm(
     );
     const phone = getStringValue(formData, "new_customer_phone");
     const rawVatId = getStringValue(formData, "new_customer_vat_id");
-    const taxNumber = getStringValue(formData, "new_customer_tax_number");
+    const taxNumber =
+        type === "company"
+            ? getStringValue(formData, "new_customer_tax_number")
+            : null;
     const taxConfiguration = getSaleTaxConfiguration({
         buyerType: type,
         deliveryType: saleType,
