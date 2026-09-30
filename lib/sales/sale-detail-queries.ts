@@ -440,6 +440,107 @@ async function attachVehicleRegistrationDocument({
     };
 }
 
+// BZSt-Prüfnachweise werden beim Kunden gespeichert (customer_id, sale_id: null),
+// da die USt-ID-Prüfung fachlich einmalig pro Kunde gilt und nicht pro Verkauf.
+// Die "Erforderliche Dokumente"-Checkliste im Verkauf muss diese daher zusätzlich
+// zu den verkaufsgebundenen Dokumenten berücksichtigen, sonst werden bereits
+// vorhandene Nachweise fälschlich als fehlend angezeigt.
+const CUSTOMER_SCOPED_REQUIRED_DOCUMENT_TYPES = [
+    "bzst_vat_verification_primary",
+    "bzst_vat_verification_secondary",
+] as const;
+
+async function attachCustomerScopedRequiredDocuments({
+    sale,
+    companyId,
+}: {
+    sale: SaleDetail;
+    companyId: string;
+}): Promise<SaleDetail> {
+    const missingCustomerScopedDocuments = sale.required_documents.filter(
+        (requiredDocument) =>
+            !requiredDocument.isAvailable &&
+            CUSTOMER_SCOPED_REQUIRED_DOCUMENT_TYPES.includes(
+                requiredDocument.documentType as (typeof CUSTOMER_SCOPED_REQUIRED_DOCUMENT_TYPES)[number],
+            ),
+    );
+
+    if (missingCustomerScopedDocuments.length === 0) {
+        return sale;
+    }
+
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+        .from("documents")
+        .select(
+            "id, document_type, source, status, file_name, file_path, mime_type, file_size, created_at",
+        )
+        .eq("company_id", companyId)
+        .eq("customer_id", sale.customer.id)
+        .in("document_type", [...CUSTOMER_SCOPED_REQUIRED_DOCUMENT_TYPES])
+        .order("created_at", { ascending: false });
+
+    if (error) {
+        console.error(
+            "[sales] Kundenbezogene BZSt-Nachweise konnten nicht geladen werden",
+            error,
+        );
+        return sale;
+    }
+
+    const customerDocumentsByType = new Map<string, SaleDetailDocument>();
+    for (const document of (data ?? []) as SaleDetailDocument[]) {
+        if (
+            document.status !== "available" &&
+            !(document.status === "needs_review" && document.source === "generated")
+        ) {
+            continue;
+        }
+        if (!customerDocumentsByType.has(document.document_type)) {
+            customerDocumentsByType.set(document.document_type, document);
+        }
+    }
+
+    if (customerDocumentsByType.size === 0) {
+        return sale;
+    }
+
+    let availableRequiredDocumentsCount = sale.available_required_documents_count;
+    const missingRequiredLabels: string[] = [];
+
+    const requiredDocuments = sale.required_documents.map((requiredDocument) => {
+        if (requiredDocument.isAvailable) {
+            return requiredDocument;
+        }
+
+        const matchingDocument = customerDocumentsByType.get(
+            requiredDocument.documentType,
+        );
+
+        if (!matchingDocument) {
+            missingRequiredLabels.push(requiredDocument.label);
+            return requiredDocument;
+        }
+
+        availableRequiredDocumentsCount += 1;
+
+        return {
+            ...requiredDocument,
+            isAvailable: true,
+            document: matchingDocument,
+        };
+    });
+
+    return {
+        ...sale,
+        required_documents: requiredDocuments,
+        available_required_documents_count: availableRequiredDocumentsCount,
+        missing_required_documents_count:
+            requiredDocuments.length - availableRequiredDocumentsCount,
+        missing_required_labels: missingRequiredLabels,
+    };
+}
+
 function getCustomerName(customer: SaleDetailQueryRow["customers"]): string {
     if (!customer) return "Unbekannter Kunde";
 
@@ -788,16 +889,26 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
             notFound();
         }
 
-        return attachVehicleRegistrationDocument({
+        const saleWithVehicleDocument = await attachVehicleRegistrationDocument({
             sale: buildSaleDetail(
                 mapLegacySaleDetailRow(fallbackData as unknown as LegacySaleDetailQueryRow),
             ),
             companyId,
         });
+
+        return attachCustomerScopedRequiredDocuments({
+            sale: saleWithVehicleDocument,
+            companyId,
+        });
     }
 
-    return attachVehicleRegistrationDocument({
+    const saleWithVehicleDocument = await attachVehicleRegistrationDocument({
         sale: buildSaleDetail(data as unknown as SaleDetailQueryRow),
+        companyId,
+    });
+
+    return attachCustomerScopedRequiredDocuments({
+        sale: saleWithVehicleDocument,
         companyId,
     });
 }

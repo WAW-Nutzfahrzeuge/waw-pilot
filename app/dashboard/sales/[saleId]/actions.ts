@@ -171,14 +171,24 @@ export async function uploadSaleDocumentAction(formData: FormData) {
     let existingDocument: ExistingDocumentQueryResult | null = null;
 
     if (existingDocumentId) {
+        // BZSt-Prüfnachweise können auch beim Kunden hinterlegt sein (sale_id: null),
+        // da die USt-ID-Prüfung einmalig pro Kunde erfolgt. Die Verkaufsakte zeigt
+        // solche Nachweise ebenfalls als vorhanden an, daher muss "Ersetzen" auch
+        // kundengebundene Dokumente dieses Kunden finden, nicht nur verkaufsgebundene.
+        let existingDocumentQuery = supabase
+            .from("documents")
+            .select("id, file_path")
+            .eq("id", existingDocumentId)
+            .eq("company_id", companyId);
+
+        existingDocumentQuery = isBzstVerificationDocument(documentType)
+            ? existingDocumentQuery.or(
+                  `sale_id.eq.${saleId},and(sale_id.is.null,customer_id.eq.${sale.buyer_customer_id})`,
+              )
+            : existingDocumentQuery.eq("sale_id", saleId);
+
         const { data: existingDocumentData, error: existingDocumentError } =
-            await supabase
-                .from("documents")
-                .select("id, file_path")
-                .eq("id", existingDocumentId)
-                .eq("company_id", companyId)
-                .eq("sale_id", saleId)
-                .single();
+            await existingDocumentQuery.single();
 
         if (existingDocumentError || !existingDocumentData) {
             throw new Error(
