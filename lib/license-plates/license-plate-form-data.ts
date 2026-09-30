@@ -22,6 +22,15 @@ export type LicensePlateFormCustomer = {
 export type LicensePlateFormSale = {
     id: string;
     label: string;
+    vehicle: {
+        id: string;
+        label: string;
+        vin: string;
+    } | null;
+    customer: {
+        id: string;
+        label: string;
+    } | null;
 };
 
 type VehicleRow = {
@@ -47,13 +56,19 @@ type CustomerRow = {
 
 type SaleRow = {
     id: string;
+    sale_number: string | null;
     sale_date: string;
+    vehicle_id: string;
+    buyer_customer_id: string;
     vehicles: {
+        id: string;
         internal_number: string;
         manufacturer: string;
         model: string;
+        vin: string;
     } | null;
     customers: {
+        id: string;
         type: "company" | "private";
         company_name: string | null;
         first_name: string | null;
@@ -105,13 +120,19 @@ export async function getLicensePlateFormData(): Promise<LicensePlateFormData> {
                 .select(
                     `
                     id,
+                    sale_number,
                     sale_date,
+                    vehicle_id,
+                    buyer_customer_id,
                     vehicles (
+                        id,
                         internal_number,
                         manufacturer,
-                        model
+                        model,
+                        vin
                     ),
                     customers:buyer_customer_id (
+                        id,
                         type,
                         company_name,
                         first_name,
@@ -162,7 +183,20 @@ export async function getLicensePlateFormData(): Promise<LicensePlateFormData> {
 
         return {
             id: sale.id,
-            label: `${vehicleLabel} · ${customerLabel} · ${sale.sale_date}`,
+            label: `${sale.sale_number ?? "Verkauf"} · ${vehicleLabel} · ${customerLabel} · ${sale.sale_date}`,
+            vehicle: sale.vehicles
+                ? {
+                    id: sale.vehicle_id,
+                    label: vehicleLabel,
+                    vin: sale.vehicles.vin,
+                }
+                : null,
+            customer: sale.customers
+                ? {
+                    id: sale.buyer_customer_id,
+                    label: customerLabel,
+                }
+                : null,
         };
     });
 

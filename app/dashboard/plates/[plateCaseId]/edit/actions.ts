@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import { toDateOnlyString } from "@/lib/format/date";
+import { resolveLicensePlateCaseReference } from "@/lib/license-plates/license-plate-reference";
 import type { LicensePlateType } from "@/lib/license-plates/license-plate-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -76,20 +77,6 @@ export async function updateLicensePlateCaseAction(
         };
     }
 
-    if (!vehicleId) {
-        return {
-            success: false,
-            message: "Bitte wähle ein Fahrzeug aus.",
-        };
-    }
-
-    if (!customerId) {
-        return {
-            success: false,
-            message: "Bitte wähle einen Kunden aus.",
-        };
-    }
-
     if (!requestedAt) {
         return {
             success: false,
@@ -111,12 +98,31 @@ export async function updateLicensePlateCaseAction(
             ? addDays(validFrom, durationDays - 1)
             : null;
 
+    let reference;
+    try {
+        reference = await resolveLicensePlateCaseReference({
+            supabase,
+            companyId,
+            saleId,
+            vehicleId,
+            customerId,
+        });
+    } catch (error) {
+        return {
+            success: false,
+            message:
+                error instanceof Error
+                    ? error.message
+                    : "Der Bezug für den Kennzeichen-Vorgang ist ungültig.",
+        };
+    }
+
     const { error } = await supabase
         .from("license_plate_cases")
         .update({
-            vehicle_id: vehicleId,
-            customer_id: customerId,
-            sale_id: saleId,
+            vehicle_id: reference.vehicleId,
+            customer_id: reference.customerId,
+            sale_id: reference.saleId,
             plate_type: plateType,
             duration_days: plateType === "short_term" ? durationDays : null,
             requested_at: requestedAt,

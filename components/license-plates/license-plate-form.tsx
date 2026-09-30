@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import {
     ArrowLeft,
     BadgeCheck,
@@ -10,11 +10,15 @@ import {
     FileText,
     Save,
     Truck,
+    UserRound,
 } from "lucide-react";
 
 import { createLicensePlateCaseAction } from "@/app/dashboard/plates/new/actions";
 import { updateLicensePlateCaseAction } from "@/app/dashboard/plates/[plateCaseId]/edit/actions";
-import type { LicensePlateFormData } from "@/lib/license-plates/license-plate-form-data";
+import {
+    type LicensePlateFormData,
+} from "@/lib/license-plates/license-plate-form-data";
+import { getSelectedLicensePlateFormSale } from "@/lib/license-plates/license-plate-sale-selection";
 import type { LicensePlateType } from "@/lib/license-plates/license-plate-queries";
 import { getTodayDateOnly } from "@/lib/format/date";
 import {
@@ -74,6 +78,19 @@ export function LicensePlateForm({
 
     const [plateType, setPlateType] = useState<LicensePlateType>(
         initialValues?.plate_type ?? "short_term",
+    );
+    const [selectedSaleId, setSelectedSaleId] = useState(
+        initialValues?.sale_id ?? "",
+    );
+    const [manualVehicleId, setManualVehicleId] = useState(
+        initialValues?.sale_id ? "" : initialValues?.vehicle_id ?? "",
+    );
+    const [manualCustomerId, setManualCustomerId] = useState(
+        initialValues?.sale_id ? "" : initialValues?.customer_id ?? "",
+    );
+    const selectedSale = useMemo(
+        () => getSelectedLicensePlateFormSale(formData.sales, selectedSaleId),
+        [formData.sales, selectedSaleId],
     );
 
     const today = getTodayDateOnly();
@@ -214,35 +231,48 @@ export function LicensePlateForm({
                         <SectionTitle
                             icon={Truck}
                             title="Bezug"
-                            description="Verknüpfe den Vorgang mit Fahrzeug und Kunde. Verkauf ist optional."
+                            description="Ein ausgewählter Verkauf übernimmt Fahrzeug und Käufer automatisch. Ohne Verkauf kannst du beides manuell wählen."
                         />
 
-                        <div className="grid gap-4 md:grid-cols-3">
+                        <div className="space-y-4">
                             <SelectField
                                 label="Verkauf"
                                 name="sale_id"
                                 placeholder="Kein Verkauf"
                                 options={formData.sales}
-                                defaultValue={initialValues?.sale_id ?? ""}
+                                value={selectedSaleId}
+                                onChange={setSelectedSaleId}
                             />
-                            <SelectField
-                                label="Fahrzeug *"
-                                name="vehicle_id"
-                                placeholder="Fahrzeug auswählen"
-                                options={formData.vehicles}
-                                defaultValue={initialValues?.vehicle_id ?? ""}
-                                required
-                            />
-                            <div className="md:col-span-3">
-                                <CustomerCombobox
-                                    customers={formData.customers}
-                                    name="customer_id"
-                                    label="Kunde *"
-                                    value={initialValues?.customer_id ?? ""}
-                                    required
-                                    placeholder="Kunde nach Name, Firma, E-Mail oder Ort suchen..."
-                                />
-                            </div>
+
+                            {selectedSale ? (
+                                <SaleReferenceSummary sale={selectedSale} />
+                            ) : selectedSaleId ? (
+                                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold leading-6 text-amber-900">
+                                    Der ausgewählte Verkauf ist nicht mehr verfügbar. Bitte wähle einen anderen Verkauf oder entferne die Auswahl.
+                                </div>
+                            ) : (
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <SelectField
+                                        label="Fahrzeug *"
+                                        name="vehicle_id"
+                                        placeholder="Fahrzeug auswählen"
+                                        options={formData.vehicles}
+                                        value={manualVehicleId}
+                                        onChange={setManualVehicleId}
+                                        required
+                                    />
+                                    <CustomerCombobox
+                                        key={`manual-customer-${selectedSaleId}`}
+                                        customers={formData.customers}
+                                        name="customer_id"
+                                        label="Kunde *"
+                                        value={manualCustomerId}
+                                        required
+                                        placeholder="Kunde nach Name, Firma, E-Mail oder Ort suchen..."
+                                        onChange={setManualCustomerId}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -439,7 +469,9 @@ function SelectField({
                          name,
                          placeholder,
                          options,
-                         defaultValue = "",
+                         defaultValue,
+                         value,
+                         onChange,
                          required = false,
                      }: {
     label: string;
@@ -447,6 +479,8 @@ function SelectField({
     placeholder: string;
     options: { id: string; label: string }[];
     defaultValue?: string;
+    value?: string;
+    onChange?: (value: string) => void;
     required?: boolean;
 }) {
     return (
@@ -458,7 +492,9 @@ function SelectField({
                 id={name}
                 name={name}
                 required={required}
-                defaultValue={defaultValue}
+                defaultValue={value === undefined ? defaultValue : undefined}
+                value={value}
+                onChange={(event) => onChange?.(event.target.value)}
                 className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
             >
                 <option value="">{placeholder}</option>
@@ -468,6 +504,57 @@ function SelectField({
                     </option>
                 ))}
             </select>
+        </div>
+    );
+}
+
+function SaleReferenceSummary({
+    sale,
+}: {
+    sale: LicensePlateFormData["sales"][number];
+}) {
+    const canDeriveReference = Boolean(sale.vehicle && sale.customer);
+
+    return (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <input type="hidden" name="vehicle_id" value={sale.vehicle?.id ?? ""} />
+            <input type="hidden" name="customer_id" value={sale.customer?.id ?? ""} />
+
+            <div className="flex items-start gap-3">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white text-emerald-700">
+                    <BadgeCheck className="size-5" />
+                </div>
+                <div className="min-w-0">
+                    <p className="font-extrabold text-emerald-950">Aus Verkauf übernommen</p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-emerald-800">
+                        Fahrzeug und Käufer sind an diesen Verkauf gebunden und können nicht separat geändert werden.
+                    </p>
+                </div>
+            </div>
+
+            {canDeriveReference ? (
+                <div className="mt-4 grid gap-3 border-t border-emerald-200/80 pt-4 md:grid-cols-2">
+                    <div className="flex min-w-0 gap-3">
+                        <Truck className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Fahrzeug</p>
+                            <p className="mt-1 truncate text-sm font-extrabold text-slate-950">{sale.vehicle?.label}</p>
+                            <p className="mt-1 break-all font-mono text-xs font-semibold text-slate-600">VIN: {sale.vehicle?.vin}</p>
+                        </div>
+                    </div>
+                    <div className="flex min-w-0 gap-3">
+                        <UserRound className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+                        <div className="min-w-0">
+                            <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Käufer</p>
+                            <p className="mt-1 truncate text-sm font-extrabold text-slate-950">{sale.customer?.label}</p>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <p className="mt-4 rounded-xl bg-white/80 px-3 py-2 text-sm font-semibold text-amber-900">
+                    Für diesen Verkauf fehlen Fahrzeug oder Käufer. Der Vorgang kann erst gespeichert werden, wenn der Verkauf vollständig ist.
+                </p>
+            )}
         </div>
     );
 }
