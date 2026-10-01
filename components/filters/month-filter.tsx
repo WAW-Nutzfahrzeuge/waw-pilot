@@ -14,12 +14,14 @@ export function MonthFilter({
     value,
     onChange,
     updateUrl = false,
+    defaultValue = "current",
 }: {
     name?: string;
     label?: string;
     value: string;
     onChange?: (value: string) => void;
     updateUrl?: boolean;
+    defaultValue?: string;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -31,7 +33,7 @@ export function MonthFilter({
         if (!updateUrl) return;
 
         const params = new URLSearchParams(searchParams.toString());
-        if (normalizeMonthFilter(nextValue) === "current") {
+        if (normalizeMonthFilter(nextValue) === normalizeMonthFilter(defaultValue)) {
             params.delete(name);
         } else {
             params.set(name, nextValue);

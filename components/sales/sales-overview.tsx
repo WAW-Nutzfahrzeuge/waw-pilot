@@ -68,7 +68,7 @@ export function SalesOverview({
         getInitialPaymentFilter(initialPaymentStatus),
     );
     const [monthFilter, setMonthFilter] = useState(() =>
-        normalizeMonthFilter(initialMonthFilter),
+        normalizeMonthFilter(initialMonthFilter ?? "all"),
     );
     const saleSearchIndex = useMemo(() => {
         const index = new Map<string, string>();
@@ -230,6 +230,7 @@ export function SalesOverview({
                                     value={monthFilter}
                                     onChange={(value) => setMonthFilter(normalizeMonthFilter(value))}
                                     updateUrl
+                                    defaultValue="all"
                                 />
                                 <div className="relative w-full">
                                     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
