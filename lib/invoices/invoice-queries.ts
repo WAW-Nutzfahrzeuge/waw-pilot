@@ -9,6 +9,7 @@ import {
     getMonthFilterDateRange,
     type MonthFilterValue,
 } from "@/utils/month-filter";
+import { compareInvoiceNumbersAscending } from "@/lib/invoices/invoice-number-sort";
 
 export type InvoiceStatus =
     | "draft"
@@ -130,18 +131,6 @@ function getInvoiceFileName(
     });
 }
 
-function getInvoiceSortWeight(invoiceType: InvoiceType): number {
-    const weights: Record<InvoiceType, number> = {
-        standard: 1,
-        proforma: 2,
-        down_payment: 3,
-        cancellation_invoice: 4,
-        credit_note: 5,
-    };
-
-    return weights[invoiceType];
-}
-
 export async function getInvoices(): Promise<InvoiceRow[]> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -242,12 +231,14 @@ export async function getInvoices(): Promise<InvoiceRow[]> {
             };
         })
         .sort((a, b) => {
-            const dateSort =
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            const invoiceNumberSort = compareInvoiceNumbersAscending(
+                a.invoice_number,
+                b.invoice_number,
+            );
 
-            if (dateSort !== 0) return dateSort;
+            if (invoiceNumberSort !== 0) return invoiceNumberSort;
 
-            return getInvoiceSortWeight(a.invoice_type) - getInvoiceSortWeight(b.invoice_type);
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
 }
 
