@@ -66,13 +66,136 @@ export function getEmailLanguageLabel(
     );
 }
 
-function normalizeCountryText(value: string | null | undefined): string {
-    return (value ?? "")
-        .trim()
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z]/g, "");
+const COUNTRY_EMAIL_LANGUAGES: Partial<Record<string, EmailLanguage>> = {
+    AL: "sq",
+    AD: "ca",
+    AT: "de",
+    BA: "bs",
+    BE: "nl",
+    BG: "bg",
+    BY: "be",
+    CH: "de",
+    CY: "el",
+    CZ: "cs",
+    DE: "de",
+    DK: "da",
+    EE: "et",
+    ES: "es",
+    FI: "fi",
+    FR: "fr",
+    GB: "en",
+    GR: "el",
+    HR: "hr",
+    HU: "hu",
+    IE: "ga",
+    IS: "is",
+    IT: "it",
+    LI: "de",
+    LT: "lt",
+    LU: "lb",
+    LV: "lv",
+    MC: "fr",
+    MD: "ro",
+    ME: "sr",
+    MK: "mk",
+    MT: "mt",
+    NL: "nl",
+    NO: "no",
+    PL: "pl",
+    PT: "pt",
+    RO: "ro",
+    RS: "sr",
+    RU: "ru",
+    SE: "sv",
+    SI: "sl",
+    SK: "sk",
+    SM: "it",
+    TR: "tr",
+    UA: "uk",
+    VA: "it",
+    XK: "sq",
+    // French is the principal business language in these countries.
+    BF: "fr",
+    BJ: "fr",
+    CD: "fr",
+    CF: "fr",
+    CG: "fr",
+    CI: "fr",
+    DJ: "fr",
+    GA: "fr",
+    GN: "fr",
+    MG: "fr",
+    ML: "fr",
+    NE: "fr",
+    RW: "fr",
+    SN: "fr",
+    TG: "fr",
+    // Portuguese is the principal business language in these countries.
+    AO: "pt",
+    BR: "pt",
+    CV: "pt",
+    GW: "pt",
+    MZ: "pt",
+    ST: "pt",
+    TL: "pt",
+    // Spanish is the principal business language in these countries.
+    AR: "es",
+    BO: "es",
+    CL: "es",
+    CO: "es",
+    CR: "es",
+    CU: "es",
+    DO: "es",
+    EC: "es",
+    GQ: "es",
+    GT: "es",
+    HN: "es",
+    MX: "es",
+    NI: "es",
+    PA: "es",
+    PE: "es",
+    PR: "es",
+    PY: "es",
+    SV: "es",
+    UY: "es",
+    VE: "es",
+    // Arabic is the principal business language in these countries.
+    AE: "ar",
+    BH: "ar",
+    DZ: "ar",
+    EG: "ar",
+    IQ: "ar",
+    JO: "ar",
+    KW: "ar",
+    LB: "ar",
+    LY: "ar",
+    MA: "ar",
+    OM: "ar",
+    PS: "ar",
+    QA: "ar",
+    SA: "ar",
+    SY: "ar",
+    TN: "ar",
+    YE: "ar",
+};
+
+/**
+ * Returns the appropriate supported mail language for a selected customer country.
+ * Countries without a supported local-language template deliberately fall back to English.
+ */
+export function getEmailLanguageForCountry({
+    countryCode,
+    country,
+}: {
+    countryCode?: string | null;
+    country?: string | null;
+}): EmailLanguage {
+    const normalizedCountryCode =
+        countryCode?.trim().toUpperCase() ?? getCustomerCountryCode(country);
+
+    if (!normalizedCountryCode) return "en";
+
+    return COUNTRY_EMAIL_LANGUAGES[normalizedCountryCode] ?? "en";
 }
 
 export function getSuggestedEmailLanguage({
@@ -94,34 +217,6 @@ export function getSuggestedEmailLanguage({
         return preferredLanguage as EmailLanguage;
     }
 
-    const normalizedCountryCode = countryCode?.trim().toLowerCase();
-    const normalizedCountry = normalizeCountryText(country);
-
-    if (
-        normalizedCountryCode === "de" ||
-        normalizedCountryCode === "at" ||
-        normalizedCountryCode === "ch" ||
-        normalizedCountry === "deutschland" ||
-        normalizedCountry === "germany" ||
-        normalizedCountry === "osterreich" ||
-        normalizedCountry === "austria" ||
-        normalizedCountry === "schweiz" ||
-        normalizedCountry === "switzerland"
-    ) {
-        return "de";
-    }
-
-    if (normalizedCountryCode === "pl" || normalizedCountry === "polen" || normalizedCountry === "poland") {
-        return "pl";
-    }
-
-    if (
-        normalizedCountryCode === "bg" ||
-        normalizedCountry === "bulgarien" ||
-        normalizedCountry === "bulgaria"
-    ) {
-        return "bg";
-    }
-
-    return "en";
+    return getEmailLanguageForCountry({ countryCode, country });
 }
+import { getCustomerCountryCode } from "@/lib/countries/country-options";

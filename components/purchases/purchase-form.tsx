@@ -27,7 +27,11 @@ import { updatePurchaseCaseAction } from "@/app/dashboard/ankauf/[purchaseId]/ed
 import type { PurchaseFormData } from "@/lib/purchases/purchase-form-data";
 import type { PurchaseCasePaymentStatus } from "@/lib/purchases/purchase-queries";
 import { CountryCombobox } from "@/components/customers/country-combobox";
-import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    EMAIL_LANGUAGE_OPTIONS,
+    getEmailLanguageForCountry,
+    type EmailLanguage,
+} from "@/lib/customers/email-languages";
 import {
     getPurchaseCreateUploadTooLargeMessage,
     getUnsupportedVehicleDocumentTypeMessage,
@@ -90,6 +94,9 @@ export function PurchaseForm({
     const [sellerMode, setSellerMode] = useState<SelectionMode>("existing");
     const [sellerType, setSellerType] = useState<"company" | "private">("company");
     const [newSellerVatId, setNewSellerVatId] = useState("");
+    const [newSellerCountry, setNewSellerCountry] = useState("");
+    const [newSellerPreferredLanguage, setNewSellerPreferredLanguage] =
+        useState<EmailLanguage>("de");
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
@@ -343,6 +350,15 @@ export function PurchaseForm({
                                 }}
                                 vatId={newSellerVatId}
                                 onVatIdChange={setNewSellerVatId}
+                                country={newSellerCountry}
+                                onCountryChange={(nextCountry) => {
+                                    setNewSellerCountry(nextCountry);
+                                    setNewSellerPreferredLanguage(
+                                        getEmailLanguageForCountry({ country: nextCountry }),
+                                    );
+                                }}
+                                preferredLanguage={newSellerPreferredLanguage}
+                                onPreferredLanguageChange={setNewSellerPreferredLanguage}
                             />
                         )}
                     </CardContent>
@@ -548,11 +564,19 @@ function SellerCreateFields({
     onSellerTypeChange,
     vatId,
     onVatIdChange,
+    country,
+    onCountryChange,
+    preferredLanguage,
+    onPreferredLanguageChange,
 }: {
     sellerType: "company" | "private";
     onSellerTypeChange: (type: "company" | "private") => void;
     vatId: string;
     onVatIdChange: (value: string) => void;
+    country: string;
+    onCountryChange: (value: string) => void;
+    preferredLanguage: EmailLanguage;
+    onPreferredLanguageChange: (value: EmailLanguage) => void;
 }) {
     return (
         <div className="space-y-5 rounded-[1.75rem] border border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
@@ -589,6 +613,8 @@ function SellerCreateFields({
                 <FormField label="Ort *" name="new_seller_city" required />
                 <CountryCombobox
                     name="new_seller_country"
+                    value={country}
+                    onValueChange={onCountryChange}
                     required
                 />
                 <FormField label="E-Mail" name="new_seller_email" type="email" />
@@ -600,7 +626,10 @@ function SellerCreateFields({
                     <select
                         id="new_seller_preferred_language"
                         name="new_seller_preferred_language"
-                        defaultValue="de"
+                        value={preferredLanguage}
+                        onChange={(event) =>
+                            onPreferredLanguageChange(event.target.value as EmailLanguage)
+                        }
                         className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
                     >
                         {EMAIL_LANGUAGE_OPTIONS.map((option) => (

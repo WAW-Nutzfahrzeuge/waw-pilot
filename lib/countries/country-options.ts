@@ -36,10 +36,12 @@ export const COUNTRY_OPTIONS: CountryOption[] = COUNTRY_CODES.map((code) => {
 }).sort((first, second) => first.label.localeCompare(second.label, "de"));
 
 const countryByNormalizedName = new Map<string, string>();
+const countryCodeByNormalizedName = new Map<string, string>();
 
 for (const country of COUNTRY_OPTIONS) {
     for (const name of [country.value, ...country.keywords]) {
         countryByNormalizedName.set(normalizeCountrySearchValue(name), country.value);
+        countryCodeByNormalizedName.set(normalizeCountrySearchValue(name), country.keywords[0]);
     }
 }
 
@@ -53,6 +55,15 @@ export function normalizeCustomerCountry(value: string | null | undefined): stri
     if (!normalizedValue) return null;
 
     return countryByNormalizedName.get(normalizedValue) ?? null;
+}
+
+/** Resolves a country selection or legacy country name to its ISO 3166-1 alpha-2 code. */
+export function getCustomerCountryCode(value: string | null | undefined): string | null {
+    const normalizedValue = normalizeCountrySearchValue(value ?? "");
+
+    if (!normalizedValue) return null;
+
+    return countryCodeByNormalizedName.get(normalizedValue) ?? null;
 }
 
 function normalizeCountrySearchValue(value: string): string {

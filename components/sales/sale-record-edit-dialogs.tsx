@@ -1,13 +1,19 @@
 "use client";
 
 import { Edit3 } from "lucide-react";
+import { useState } from "react";
 
 import {
     updateSaleCustomerAction,
     updateSaleVehicleAction,
 } from "@/app/dashboard/sales/[saleId]/record-actions";
 import type { SaleDetail } from "@/lib/sales/sale-detail-queries";
-import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    EMAIL_LANGUAGE_OPTIONS,
+    getEmailLanguageForCountry,
+    normalizeEmailLanguage,
+    type EmailLanguage,
+} from "@/lib/customers/email-languages";
 import { phoneInputPattern, sanitizePhoneInput } from "@/lib/validation/phone";
 import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/dialogs/form-dialog";
@@ -31,6 +37,11 @@ export function SaleCustomerEditDialog({
     saleId,
     customer,
 }: SaleCustomerEditDialogProps) {
+    const [country, setCountry] = useState(customer.country ?? "");
+    const [preferredLanguage, setPreferredLanguage] = useState<EmailLanguage>(
+        normalizeEmailLanguage(customer.preferred_language),
+    );
+
     return (
         <FormDialog
             trigger={
@@ -89,7 +100,10 @@ export function SaleCustomerEditDialog({
                             <select
                                 id="preferred_language"
                                 name="preferred_language"
-                                defaultValue={customer.preferred_language}
+                                value={preferredLanguage}
+                                onChange={(event) =>
+                                    setPreferredLanguage(event.target.value as EmailLanguage)
+                                }
                                 className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 font-medium text-slate-900 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
                             >
                                 {EMAIL_LANGUAGE_OPTIONS.map((option) => (
@@ -132,7 +146,16 @@ export function SaleCustomerEditDialog({
                             required
                             defaultValue={customer.city ?? ""}
                         />
-                        <CountryCombobox defaultValue={customer.country} required />
+                        <CountryCombobox
+                            value={country}
+                            onValueChange={(nextCountry) => {
+                                setCountry(nextCountry);
+                                setPreferredLanguage(
+                                    getEmailLanguageForCountry({ country: nextCountry }),
+                                );
+                            }}
+                            required
+                        />
                         <FormField
                             label="USt-ID | VAT | NIP"
                             name="vat_id"

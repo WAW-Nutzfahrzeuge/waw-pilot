@@ -11,7 +11,11 @@ import {
 import { Save } from "lucide-react";
 
 import { createCustomerAction } from "@/app/dashboard/customers/new/actions";
-import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    EMAIL_LANGUAGE_OPTIONS,
+    getEmailLanguageForCountry,
+    type EmailLanguage,
+} from "@/lib/customers/email-languages";
 import {
     captureFormSnapshot,
     restoreFormSnapshot,
@@ -42,6 +46,8 @@ export function CustomerForm() {
     );
     const [customerType, setCustomerType] = useState<PersonType>("company");
     const [vatId, setVatId] = useState("");
+    const [country, setCountry] = useState("");
+    const [preferredLanguage, setPreferredLanguage] = useState<EmailLanguage>("de");
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
@@ -141,7 +147,10 @@ export function CustomerForm() {
                                 </>
                             )}
                             <FormField label="E-Mail" name="email" type="email" />
-                            <EmailLanguageField defaultValue="de" />
+                            <EmailLanguageField
+                                value={preferredLanguage}
+                                onChange={setPreferredLanguage}
+                            />
                             {customerType === "private" ? (
                                 <FormField label="Steuernummer" name="tax_number" />
                             ) : null}
@@ -176,7 +185,16 @@ export function CustomerForm() {
                             <FormField label="Straße und Hausnummer *" name="street" required />
                             <FormField label="PLZ *" name="postal_code" required />
                             <FormField label="Ort *" name="city" required />
-                            <CountryCombobox required />
+                            <CountryCombobox
+                                value={country}
+                                onValueChange={(nextCountry) => {
+                                    setCountry(nextCountry);
+                                    setPreferredLanguage(
+                                        getEmailLanguageForCountry({ country: nextCountry }),
+                                    );
+                                }}
+                                required
+                            />
                         </div>
                     </CardContent>
                 </Card>
@@ -260,7 +278,13 @@ export function CustomerForm() {
     );
 }
 
-function EmailLanguageField({ defaultValue = "de" }: { defaultValue?: string }) {
+function EmailLanguageField({
+    value,
+    onChange,
+}: {
+    value: EmailLanguage;
+    onChange: (value: EmailLanguage) => void;
+}) {
     return (
         <div className="space-y-2">
             <Label
@@ -272,7 +296,8 @@ function EmailLanguageField({ defaultValue = "de" }: { defaultValue?: string }) 
             <select
                 id="preferred_language"
                 name="preferred_language"
-                defaultValue={defaultValue}
+                value={value}
+                onChange={(event) => onChange(event.target.value as EmailLanguage)}
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 font-medium text-slate-900 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
             >
                 {EMAIL_LANGUAGE_OPTIONS.map((option) => (

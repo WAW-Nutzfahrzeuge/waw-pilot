@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useState } from "react";
 import {
     ArrowLeft,
     ArrowUpRight,
@@ -16,7 +17,10 @@ import {
 import type { CustomerDetail as CustomerDetailType } from "@/lib/customers/customer-detail-queries";
 import {
     EMAIL_LANGUAGE_OPTIONS,
+    getEmailLanguageForCountry,
     getEmailLanguageLabel,
+    normalizeEmailLanguage,
+    type EmailLanguage,
 } from "@/lib/customers/email-languages";
 import { formatCurrency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/date";
@@ -515,6 +519,11 @@ function CustomerMasterDataEditDialog({
                                       }: {
     customer: CustomerDetailType;
 }) {
+    const [country, setCountry] = useState(customer.country ?? "");
+    const [preferredLanguage, setPreferredLanguage] = useState<EmailLanguage>(
+        normalizeEmailLanguage(customer.preferred_language),
+    );
+
     return (
         <FormDialog
             trigger={
@@ -581,7 +590,16 @@ function CustomerMasterDataEditDialog({
                     defaultValue={customer.city ?? ""}
                     placeholder="z. B. Hamburg"
                 />
-                <CountryCombobox defaultValue={customer.country} required />
+                <CountryCombobox
+                    value={country}
+                    onValueChange={(nextCountry) => {
+                        setCountry(nextCountry);
+                        setPreferredLanguage(
+                            getEmailLanguageForCountry({ country: nextCountry }),
+                        );
+                    }}
+                    required
+                />
                 <CustomerFormField
                     label="E-Mail"
                     name="email"
@@ -589,7 +607,10 @@ function CustomerMasterDataEditDialog({
                     defaultValue={customer.email ?? ""}
                     placeholder="kunde@example.com"
                 />
-                <EmailLanguageSelect defaultValue={customer.preferred_language} />
+                <EmailLanguageSelect
+                    value={preferredLanguage}
+                    onChange={setPreferredLanguage}
+                />
                 <CustomerFormField
                     label="Telefon"
                     name="phone"
@@ -701,7 +722,13 @@ function CustomerFormField({
     );
 }
 
-function EmailLanguageSelect({ defaultValue }: { defaultValue: string }) {
+function EmailLanguageSelect({
+    value,
+    onChange,
+}: {
+    value: EmailLanguage;
+    onChange: (value: EmailLanguage) => void;
+}) {
     return (
         <div className="space-y-2">
             <Label
@@ -713,7 +740,8 @@ function EmailLanguageSelect({ defaultValue }: { defaultValue: string }) {
             <select
                 id="preferred_language"
                 name="preferred_language"
-                defaultValue={defaultValue || "de"}
+                value={value}
+                onChange={(event) => onChange(event.target.value as EmailLanguage)}
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 font-semibold text-slate-900 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
             >
                 {EMAIL_LANGUAGE_OPTIONS.map((option) => (

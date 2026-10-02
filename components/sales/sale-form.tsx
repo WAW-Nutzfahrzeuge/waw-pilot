@@ -25,7 +25,11 @@ import {
     updateSaleBuyerTaxDataAction,
 } from "@/app/dashboard/sales/new/actions";
 import type { CustomerRow } from "@/lib/customers/customer-queries";
-import { EMAIL_LANGUAGE_OPTIONS } from "@/lib/customers/email-languages";
+import {
+    EMAIL_LANGUAGE_OPTIONS,
+    getEmailLanguageForCountry,
+    type EmailLanguage,
+} from "@/lib/customers/email-languages";
 import {
     getAllowedArrivalPeriods,
     getArrivalYearOptions,
@@ -121,6 +125,8 @@ export function SaleForm({
     const [newCustomerVatId, setNewCustomerVatId] = useState("");
     const [newCustomerCity, setNewCustomerCity] = useState("");
     const [newCustomerCountry, setNewCustomerCountry] = useState("");
+    const [newCustomerPreferredLanguage, setNewCustomerPreferredLanguage] =
+        useState<EmailLanguage>("de");
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
 
     const today = getTodayDateOnly();
@@ -289,6 +295,7 @@ export function SaleForm({
 
     function handleNewCustomerCountryChange(value: string) {
         setNewCustomerCountry(value);
+        setNewCustomerPreferredLanguage(getEmailLanguageForCountry({ country: value }));
 
         if (buyerMode === "new" && saleType === "eu") {
             applyDestinationAddress(newCustomerCity, value);
@@ -605,7 +612,10 @@ export function SaleForm({
                                         name="new_customer_email"
                                         type="email"
                                     />
-                                    <EmailLanguageField />
+                                    <EmailLanguageField
+                                        value={newCustomerPreferredLanguage}
+                                        onChange={setNewCustomerPreferredLanguage}
+                                    />
                                     <FormField
                                         label="Telefon"
                                         name="new_customer_phone"
@@ -1616,7 +1626,13 @@ function AmountPreview({ label, value }: { label: string; value: number }) {
     );
 }
 
-function EmailLanguageField() {
+function EmailLanguageField({
+    value,
+    onChange,
+}: {
+    value: EmailLanguage;
+    onChange: (value: EmailLanguage) => void;
+}) {
     return (
         <div className="space-y-2">
             <Label
@@ -1628,7 +1644,8 @@ function EmailLanguageField() {
             <select
                 id="new_customer_preferred_language"
                 name="new_customer_preferred_language"
-                defaultValue="de"
+                value={value}
+                onChange={(event) => onChange(event.target.value as EmailLanguage)}
                 className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 font-medium text-slate-900 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
             >
                 {EMAIL_LANGUAGE_OPTIONS.map((option) => (
