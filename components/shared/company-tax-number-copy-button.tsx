@@ -32,29 +32,27 @@ async function copyToClipboard(value: string): Promise<boolean> {
     return copied;
 }
 
-type CompanyTaxNumberCopyButtonProps = {
-    taxNumber: string | null;
+type CompanyVatIdCopyButtonProps = {
+    vatId: string | null;
 };
 
-export function CompanyTaxNumberCopyButton({
-    taxNumber,
-}: CompanyTaxNumberCopyButtonProps) {
+export function CompanyVatIdCopyButton({ vatId }: CompanyVatIdCopyButtonProps) {
     const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
-    const normalizedTaxNumber = taxNumber?.trim() ?? "";
-    const isConfigured = normalizedTaxNumber.length > 0;
+    const normalizedVatId = vatId?.trim() ?? "";
+    const isConfigured = normalizedVatId.length > 0;
 
     async function handleCopy() {
         if (!isConfigured) return;
 
-        const copied = await copyToClipboard(normalizedTaxNumber);
+        const copied = await copyToClipboard(normalizedVatId);
         setCopyState(copied ? "copied" : "error");
     }
 
     const label = !isConfigured
-        ? "WAW-Steuernummer nicht hinterlegt"
+        ? "WAW-USt-IdNr. nicht hinterlegt"
         : copyState === "copied"
-          ? "WAW-Steuernummer kopiert"
-          : "WAW-Steuernummer kopieren";
+          ? "WAW-USt-IdNr. kopiert"
+          : "WAW-USt-IdNr. kopieren";
 
     return (
         <div className="space-y-1.5">
@@ -64,7 +62,7 @@ export function CompanyTaxNumberCopyButton({
                 size="sm"
                 disabled={!isConfigured}
                 onClick={handleCopy}
-                aria-describedby={copyState === "error" ? "company-tax-number-copy-error" : undefined}
+                aria-describedby={copyState === "error" ? "company-vat-id-copy-error" : undefined}
                 className="w-full justify-start rounded-xl border-slate-200 bg-white text-cyan-900 hover:border-cyan-200 hover:bg-cyan-50"
             >
                 {copyState === "copied" ? (
@@ -76,11 +74,11 @@ export function CompanyTaxNumberCopyButton({
             </Button>
             {copyState === "error" ? (
                 <p
-                    id="company-tax-number-copy-error"
+                    id="company-vat-id-copy-error"
                     role="status"
                     className="text-xs font-semibold text-red-700"
                 >
-                    Die Steuernummer konnte nicht kopiert werden.
+                    Die USt-IdNr. konnte nicht kopiert werden.
                 </p>
             ) : null}
         </div>

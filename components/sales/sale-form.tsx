@@ -50,7 +50,7 @@ import { CustomerCombobox } from "@/components/customers/customer-combobox";
 import { CountryCombobox } from "@/components/customers/country-combobox";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
-import { CompanyTaxNumberCopyButton } from "@/components/shared/company-tax-number-copy-button";
+import { CompanyVatIdCopyButton } from "@/components/shared/company-tax-number-copy-button";
 import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ type SaleType = "inland" | "eu" | "export_third_country";
 type SaleFormProps = {
     customers: CustomerRow[];
     vehicles: VehicleRow[];
-    companyTaxNumber: string | null;
+    companyVatId: string | null;
     defaultVehicleId?: string | null;
     defaultCustomerId?: string | null;
 };
@@ -97,7 +97,7 @@ function roundMoney(value: number): number {
 export function SaleForm({
                              customers,
                              vehicles,
-                             companyTaxNumber,
+                             companyVatId,
                              defaultVehicleId = null,
                              defaultCustomerId = null,
                          }: SaleFormProps) {
@@ -473,7 +473,7 @@ export function SaleForm({
                                         <ExistingBuyerTaxDataEditor
                                             key={selectedCustomer.id}
                                             customer={selectedCustomer}
-                                            companyTaxNumber={companyTaxNumber}
+                                            companyVatId={companyVatId}
                                         requireTaxNumber={selectedCustomerMissingTaxNumber}
                                         requireVatId={selectedCustomerMissingVatId}
                                         onSaved={(savedTaxData) => {
@@ -629,8 +629,8 @@ export function SaleForm({
                                                     name="new_customer_tax_number"
                                                     required={requiresNewCustomerTaxNumber}
                                                 />
-                                                <CompanyTaxNumberCopyButton
-                                                    taxNumber={companyTaxNumber}
+                                                <CompanyVatIdCopyButton
+                                                    vatId={companyVatId}
                                                 />
                                             </div>
                                             <FormField
@@ -1193,13 +1193,13 @@ export function SaleForm({
 
 function ExistingBuyerTaxDataEditor({
     customer,
-    companyTaxNumber,
+    companyVatId,
     requireTaxNumber,
     requireVatId,
     onSaved,
 }: {
     customer: CustomerRow;
-    companyTaxNumber: string | null;
+    companyVatId: string | null;
     requireTaxNumber: boolean;
     requireVatId: boolean;
     onSaved: (taxData: CustomerTaxDataOverride) => void;
@@ -1257,7 +1257,7 @@ function ExistingBuyerTaxDataEditor({
                         placeholder="Steuernummer eintragen"
                         className="h-11 rounded-2xl border-amber-200 bg-white font-medium"
                     />
-                    <CompanyTaxNumberCopyButton taxNumber={companyTaxNumber} />
+                    <CompanyVatIdCopyButton vatId={companyVatId} />
                 </div>
 
                 <div className="space-y-2">

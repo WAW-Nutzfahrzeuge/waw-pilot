@@ -24,7 +24,7 @@ export default async function NewSalePage({ searchParams }: NewSalePageProps) {
         <SaleForm
             customers={customers}
             vehicles={vehicles}
-            companyTaxNumber={company.tax_number}
+            companyVatId={company.vat_id}
             defaultVehicleId={defaultVehicleId}
             defaultCustomerId={customerId ?? null}
         />
