@@ -174,6 +174,10 @@ function getStringValue(formData: FormData, key: string): string | null {
     return trimmedValue.length > 0 ? trimmedValue : null;
 }
 
+function isValidEmailAddress(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
 function isMissingIncludeTermsPdfColumn(error: { message?: string; code?: string } | null): boolean {
     if (!error) return false;
 
@@ -1277,6 +1281,10 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
 
     const saleId = getStringValue(formData, "sale_id");
     const invoiceId = getStringValue(formData, "invoice_id");
+    const additionalRecipientEmail = getStringValue(
+        formData,
+        "additional_recipient_email",
+    )?.toLocaleLowerCase() ?? null;
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
@@ -1284,6 +1292,10 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
 
     if (!invoiceId) {
         throw new Error("Rechnung fehlt.");
+    }
+
+    if (additionalRecipientEmail && !isValidEmailAddress(additionalRecipientEmail)) {
+        redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "invalidAdditionalEmail"));
     }
 
     const { data, error } = await supabase
@@ -1322,6 +1334,13 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingEmail"));
     }
 
+    const customerEmail = customer.email.trim().toLocaleLowerCase();
+    const recipientEmails = [customerEmail];
+
+    if (additionalRecipientEmail && additionalRecipientEmail !== customerEmail) {
+        recipientEmails.push(additionalRecipientEmail);
+    }
+
     const language = getSuggestedEmailLanguage({
         country: customer.country,
         preferredLanguage: customer.preferred_language,
@@ -1352,7 +1371,10 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             templateKey: "invoice.send",
             senderName: sender.senderName,
             senderEmail: sender.senderEmail,
-            toRecipients: [{ email: customer.email, name: getCustomerNameForEmail(customer) }],
+            toRecipients: recipientEmails.map((email) => ({
+                email,
+                name: email === customerEmail ? getCustomerNameForEmail(customer) : null,
+            })),
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
@@ -1369,7 +1391,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
                 { relationType: "INVOICE", relationId: invoiceId },
                 { relationType: "SALE", relationId: saleId },
             ],
-            idempotencyKey: `invoice-email:${companyId}:${invoiceId}:${invoice.email_send_count ?? 0}`,
+            idempotencyKey: `invoice-email:${companyId}:${invoiceId}:${invoice.email_send_count ?? 0}:${recipientEmails.join(",")}`,
             metadata: {
                 language,
                 invoiceNumber: invoice.invoice_number,
@@ -1395,7 +1417,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         .from("invoices")
         .update({
             email_sent_at: new Date().toISOString(),
-            email_sent_to: customer.email,
+            email_sent_to: recipientEmails.join(", "),
             email_sent_language: language,
             email_send_count: (invoice.email_send_count ?? 0) + 1,
         })
@@ -1408,14 +1430,14 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     }
 
     await logActivity({
-        action: `Rechnung ${invoice.invoice_number} per E-Mail an ${customer.email} gesendet`,
+        action: `Rechnung ${invoice.invoice_number} per E-Mail an ${recipientEmails.join(", ")} gesendet`,
         entityType: "invoice",
         entityId: invoiceId,
     });
 
     revalidateInvoiceEmailPaths(saleId);
 
-    redirect(getInvoiceEmailSuccessRedirect(saleId, invoiceId, customer.email));
+    redirect(getInvoiceEmailSuccessRedirect(saleId, invoiceId, recipientEmails.join(", ")));
 }
 
 export async function sendInvoiceToDatevAction(formData: FormData) {

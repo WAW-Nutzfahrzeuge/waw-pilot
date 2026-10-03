@@ -1508,6 +1508,8 @@ function getInvoiceEmailErrorMessage(errorCode: string): string {
     const messages: Record<string, string> = {
         missingEmail:
             "Beim Kunden ist keine E-Mail-Adresse hinterlegt. Bitte ergänze zuerst die E-Mail-Adresse in den Kundendaten.",
+        invalidAdditionalEmail:
+            "Die zusätzliche Empfänger-E-Mail ist ungültig. Bitte prüfe die Adresse.",
         missingPdf:
             "Für diese Rechnung wurde noch kein PDF erzeugt. Bitte generiere zuerst das PDF.",
         mailNotConfigured:
