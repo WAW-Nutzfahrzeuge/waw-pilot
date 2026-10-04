@@ -104,12 +104,6 @@ public class ZugferdPipelineService {
             // veraPDF work without increasing the validity guarantee of the
             // stored result.
 
-            boolean xmlValid = validateWithMustang(xml, issues, "xml", invoiceProfile);
-
-            if (!xmlValid) {
-                throw new ValidationFailedException(issues);
-            }
-
             embedXmlWithMustang(pdfaPdf, xmlBytes, outputPdf);
 
             boolean mustangValid = validateWithMustang(outputPdf, issues, "mustang", invoiceProfile);

@@ -4,6 +4,8 @@ import type {
 } from "@/lib/zugferd/canonical-invoice";
 
 const ZUGFERD_SERVICE_TIMEOUT_MS = 240_000;
+const ZUGFERD_JOB_START_TIMEOUT_MS = 120_000;
+const ZUGFERD_JOB_STATUS_TIMEOUT_MS = 30_000;
 
 type ZugferdServiceRequestErrorCode =
     | "UNAUTHORIZED"
@@ -33,6 +35,29 @@ export type ZugferdServiceResult = {
     profile: "EN16931";
     validation: ZugferdServiceValidationSummary;
 };
+
+export type ZugferdGenerationJobStatus =
+    | {
+          jobId: string;
+          status: "pending";
+          result: null;
+          issues: ZugferdValidationIssue[];
+          message: string | null;
+      }
+    | {
+          jobId: string;
+          status: "completed";
+          result: ZugferdServiceResult;
+          issues: ZugferdValidationIssue[];
+          message: string | null;
+      }
+    | {
+          jobId: string;
+          status: "failed" | "not_found";
+          result: null;
+          issues: ZugferdValidationIssue[];
+          message: string | null;
+      };
 
 export class ZugferdServiceConfigurationError extends Error {
     constructor() {
@@ -229,4 +254,132 @@ export async function generateValidatedZugferdPdf({
     assertValidServiceResult(result);
 
     return result;
+}
+
+function createGenerateRequestBody({
+    invoice,
+    visiblePdfBase64,
+}: {
+    invoice: CanonicalInvoiceData;
+    visiblePdfBase64: string;
+}) {
+    return {
+        standardVersion: "ZUGFeRD 2.5 / Factur-X 1.09",
+        profile: "EN16931",
+        invoiceProfile: "ZUGFERD_EN16931",
+        invoice,
+        visiblePdfBase64,
+    };
+}
+
+async function getServiceError(response: Response): Promise<ZugferdServiceRequestError> {
+    let message: string | null = null;
+
+    try {
+        const body = (await response.json()) as {
+            message?: string;
+            error?: { message?: string };
+        };
+        message = body.message ?? body.error?.message ?? null;
+    } catch {
+        // The status code remains enough to give the user a useful error.
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        return new ZugferdServiceRequestError(
+            "UNAUTHORIZED",
+            message ?? "Der ZUGFeRD-Service hat die Anfrage nicht autorisiert.",
+            response.status,
+        );
+    }
+
+    if (response.status === 413) {
+        return new ZugferdServiceRequestError(
+            "PAYLOAD_TOO_LARGE",
+            message ?? "Die Rechnungs-PDF ist zu groß für den ZUGFeRD-Service.",
+            response.status,
+        );
+    }
+
+    return new ZugferdServiceRequestError(
+        response.status >= 500 ? "SERVICE_ERROR" : "SERVICE_UNAVAILABLE",
+        message ?? "Der ZUGFeRD-Service konnte die Anfrage nicht verarbeiten.",
+        response.status,
+    );
+}
+
+function toRequestError(error: unknown): ZugferdServiceRequestError {
+    if (error instanceof Error && error.name === "AbortError") {
+        return new ZugferdServiceRequestError(
+            "TIMEOUT",
+            "Der ZUGFeRD-Service hat nicht rechtzeitig geantwortet.",
+        );
+    }
+
+    return new ZugferdServiceRequestError(
+        "SERVICE_UNAVAILABLE",
+        "Der ZUGFeRD-Service ist aktuell nicht erreichbar.",
+    );
+}
+
+export async function startZugferdGenerationJob({
+    invoice,
+    visiblePdfBase64,
+}: {
+    invoice: CanonicalInvoiceData;
+    visiblePdfBase64: string;
+}): Promise<{ jobId: string }> {
+    const { url, apiKey } = getServiceConfig();
+    let response: Response;
+
+    try {
+        response = await fetchWithTimeout(
+            `${url}/generate-jobs`,
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(createGenerateRequestBody({ invoice, visiblePdfBase64 })),
+            },
+            ZUGFERD_JOB_START_TIMEOUT_MS,
+        );
+    } catch (error) {
+        throw toRequestError(error);
+    }
+
+    if (!response.ok) throw await getServiceError(response);
+
+    const result = (await response.json()) as { jobId?: string; status?: string };
+
+    if (!result.jobId || result.status !== "pending") {
+        throw new ZugferdServiceRequestError(
+            "SERVICE_ERROR",
+            "Der ZUGFeRD-Service hat keinen gültigen Hintergrundauftrag erstellt.",
+        );
+    }
+
+    return { jobId: result.jobId };
+}
+
+export async function getZugferdGenerationJobStatus(
+    jobId: string,
+): Promise<ZugferdGenerationJobStatus> {
+    const { url, apiKey } = getServiceConfig();
+    let response: Response;
+
+    try {
+        response = await fetchWithTimeout(
+            `${url}/generate-jobs/${encodeURIComponent(jobId)}`,
+            { headers: { Authorization: `Bearer ${apiKey}` } },
+            ZUGFERD_JOB_STATUS_TIMEOUT_MS,
+        );
+    } catch (error) {
+        throw toRequestError(error);
+    }
+
+    if (!response.ok) throw await getServiceError(response);
+
+    return (await response.json()) as ZugferdGenerationJobStatus;
 }

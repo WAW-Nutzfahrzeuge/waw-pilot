@@ -39,6 +39,7 @@ import {
 } from "@/lib/zugferd/canonical-invoice";
 import {
     generateValidatedZugferdPdf,
+    startZugferdGenerationJob,
     ZugferdServiceRequestError,
     ZugferdServiceConfigurationError,
     ZugferdServiceValidationError,
@@ -302,7 +303,7 @@ function getZugferdErrorRedirect(
 function getZugferdSuccessRedirect(
     saleId: string,
     invoiceId: string,
-    successCode: "created" | "sent",
+    successCode: "created" | "queued" | "sent",
     email?: string,
 ): string {
     const params = new URLSearchParams({
@@ -311,6 +312,8 @@ function getZugferdSuccessRedirect(
 
     if (successCode === "created") {
         params.set("zugferdCreated", "1");
+    } else if (successCode === "queued") {
+        params.set("zugferdQueued", "1");
     } else if (email) {
         params.set("zugferdEmailSent", email);
     }
@@ -1499,6 +1502,127 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
 }
 
 export async function createZugferdInvoiceAction(formData: FormData) {
+    return queueZugferdInvoiceGeneration(formData);
+}
+
+async function queueZugferdInvoiceGeneration(formData: FormData) {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+    const saleId = getStringValue(formData, "sale_id");
+    const invoiceId = getStringValue(formData, "invoice_id");
+
+    if (!saleId) throw new Error("Verkauf fehlt.");
+    if (!invoiceId) throw new Error("Rechnung fehlt.");
+
+    const { data: invoiceData, error: invoiceError } = await supabase
+        .from("invoices")
+        .select("id, invoice_type, zugferd_validation_status, zugferd_generation_started_at")
+        .eq("id", invoiceId)
+        .eq("sale_id", saleId)
+        .eq("company_id", companyId)
+        .single();
+
+    if (invoiceError || !invoiceData) {
+        console.error("[zugferd] invoice lookup failed", invoiceError);
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
+    }
+
+    if (invoiceData.invoice_type !== "standard") {
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
+    }
+
+    const generationStartedAt = new Date().toISOString();
+    const staleGenerationBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: claimedInvoice, error: claimError } = await supabase
+        .from("invoices")
+        .update({
+            zugferd_validation_status: "pending",
+            zugferd_generation_started_at: generationStartedAt,
+            zugferd_validation_summary: null,
+        })
+        .eq("id", invoiceId)
+        .eq("company_id", companyId)
+        .or(`zugferd_validation_status.neq.pending,zugferd_generation_started_at.is.null,zugferd_generation_started_at.lt.${staleGenerationBefore}`)
+        .select("id")
+        .maybeSingle();
+
+    if (claimError) {
+        console.error("[zugferd] generation claim failed", claimError);
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
+    }
+    if (!claimedInvoice) {
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
+    }
+
+    let queued = false;
+
+    try {
+        const pdfData = await getInvoicePdfData(invoiceId);
+        const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
+        const canonicalInvoice = buildCanonicalInvoiceData(pdfData);
+        const invoicePdfBytes = await generateInvoicePdf({ ...pdfData, termsAttached: Boolean(termsPdf) });
+        const visiblePdfBytes = await buildFinalInvoicePdf({
+            invoicePdf: invoicePdfBytes,
+            termsPdf: termsPdf?.bytes ?? null,
+        });
+        const { jobId } = await startZugferdGenerationJob({
+            invoice: canonicalInvoice,
+            visiblePdfBase64: Buffer.from(visiblePdfBytes).toString("base64"),
+        });
+        const { error: jobUpdateError } = await supabase
+            .from("invoices")
+            .update({
+                zugferd_validation_summary: {
+                    status: "pending",
+                    renderJobId: jobId,
+                    submittedAt: new Date().toISOString(),
+                },
+            })
+            .eq("id", invoiceId)
+            .eq("company_id", companyId);
+
+        if (jobUpdateError) throw new Error(`ZUGFeRD-Hintergrundauftrag konnte nicht gespeichert werden: ${jobUpdateError.message}`);
+
+        queued = true;
+    } catch (error) {
+        if (error instanceof ZugferdDataValidationError) {
+            await markZugferdInvalid(invoiceId, companyId, error.issues);
+            redirect(getZugferdErrorRedirect(saleId, invoiceId, "missingData", error.missingFields));
+        }
+        if (error instanceof ZugferdServiceConfigurationError) {
+            await markZugferdInvalid(invoiceId, companyId, [{ severity: "error", message: error.message }]);
+            redirect(getZugferdErrorRedirect(saleId, invoiceId, "serviceNotConfigured"));
+        }
+        if (error instanceof ZugferdServiceRequestError) {
+            await markZugferdInvalid(invoiceId, companyId, [{ severity: "error", message: error.message }]);
+            const errorCodeByServiceCode: Record<string, string> = {
+                UNAUTHORIZED: "serviceUnauthorized",
+                PAYLOAD_TOO_LARGE: "payloadTooLarge",
+                TIMEOUT: "serviceTimeout",
+                SERVICE_UNAVAILABLE: "serviceUnavailable",
+                SERVICE_ERROR: "serviceError",
+            };
+            redirect(getZugferdErrorRedirect(saleId, invoiceId, errorCodeByServiceCode[error.code] ?? "serviceError"));
+        }
+
+        await markZugferdInvalid(invoiceId, companyId, [{
+            severity: "error",
+            message: error instanceof Error ? error.message : "ZUGFeRD-Rechnung konnte nicht vorbereitet werden.",
+        }]);
+        console.error("[zugferd] job preparation failed", error);
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
+    }
+
+    if (queued) {
+        revalidatePaths([`/dashboard/sales/${saleId}`]);
+        redirect(getZugferdSuccessRedirect(saleId, invoiceId, "queued"));
+    }
+}
+
+// Retained temporarily as the proven synchronous implementation for reference
+// while the asynchronous job flow is rolled out.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function createZugferdInvoiceSynchronously(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 

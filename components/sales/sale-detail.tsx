@@ -1460,11 +1460,18 @@ function InvoiceCard({
                         </p>
                     ) : null}
 
+                    {invoice.zugferd_validation_status === "pending" ? (
+                        <p className="mt-3 rounded-2xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-900">
+                            Die E-Rechnung wird im Hintergrund erstellt und geprüft. Du kannst diese Verkaufsakte geöffnet lassen oder später zurückkehren.
+                        </p>
+                    ) : null}
+
                     <div className="mt-4 flex flex-wrap gap-2">
                         <ZugferdInvoiceActions
                             saleId={saleId}
                             invoiceId={invoice.id}
                             isValidated={hasValidatedZugferd}
+                            isGenerationPending={invoice.zugferd_validation_status === "pending"}
                             isServiceConfigured={isZugferdServiceConfigured}
                         />
 

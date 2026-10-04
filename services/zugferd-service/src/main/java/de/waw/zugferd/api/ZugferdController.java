@@ -3,10 +3,13 @@ package de.waw.zugferd.api;
 import de.waw.zugferd.model.ErrorResponse;
 import de.waw.zugferd.model.GenerateRequest;
 import de.waw.zugferd.model.GenerateResponse;
+import de.waw.zugferd.model.GenerationJobAccepted;
+import de.waw.zugferd.model.GenerationJobStatus;
 import de.waw.zugferd.model.HealthResponse;
 import de.waw.zugferd.model.ValidationIssue;
 import de.waw.zugferd.model.ValidationResponse;
 import de.waw.zugferd.service.ZugferdPipelineService;
+import de.waw.zugferd.service.ZugferdGenerationJobService;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.slf4j.Logger;
@@ -16,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -25,9 +29,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class ZugferdController {
     private static final Logger LOGGER = LoggerFactory.getLogger(ZugferdController.class);
     private final ZugferdPipelineService pipelineService;
+    private final ZugferdGenerationJobService generationJobService;
 
-    public ZugferdController(ZugferdPipelineService pipelineService) {
+    public ZugferdController(
+            ZugferdPipelineService pipelineService,
+            ZugferdGenerationJobService generationJobService
+    ) {
         this.pipelineService = pipelineService;
+        this.generationJobService = generationJobService;
     }
 
     @GetMapping("/health")
@@ -38,6 +47,18 @@ public class ZugferdController {
     @PostMapping("/generate")
     public GenerateResponse generate(@Valid @RequestBody GenerateRequest request) throws Exception {
         return pipelineService.generate(request);
+    }
+
+    @PostMapping("/generate-jobs")
+    public ResponseEntity<GenerationJobAccepted> createGenerationJob(@Valid @RequestBody GenerateRequest request) {
+        return ResponseEntity
+                .status(HttpStatus.ACCEPTED)
+                .body(generationJobService.submit(request));
+    }
+
+    @GetMapping("/generate-jobs/{jobId}")
+    public GenerationJobStatus getGenerationJob(@PathVariable String jobId) {
+        return generationJobService.getStatus(jobId);
     }
 
     @PostMapping("/validate")
