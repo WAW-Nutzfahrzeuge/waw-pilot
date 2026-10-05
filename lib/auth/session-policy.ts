@@ -8,7 +8,7 @@
  * profiles.last_seen_at.
  */
 
-export const SESSION_IDLE_TIMEOUT_MINUTES = 30;
+export const SESSION_IDLE_TIMEOUT_MINUTES = 7 * 60;
 
 const SESSION_IDLE_TIMEOUT_MS = SESSION_IDLE_TIMEOUT_MINUTES * 60 * 1000;
 
