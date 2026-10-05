@@ -24,6 +24,8 @@ type SendEmailResult = {
     providerResponse: Record<string, unknown> | null;
 };
 
+export const RESEND_REQUEST_TIMEOUT_MS = 20_000;
+
 export class EmailConfigurationError extends Error {
     constructor() {
         super(
@@ -79,6 +81,7 @@ export async function sendEmailWithResend({
 
     const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
+        signal: AbortSignal.timeout(RESEND_REQUEST_TIMEOUT_MS),
         headers: {
             Authorization: `Bearer ${apiKey}`,
             "Content-Type": "application/json",

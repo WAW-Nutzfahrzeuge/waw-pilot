@@ -25,7 +25,7 @@ import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signatu
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
-import { generateAndStoreInvoicePdf, renderInvoicePdfBytes } from "@/lib/pdf/invoice-storage";
+import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -51,6 +51,7 @@ import {
     type DatevInvoiceCandidate,
 } from "@/lib/invoices/datev-invoice-delivery";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
+import { EmailAttachmentNotFoundError } from "@/src/modules/email/domain/errors/email-errors";
 
 type SaleInvoiceVehicleRelation = {
     damage_notes: string | null;
@@ -1309,6 +1310,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
       sale_id,
       invoice_number,
       email_send_count,
+      pdf_document_id,
       customers:customer_id (
         type,
         company_name,
@@ -1337,6 +1339,10 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingEmail"));
     }
 
+    if (!invoice.pdf_document_id) {
+        redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingPdf"));
+    }
+
     const customerEmail = customer.email.trim().toLocaleLowerCase();
     const recipientEmails = [customerEmail];
 
@@ -1356,12 +1362,6 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     let deliveryErrorCode: string | null = null;
 
     try {
-        const { pdfData, pdfBytes } = await renderInvoicePdfBytes(invoiceId);
-        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: pdfData.invoiceNumber,
-            documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
-            mimeType: "application/pdf",
-        });
         const sender = await getInvoiceMailSender(companyId);
         const actorId = await getOptionalCurrentAuthUserId();
         const sendEmail = await createSendEmailUseCase();
@@ -1381,12 +1381,9 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
-            resolvedAttachments: [
+            documentAttachments: [
                 {
-                    fileName: invoiceFileName,
-                    content: Buffer.from(pdfBytes),
-                    mimeType: "application/pdf",
-                    fileSizeBytes: pdfBytes.byteLength,
+                    documentId: invoice.pdf_document_id,
                     attachmentType: "invoice_pdf",
                 },
             ],
@@ -1405,6 +1402,8 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         deliveryErrorCode =
             sendError instanceof EmailConfigurationError
                 ? "mailNotConfigured"
+                : sendError instanceof EmailAttachmentNotFoundError
+                  ? "missingPdf"
                 : "sendFailed";
 
         if (!(sendError instanceof EmailConfigurationError)) {
@@ -1416,27 +1415,28 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, deliveryErrorCode));
     }
 
-    const { error: updateError } = await supabase
-        .from("invoices")
-        .update({
-            email_sent_at: new Date().toISOString(),
-            email_sent_to: recipientEmails.join(", "),
-            email_sent_language: language,
-            email_send_count: (invoice.email_send_count ?? 0) + 1,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId);
+    const [{ error: updateError }] = await Promise.all([
+        supabase
+            .from("invoices")
+            .update({
+                email_sent_at: new Date().toISOString(),
+                email_sent_to: recipientEmails.join(", "),
+                email_sent_language: language,
+                email_send_count: (invoice.email_send_count ?? 0) + 1,
+            })
+            .eq("id", invoiceId)
+            .eq("company_id", companyId),
+        logActivity({
+            action: `Rechnung ${invoice.invoice_number} per E-Mail an ${recipientEmails.join(", ")} gesendet`,
+            entityType: "invoice",
+            entityId: invoiceId,
+        }),
+    ]);
 
     if (updateError) {
         console.error("[email] invoice email status update failed", updateError);
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "sendFailed"));
     }
-
-    await logActivity({
-        action: `Rechnung ${invoice.invoice_number} per E-Mail an ${recipientEmails.join(", ")} gesendet`,
-        entityType: "invoice",
-        entityId: invoiceId,
-    });
 
     revalidateInvoiceEmailPaths(saleId);
 

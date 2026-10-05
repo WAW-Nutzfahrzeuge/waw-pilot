@@ -180,32 +180,34 @@ export class SendEmailUseCase {
                 providerMessageId: providerResult.providerMessageId,
                 providerResponse: providerResult.providerResponse,
             });
-            await this.repository.createDeliveryAttempt({
-                companyId: command.companyId,
-                emailId: persistedEmail.id,
-                provider: "resend",
-                status: "SENT",
-                providerMessageId: providerResult.providerMessageId,
-                providerResponse: providerResult.providerResponse,
-                actorId: command.actorId,
-            });
-            await this.audit.record({
-                companyId: command.companyId,
-                emailId: persistedEmail.id,
-                action: "SENT",
-                newValues: {
+            await Promise.all([
+                this.repository.createDeliveryAttempt({
+                    companyId: command.companyId,
+                    emailId: persistedEmail.id,
+                    provider: "resend",
+                    status: "SENT",
                     providerMessageId: providerResult.providerMessageId,
-                },
-                actorId: command.actorId,
-            });
-            await this.activity.record({
-                action: `E-Mail ${persistedEmail.emailReference} an ${recipients
-                    .filter((recipient) => recipient.kind === "to")
-                    .map((recipient) => recipient.email.value)
-                    .join(", ")} gesendet`,
-                entityType: "email",
-                entityId: persistedEmail.id,
-            });
+                    providerResponse: providerResult.providerResponse,
+                    actorId: command.actorId,
+                }),
+                this.audit.record({
+                    companyId: command.companyId,
+                    emailId: persistedEmail.id,
+                    action: "SENT",
+                    newValues: {
+                        providerMessageId: providerResult.providerMessageId,
+                    },
+                    actorId: command.actorId,
+                }),
+                this.activity.record({
+                    action: `E-Mail ${persistedEmail.emailReference} an ${recipients
+                        .filter((recipient) => recipient.kind === "to")
+                        .map((recipient) => recipient.email.value)
+                        .join(", ")} gesendet`,
+                    entityType: "email",
+                    entityId: persistedEmail.id,
+                }),
+            ]);
 
             return {
                 ...persistedEmail,
@@ -226,24 +228,26 @@ export class SendEmailUseCase {
                 failureCode: "PROVIDER_ERROR",
                 failureMessage: messageText,
             });
-            await this.repository.createDeliveryAttempt({
-                companyId: command.companyId,
-                emailId: persistedEmail.id,
-                provider: "resend",
-                status: "FAILED",
-                providerMessageId: null,
-                providerResponse: null,
-                failureCode: "PROVIDER_ERROR",
-                failureMessage: messageText,
-                actorId: command.actorId,
-            });
-            await this.audit.record({
-                companyId: command.companyId,
-                emailId: persistedEmail.id,
-                action: "FAILED",
-                newValues: { failureCode: "PROVIDER_ERROR" },
-                actorId: command.actorId,
-            });
+            await Promise.all([
+                this.repository.createDeliveryAttempt({
+                    companyId: command.companyId,
+                    emailId: persistedEmail.id,
+                    provider: "resend",
+                    status: "FAILED",
+                    providerMessageId: null,
+                    providerResponse: null,
+                    failureCode: "PROVIDER_ERROR",
+                    failureMessage: messageText,
+                    actorId: command.actorId,
+                }),
+                this.audit.record({
+                    companyId: command.companyId,
+                    emailId: persistedEmail.id,
+                    action: "FAILED",
+                    newValues: { failureCode: "PROVIDER_ERROR" },
+                    actorId: command.actorId,
+                }),
+            ]);
 
             throw new EmailProviderUnavailableError(messageText);
         }
