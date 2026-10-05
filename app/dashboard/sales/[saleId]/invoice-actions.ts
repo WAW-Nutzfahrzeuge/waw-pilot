@@ -25,7 +25,10 @@ import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signatu
 import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
 import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
 import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
-import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
+import {
+    generateAndStoreInvoicePdf,
+    renderInvoicePdfBytes,
+} from "@/lib/pdf/invoice-storage";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
@@ -51,7 +54,6 @@ import {
     type DatevInvoiceCandidate,
 } from "@/lib/invoices/datev-invoice-delivery";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
-import { EmailAttachmentNotFoundError } from "@/src/modules/email/domain/errors/email-errors";
 
 type SaleInvoiceVehicleRelation = {
     damage_notes: string | null;
@@ -128,101 +130,6 @@ type InvoiceEmailQueryRow = {
         | InvoiceEmailDocumentRelation[]
         | null;
 };
-
-async function resolveStoredInvoicePdfDocumentId(params: {
-    supabase: ReturnType<typeof createServerSupabaseClient>;
-    companyId: string;
-    saleId: string;
-    invoice: InvoiceEmailQueryRow;
-}): Promise<string | null> {
-    if (params.invoice.pdf_document_id) {
-        return params.invoice.pdf_document_id;
-    }
-
-    // Legacy invoices can already have a stored document even though the
-    // pointer introduced later on invoices was never backfilled. Resolve only
-    // a tenant-, sale- and invoice-scoped PDF; never generate a new PDF as a
-    // side effect of sending an email.
-    const documentType = getInvoiceTypeDocumentType(params.invoice.invoice_type);
-    const { data: invoiceDocument, error: invoiceDocumentError } = await params.supabase
-        .from("documents")
-        .select("id")
-        .eq("company_id", params.companyId)
-        .eq("sale_id", params.saleId)
-        .eq("invoice_id", params.invoice.id)
-        .eq("document_type", documentType)
-        .not("file_path", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    if (invoiceDocumentError) {
-        console.error("[email] stored invoice PDF lookup failed", invoiceDocumentError);
-        return null;
-    }
-
-    let documentId = (invoiceDocument?.id as string | undefined) ?? null;
-
-    if (!documentId) {
-        // Older document rows were sometimes linked only to the sale. Since a
-        // sale can have at most one invoice of each supported invoice type,
-        // the tenant + sale + document type combination is unambiguous. Only
-        // claim an unassigned document so another invoice can never be mixed in.
-        const { data: legacySaleDocument, error: legacyDocumentError } =
-            await params.supabase
-                .from("documents")
-                .select("id")
-                .eq("company_id", params.companyId)
-                .eq("sale_id", params.saleId)
-                .is("invoice_id", null)
-                .eq("document_type", documentType)
-                .not("file_path", "is", null)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-        if (legacyDocumentError) {
-            console.error(
-                "[email] legacy sale invoice PDF lookup failed",
-                legacyDocumentError,
-            );
-            return null;
-        }
-
-        documentId = (legacySaleDocument?.id as string | undefined) ?? null;
-    }
-
-    if (!documentId) return null;
-
-    const [{ error: linkError }, { error: documentLinkError }] = await Promise.all([
-        params.supabase
-            .from("invoices")
-            .update({ pdf_document_id: documentId })
-            .eq("id", params.invoice.id)
-            .eq("sale_id", params.saleId)
-            .eq("company_id", params.companyId)
-            .is("pdf_document_id", null),
-        params.supabase
-            .from("documents")
-            .update({ invoice_id: params.invoice.id })
-            .eq("id", documentId)
-            .eq("sale_id", params.saleId)
-            .eq("company_id", params.companyId)
-            .is("invoice_id", null),
-    ]);
-
-    if (linkError) {
-        // The resolved document remains safe to use for this request. A failed
-        // repair must not force PDF regeneration or block delivery.
-        console.error("[email] invoice PDF link backfill failed", linkError);
-    }
-
-    if (documentLinkError) {
-        console.error("[email] PDF document invoice link backfill failed", documentLinkError);
-    }
-
-    return documentId;
-}
 
 function revalidateInvoiceDocumentPaths(saleId: string) {
     revalidatePaths([
@@ -1434,17 +1341,6 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingEmail"));
     }
 
-    const pdfDocumentId = await resolveStoredInvoicePdfDocumentId({
-        supabase,
-        companyId,
-        saleId,
-        invoice,
-    });
-
-    if (!pdfDocumentId) {
-        redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingPdf"));
-    }
-
     const customerEmail = customer.email.trim().toLocaleLowerCase();
     const recipientEmails = [customerEmail];
 
@@ -1464,9 +1360,18 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
     let deliveryErrorCode: string | null = null;
 
     try {
-        const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getOptionalCurrentAuthUserId();
-        const sendEmail = await createSendEmailUseCase();
+        const [renderedPdf, sender, actorId, sendEmail] = await Promise.all([
+            renderInvoicePdfBytes(invoiceId),
+            getInvoiceMailSender(companyId),
+            getOptionalCurrentAuthUserId(),
+            createSendEmailUseCase(),
+        ]);
+        const { pdfData, pdfBytes } = renderedPdf;
+        const invoiceFileName = new ExportFileNamePolicy().createDocumentFileName({
+            saleReference: pdfData.invoiceNumber,
+            documentType: getInvoiceTypeDocumentType(pdfData.invoiceType),
+            mimeType: "application/pdf",
+        });
 
         await sendEmail.execute({
             companyId,
@@ -1483,9 +1388,12 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
-            documentAttachments: [
+            resolvedAttachments: [
                 {
-                    documentId: pdfDocumentId,
+                    fileName: invoiceFileName,
+                    content: Buffer.from(pdfBytes),
+                    mimeType: "application/pdf",
+                    fileSizeBytes: pdfBytes.byteLength,
                     attachmentType: "invoice_pdf",
                 },
             ],
@@ -1504,8 +1412,6 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         deliveryErrorCode =
             sendError instanceof EmailConfigurationError
                 ? "mailNotConfigured"
-                : sendError instanceof EmailAttachmentNotFoundError
-                  ? "missingPdf"
                 : "sendFailed";
 
         if (!(sendError instanceof EmailConfigurationError)) {
