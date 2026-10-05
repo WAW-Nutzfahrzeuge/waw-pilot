@@ -98,6 +98,8 @@ const vehicleDocumentTypes = [
     "end_use_declaration",
     "abd_checklist",
     "exit_note_checklist",
+    "export_accompanying_document",
+    "exit_note",
     "customs",
     "commercial_register",
     "business_registration",

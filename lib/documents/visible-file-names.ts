@@ -62,6 +62,8 @@ const documentTypeLabels: Record<string, string> = {
     owner_id: "Ausweis Inhaber Käufer",
     customer_id: "Ausweis Kunde",
     tax_number_document: "Steuernummer",
+    export_accompanying_document: "Ausfuhrbegleitdokument",
+    exit_note: "Ausgangsvermerk",
     customs: "Zolldokument",
     cashbook_receipt: "Kassenbuch-Beleg",
     license_plate_document: "Kennzeichen-Dokument",

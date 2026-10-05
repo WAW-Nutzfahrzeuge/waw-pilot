@@ -51,6 +51,8 @@ const documentFilePrefixes: Record<string, string> = {
     bzst_vat_verification_secondary: "BZSt_Nachweis_2",
     abd_checklist: "ABD_Checkliste",
     exit_note_checklist: "Ausgangsvermerk_Checkliste",
+    export_accompanying_document: "Ausfuhrbegleitdokument",
+    exit_note: "Ausgangsvermerk",
     customs: "Zollnachweis",
     vehicle_registration: "Fahrzeugschein",
     registration_documents: "Zulassungsunterlagen",

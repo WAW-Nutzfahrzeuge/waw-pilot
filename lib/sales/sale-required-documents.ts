@@ -74,8 +74,12 @@ const EU_COMPANY_VAT_REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
 
 const THIRD_COUNTRY_REQUIRED_DOCUMENTS: RequiredDocumentDefinition[] = [
     {
-        documentType: "customs",
-        label: "Zolldokument / Ausfuhrnachweis / Ausgangsvermerk",
+        documentType: "export_accompanying_document",
+        label: "Ausfuhrbegleitdokument",
+    },
+    {
+        documentType: "exit_note",
+        label: "Ausgangsvermerk",
     },
 ];
 

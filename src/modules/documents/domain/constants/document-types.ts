@@ -27,6 +27,8 @@ export type DocumentTypeCode =
     | "owner_id"
     | "customer_id"
     | "tax_number_document"
+    | "export_accompanying_document"
+    | "exit_note"
     | "customs"
     | "cashbook_receipt"
     | "license_plate_document"
@@ -239,13 +241,38 @@ export const documentTypeDefinitions: readonly DocumentTypeDefinition[] = [
         defaultStatus: "ACTIVE",
     }),
     defineDocumentType({
-        code: "customs",
-        label: "Zolldokument / Ausfuhrnachweis / Ausgangsvermerk",
+        code: "export_accompanying_document",
+        label: "Ausfuhrbegleitdokument",
+        description: "Ausfuhrbegleitdokument (ABD) zum Drittlandexport.",
         canBeRequired: true,
         replacementAllowed: true,
         archiveAllowed: true,
         allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
         sortOrder: 55,
+        badgeTone: "warning",
+        defaultStatus: "REVIEW_REQUIRED",
+    }),
+    defineDocumentType({
+        code: "exit_note",
+        label: "Ausgangsvermerk",
+        description: "Zollrechtlicher Ausgangsvermerk zum Drittlandexport.",
+        canBeRequired: true,
+        replacementAllowed: true,
+        archiveAllowed: true,
+        allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
+        sortOrder: 56,
+        badgeTone: "warning",
+        defaultStatus: "REVIEW_REQUIRED",
+    }),
+    defineDocumentType({
+        code: "customs",
+        label: "Zolldokument / Ausfuhrnachweis / Ausgangsvermerk",
+        description: "Historischer kombinierter Dokumenttyp für bestehende Verkaufsakten.",
+        canBeRequired: false,
+        replacementAllowed: true,
+        archiveAllowed: true,
+        allowedRelations: ["SALE", "VEHICLE", "CUSTOMER"],
+        sortOrder: 57,
         badgeTone: "warning",
         defaultStatus: "REVIEW_REQUIRED",
     }),

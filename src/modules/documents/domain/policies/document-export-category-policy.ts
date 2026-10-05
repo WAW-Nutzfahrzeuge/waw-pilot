@@ -70,6 +70,8 @@ const exportProofDocumentTypes = new Set([
     "bzst_vat_verification_secondary",
     "abd_checklist",
     "exit_note_checklist",
+    "export_accompanying_document",
+    "exit_note",
     "customs",
     "export_documents",
 ]);

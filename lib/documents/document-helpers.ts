@@ -45,6 +45,8 @@ export function getDocumentTypeLabel(type: string): string {
         tax_number_document: "Steuernummer",
         sale_custom_document: "Weiteres Dokument",
 
+        export_accompanying_document: "Ausfuhrbegleitdokument",
+        exit_note: "Ausgangsvermerk",
         customs: "Zolldokument / Ausfuhrnachweis / Ausgangsvermerk",
         cashbook_receipt: "Kassenbuch-Beleg",
 
