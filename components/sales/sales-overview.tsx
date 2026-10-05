@@ -39,6 +39,17 @@ import { Input } from "@/components/ui/input";
 import { MonthFilter } from "@/components/filters/month-filter";
 import { StatusFilter } from "@/components/filters/status-filter";
 import { matchesMonthFilter, normalizeMonthFilter } from "@/utils/month-filter";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    compareNumberedReferences,
+    type SortDirection,
+} from "@/lib/sorting/numbered-reference-sort";
 
 type SalesOverviewProps = {
     sales: SaleRow[];
@@ -70,6 +81,7 @@ export function SalesOverview({
     const [monthFilter, setMonthFilter] = useState(() =>
         normalizeMonthFilter(initialMonthFilter ?? "all"),
     );
+    const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
     const saleSearchIndex = useMemo(() => {
         const index = new Map<string, string>();
 
@@ -139,24 +151,32 @@ export function SalesOverview({
     const filteredSales = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return monthSalesData.sales.filter((sale) => {
-            const matchesPaymentFilter =
-                paymentFilter === "all" ||
-                (paymentFilter === "open" &&
-                    (sale.payment_status === "open" ||
-                        sale.payment_status === "partial")) ||
-                (paymentFilter === "paid" && sale.payment_status === "paid") ||
-                (paymentFilter === "overpaid" &&
-                    sale.payment_status === "overpaid") ||
-                (paymentFilter === "proforma" && sale.has_proforma_invoice);
+        return monthSalesData.sales
+            .filter((sale) => {
+                const matchesPaymentFilter =
+                    paymentFilter === "all" ||
+                    (paymentFilter === "open" &&
+                        (sale.payment_status === "open" ||
+                            sale.payment_status === "partial")) ||
+                    (paymentFilter === "paid" && sale.payment_status === "paid") ||
+                    (paymentFilter === "overpaid" &&
+                        sale.payment_status === "overpaid") ||
+                    (paymentFilter === "proforma" && sale.has_proforma_invoice);
 
-            if (!matchesPaymentFilter) return false;
+                if (!matchesPaymentFilter) return false;
 
-            if (!normalizedQuery) return true;
+                if (!normalizedQuery) return true;
 
-            return saleSearchIndex.get(sale.id)?.includes(normalizedQuery) ?? false;
-        });
-    }, [query, monthSalesData.sales, paymentFilter, saleSearchIndex]);
+                return saleSearchIndex.get(sale.id)?.includes(normalizedQuery) ?? false;
+            })
+            .sort((firstSale, secondSale) =>
+                compareNumberedReferences(
+                    firstSale.invoice_number,
+                    secondSale.invoice_number,
+                    sortDirection,
+                ),
+            );
+    }, [query, monthSalesData.sales, paymentFilter, saleSearchIndex, sortDirection]);
 
     const salesSummary = monthSalesData.summary;
 
@@ -232,14 +252,31 @@ export function SalesOverview({
                                     updateUrl
                                     defaultValue="all"
                                 />
-                                <div className="relative w-full">
-                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                                    <Input
-                                        value={query}
-                                        onChange={(event) => setQuery(event.target.value)}
-                                        placeholder="Verkauf suchen..."
-                                        className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
-                                    />
+                                <div className="flex w-full flex-col gap-3 sm:flex-row">
+                                    <div className="relative min-w-0 flex-1">
+                                        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                        <Input
+                                            value={query}
+                                            onChange={(event) => setQuery(event.target.value)}
+                                            placeholder="Verkauf suchen..."
+                                            className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
+                                        />
+                                    </div>
+                                    <Select
+                                        value={sortDirection}
+                                        onValueChange={(value) => setSortDirection(value as SortDirection)}
+                                    >
+                                        <SelectTrigger
+                                            aria-label="Verkäufe sortieren"
+                                            className="h-11 w-full rounded-2xl border-slate-200 bg-slate-50 font-bold sm:w-44"
+                                        >
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="ascending">Aufsteigend</SelectItem>
+                                            <SelectItem value="descending">Absteigend</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                         </div>

@@ -39,6 +39,17 @@ import { sendInvoicesToDatevAction } from "@/app/dashboard/invoices/actions";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
 import { getInvoiceOverviewReference } from "@/lib/invoices/invoice-overview-reference";
 import { ActionMessage } from "@/components/shared/action-message";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    compareNumberedReferences,
+    type SortDirection,
+} from "@/lib/sorting/numbered-reference-sort";
 
 type InvoicesOverviewProps = {
     invoices: InvoiceRow[];
@@ -195,6 +206,7 @@ export function InvoicesOverview({
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
     const [selectedDatevInvoiceIds, setSelectedDatevInvoiceIds] = useState<
         Set<string>
     >(new Set());
@@ -262,34 +274,42 @@ export function InvoicesOverview({
     const filteredInvoices = useMemo(() => {
         const normalizedQuery = normalizeSearchText(query);
 
-        return invoices.filter((invoice) => {
-            const matchesFilter =
-                invoiceFilter === "all" || invoice.invoice_type === invoiceFilter;
+        return invoices
+            .filter((invoice) => {
+                const matchesFilter =
+                    invoiceFilter === "all" || invoice.invoice_type === invoiceFilter;
 
-            if (!matchesFilter) return false;
+                if (!matchesFilter) return false;
 
-            if (!normalizedQuery) return true;
+                if (!normalizedQuery) return true;
 
-            const searchIndex = invoiceSearchIndex.get(invoice.id);
-            if (!searchIndex) return false;
+                const searchIndex = invoiceSearchIndex.get(invoice.id);
+                if (!searchIndex) return false;
 
-            const queryAmount = parseSearchAmount(query);
-            if (queryAmount !== null) {
+                const queryAmount = parseSearchAmount(query);
+                if (queryAmount !== null) {
+                    return (
+                        Math.abs(invoice.net_amount - queryAmount) < 0.005 ||
+                        Math.abs(invoice.vat_amount - queryAmount) < 0.005 ||
+                        Math.abs(invoice.gross_amount - queryAmount) < 0.005 ||
+                        searchIndex.searchText.includes(normalizedQuery) ||
+                        searchIndex.amountText.includes(normalizedQuery)
+                    );
+                }
+
                 return (
-                    Math.abs(invoice.net_amount - queryAmount) < 0.005 ||
-                    Math.abs(invoice.vat_amount - queryAmount) < 0.005 ||
-                    Math.abs(invoice.gross_amount - queryAmount) < 0.005 ||
                     searchIndex.searchText.includes(normalizedQuery) ||
                     searchIndex.amountText.includes(normalizedQuery)
                 );
-            }
-
-            return (
-                searchIndex.searchText.includes(normalizedQuery) ||
-                searchIndex.amountText.includes(normalizedQuery)
+            })
+            .sort((firstInvoice, secondInvoice) =>
+                compareNumberedReferences(
+                    firstInvoice.invoice_number,
+                    secondInvoice.invoice_number,
+                    sortDirection,
+                ),
             );
-        });
-    }, [query, invoices, invoiceFilter, invoiceSearchIndex]);
+    }, [query, invoices, invoiceFilter, invoiceSearchIndex, sortDirection]);
 
     const selectableDatevInvoices = useMemo(
         () => filteredInvoices.filter(isDatevInvoiceSendable),
@@ -437,14 +457,31 @@ export function InvoicesOverview({
                                 </p>
                             </div>
 
-                            <div className="relative w-full xl:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                                <Input
-                                    value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Suche nach Rechnung, Kunde, Fahrzeug, FIN, Betrag oder Status..."
-                                    className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
-                                />
+                            <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-2xl">
+                                <div className="relative min-w-0 flex-1">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                    <Input
+                                        value={query}
+                                        onChange={(event) => setQuery(event.target.value)}
+                                        placeholder="Suche nach Rechnung, Kunde, Fahrzeug, FIN, Betrag oder Status..."
+                                        className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
+                                    />
+                                </div>
+                                <Select
+                                    value={sortDirection}
+                                    onValueChange={(value) => setSortDirection(value as SortDirection)}
+                                >
+                                    <SelectTrigger
+                                        aria-label="Rechnungen sortieren"
+                                        className="h-11 w-full rounded-2xl border-slate-200 bg-slate-50 font-bold sm:w-44"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ascending">Aufsteigend</SelectItem>
+                                        <SelectItem value="descending">Absteigend</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
 

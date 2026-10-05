@@ -29,6 +29,17 @@ import { CompactStatCard } from "@/components/cards/compact-stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    compareNumberedReferences,
+    type SortDirection,
+} from "@/lib/sorting/numbered-reference-sort";
 
 type PurchasesOverviewProps = {
     purchases: PurchaseCaseRow[];
@@ -44,6 +55,7 @@ export function PurchasesOverview({
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
     const purchaseOverviewData = useMemo(() => {
         const index = new Map<string, string>();
         const summary = {
@@ -99,22 +111,30 @@ export function PurchasesOverview({
     const filteredPurchases = useMemo(() => {
         const normalizedQuery = query.trim().toLowerCase();
 
-        return purchases.filter((purchase) => {
-            const matchesFilter =
-                filter === "all" ||
-                (filter === "open" && purchase.payment_status !== "paid") ||
-                (filter === "paid" && purchase.payment_status === "paid") ||
-                (filter === "documents" &&
-                    purchase.document_check_status !== "complete") ||
-                (filter === "completed" && purchase.status === "completed");
+        return purchases
+            .filter((purchase) => {
+                const matchesFilter =
+                    filter === "all" ||
+                    (filter === "open" && purchase.payment_status !== "paid") ||
+                    (filter === "paid" && purchase.payment_status === "paid") ||
+                    (filter === "documents" &&
+                        purchase.document_check_status !== "complete") ||
+                    (filter === "completed" && purchase.status === "completed");
 
-            if (!matchesFilter) return false;
+                if (!matchesFilter) return false;
 
-            if (!normalizedQuery) return true;
+                if (!normalizedQuery) return true;
 
-            return purchaseSearchIndex.get(purchase.id)?.includes(normalizedQuery) ?? false;
-        });
-    }, [filter, purchases, purchaseSearchIndex, query]);
+                return purchaseSearchIndex.get(purchase.id)?.includes(normalizedQuery) ?? false;
+            })
+            .sort((firstPurchase, secondPurchase) =>
+                compareNumberedReferences(
+                    firstPurchase.purchase_number,
+                    secondPurchase.purchase_number,
+                    sortDirection,
+                ),
+            );
+    }, [filter, purchases, purchaseSearchIndex, query, sortDirection]);
 
     return (
         <div className="space-y-6">
@@ -177,14 +197,31 @@ export function PurchasesOverview({
                                 </p>
                             </div>
 
-                            <div className="relative w-full xl:max-w-sm">
-                                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                                <Input
-                                    value={query}
-                                    onChange={(event) => setQuery(event.target.value)}
-                                    placeholder="Ankauf suchen..."
-                                    className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
-                                />
+                            <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl">
+                                <div className="relative min-w-0 flex-1">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+                                    <Input
+                                        value={query}
+                                        onChange={(event) => setQuery(event.target.value)}
+                                        placeholder="Ankauf suchen..."
+                                        className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
+                                    />
+                                </div>
+                                <Select
+                                    value={sortDirection}
+                                    onValueChange={(value) => setSortDirection(value as SortDirection)}
+                                >
+                                    <SelectTrigger
+                                        aria-label="Fahrzeugankäufe sortieren"
+                                        className="h-11 w-full rounded-2xl border-slate-200 bg-slate-50 font-bold sm:w-44"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="ascending">Aufsteigend</SelectItem>
+                                        <SelectItem value="descending">Absteigend</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         </div>
 
