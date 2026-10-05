@@ -33,6 +33,7 @@ target/
 .vscode/
 *.iml
 *.pdf
+!public/Endverbleibserklaerung_LKW_WAW_Vorlage.pdf
 *.xml
 *.tmp
 *.temp
