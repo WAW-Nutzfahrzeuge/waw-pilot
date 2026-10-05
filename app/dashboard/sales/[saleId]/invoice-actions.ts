@@ -143,41 +143,82 @@ async function resolveStoredInvoicePdfDocumentId(params: {
     // pointer introduced later on invoices was never backfilled. Resolve only
     // a tenant-, sale- and invoice-scoped PDF; never generate a new PDF as a
     // side effect of sending an email.
-    const { data: existingDocument, error } = await params.supabase
+    const documentType = getInvoiceTypeDocumentType(params.invoice.invoice_type);
+    const { data: invoiceDocument, error: invoiceDocumentError } = await params.supabase
         .from("documents")
         .select("id")
         .eq("company_id", params.companyId)
         .eq("sale_id", params.saleId)
         .eq("invoice_id", params.invoice.id)
-        .eq(
-            "document_type",
-            getInvoiceTypeDocumentType(params.invoice.invoice_type),
-        )
+        .eq("document_type", documentType)
         .not("file_path", "is", null)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
-    if (error) {
-        console.error("[email] stored invoice PDF lookup failed", error);
+    if (invoiceDocumentError) {
+        console.error("[email] stored invoice PDF lookup failed", invoiceDocumentError);
         return null;
     }
 
-    const documentId = (existingDocument?.id as string | undefined) ?? null;
+    let documentId = (invoiceDocument?.id as string | undefined) ?? null;
+
+    if (!documentId) {
+        // Older document rows were sometimes linked only to the sale. Since a
+        // sale can have at most one invoice of each supported invoice type,
+        // the tenant + sale + document type combination is unambiguous. Only
+        // claim an unassigned document so another invoice can never be mixed in.
+        const { data: legacySaleDocument, error: legacyDocumentError } =
+            await params.supabase
+                .from("documents")
+                .select("id")
+                .eq("company_id", params.companyId)
+                .eq("sale_id", params.saleId)
+                .is("invoice_id", null)
+                .eq("document_type", documentType)
+                .not("file_path", "is", null)
+                .order("created_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+        if (legacyDocumentError) {
+            console.error(
+                "[email] legacy sale invoice PDF lookup failed",
+                legacyDocumentError,
+            );
+            return null;
+        }
+
+        documentId = (legacySaleDocument?.id as string | undefined) ?? null;
+    }
+
     if (!documentId) return null;
 
-    const { error: linkError } = await params.supabase
-        .from("invoices")
-        .update({ pdf_document_id: documentId })
-        .eq("id", params.invoice.id)
-        .eq("sale_id", params.saleId)
-        .eq("company_id", params.companyId)
-        .is("pdf_document_id", null);
+    const [{ error: linkError }, { error: documentLinkError }] = await Promise.all([
+        params.supabase
+            .from("invoices")
+            .update({ pdf_document_id: documentId })
+            .eq("id", params.invoice.id)
+            .eq("sale_id", params.saleId)
+            .eq("company_id", params.companyId)
+            .is("pdf_document_id", null),
+        params.supabase
+            .from("documents")
+            .update({ invoice_id: params.invoice.id })
+            .eq("id", documentId)
+            .eq("sale_id", params.saleId)
+            .eq("company_id", params.companyId)
+            .is("invoice_id", null),
+    ]);
 
     if (linkError) {
         // The resolved document remains safe to use for this request. A failed
         // repair must not force PDF regeneration or block delivery.
         console.error("[email] invoice PDF link backfill failed", linkError);
+    }
+
+    if (documentLinkError) {
+        console.error("[email] PDF document invoice link backfill failed", documentLinkError);
     }
 
     return documentId;

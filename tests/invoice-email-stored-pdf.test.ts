@@ -56,4 +56,12 @@ test("ältere Rechnungen lösen ein vorhandenes PDF über invoice_id auf und rep
         invoiceActionsSource,
         /\.update\(\{ pdf_document_id: documentId \}\)/,
     );
+    assert.match(
+        invoiceActionsSource,
+        /\.is\("invoice_id", null\)[\s\S]*?\.eq\("document_type", documentType\)/,
+    );
+    assert.match(
+        invoiceActionsSource,
+        /\.update\(\{ invoice_id: params\.invoice\.id \}\)/,
+    );
 });
