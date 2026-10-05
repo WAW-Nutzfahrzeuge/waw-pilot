@@ -28,7 +28,7 @@ test("Rechnungsversand verwendet das gespeicherte PDF-Dokument", () => {
     assert.match(actionSource, /pdf_document_id/);
     assert.match(
         actionSource,
-        /documentAttachments:\s*\[\s*\{\s*documentId: invoice\.pdf_document_id,/,
+        /documentAttachments:\s*\[\s*\{\s*documentId: pdfDocumentId,/,
     );
     assert.doesNotMatch(actionSource, /renderInvoicePdfBytes/);
     assert.doesNotMatch(actionSource, /generateAndStoreInvoicePdf/);
@@ -39,7 +39,21 @@ test("Rechnungsversand verlangt vorher ein erzeugtes und lesbares PDF", () => {
 
     assert.match(
         actionSource,
-        /if \(!invoice\.pdf_document_id\) \{\s*redirect\(getInvoiceEmailErrorRedirect\(saleId, invoiceId, "missingPdf"\)\);/,
+        /if \(!pdfDocumentId\) \{\s*redirect\(getInvoiceEmailErrorRedirect\(saleId, invoiceId, "missingPdf"\)\);/,
     );
     assert.match(actionSource, /sendError instanceof EmailAttachmentNotFoundError/);
+});
+
+test("ältere Rechnungen lösen ein vorhandenes PDF über invoice_id auf und reparieren den Link", () => {
+    assert.match(
+        invoiceActionsSource,
+        /async function resolveStoredInvoicePdfDocumentId/,
+    );
+    assert.match(invoiceActionsSource, /\.eq\("invoice_id", params\.invoice\.id\)/);
+    assert.match(invoiceActionsSource, /\.eq\("sale_id", params\.saleId\)/);
+    assert.match(invoiceActionsSource, /\.eq\("company_id", params\.companyId\)/);
+    assert.match(
+        invoiceActionsSource,
+        /\.update\(\{ pdf_document_id: documentId \}\)/,
+    );
 });

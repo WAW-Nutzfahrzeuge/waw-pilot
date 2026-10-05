@@ -129,6 +129,60 @@ type InvoiceEmailQueryRow = {
         | null;
 };
 
+async function resolveStoredInvoicePdfDocumentId(params: {
+    supabase: ReturnType<typeof createServerSupabaseClient>;
+    companyId: string;
+    saleId: string;
+    invoice: InvoiceEmailQueryRow;
+}): Promise<string | null> {
+    if (params.invoice.pdf_document_id) {
+        return params.invoice.pdf_document_id;
+    }
+
+    // Legacy invoices can already have a stored document even though the
+    // pointer introduced later on invoices was never backfilled. Resolve only
+    // a tenant-, sale- and invoice-scoped PDF; never generate a new PDF as a
+    // side effect of sending an email.
+    const { data: existingDocument, error } = await params.supabase
+        .from("documents")
+        .select("id")
+        .eq("company_id", params.companyId)
+        .eq("sale_id", params.saleId)
+        .eq("invoice_id", params.invoice.id)
+        .eq(
+            "document_type",
+            getInvoiceTypeDocumentType(params.invoice.invoice_type),
+        )
+        .not("file_path", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error("[email] stored invoice PDF lookup failed", error);
+        return null;
+    }
+
+    const documentId = (existingDocument?.id as string | undefined) ?? null;
+    if (!documentId) return null;
+
+    const { error: linkError } = await params.supabase
+        .from("invoices")
+        .update({ pdf_document_id: documentId })
+        .eq("id", params.invoice.id)
+        .eq("sale_id", params.saleId)
+        .eq("company_id", params.companyId)
+        .is("pdf_document_id", null);
+
+    if (linkError) {
+        // The resolved document remains safe to use for this request. A failed
+        // repair must not force PDF regeneration or block delivery.
+        console.error("[email] invoice PDF link backfill failed", linkError);
+    }
+
+    return documentId;
+}
+
 function revalidateInvoiceDocumentPaths(saleId: string) {
     revalidatePaths([
         `/dashboard/sales/${saleId}`,
@@ -1339,7 +1393,14 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingEmail"));
     }
 
-    if (!invoice.pdf_document_id) {
+    const pdfDocumentId = await resolveStoredInvoicePdfDocumentId({
+        supabase,
+        companyId,
+        saleId,
+        invoice,
+    });
+
+    if (!pdfDocumentId) {
         redirect(getInvoiceEmailErrorRedirect(saleId, invoiceId, "missingPdf"));
     }
 
@@ -1383,7 +1444,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             bodyHtml: template.html,
             documentAttachments: [
                 {
-                    documentId: invoice.pdf_document_id,
+                    documentId: pdfDocumentId,
                     attachmentType: "invoice_pdf",
                 },
             ],
