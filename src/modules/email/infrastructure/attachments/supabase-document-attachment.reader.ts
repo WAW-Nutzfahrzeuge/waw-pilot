@@ -32,9 +32,46 @@ export class SupabaseDocumentAttachmentReader implements EmailAttachmentReaderPo
             );
         }
 
-        const { data, error } = await this.supabase.storage
+        let { data, error } = await this.supabase.storage
             .from(activeFile.storageBucket)
             .download(activeFile.storagePath);
+
+        let resolvedStoragePath = activeFile.storagePath;
+        let resolvedFileName = activeFile.fileName;
+        let resolvedMimeType = activeFile.mimeType;
+
+        if (error || !data) {
+            // Some invoice PDFs were regenerated through the legacy document
+            // columns while an older active document version still pointed to
+            // a no-longer-existing object. The current documents.file_path is
+            // the source written by PDF regeneration, so use it as a safe,
+            // tenant-scoped fallback instead of regenerating during delivery.
+            const { data: currentDocument, error: documentError } = await this.supabase
+                .from("documents")
+                .select("file_name, file_path, mime_type")
+                .eq("company_id", params.companyId)
+                .eq("id", params.documentId)
+                .single();
+
+            const fallbackPath = currentDocument?.file_path as string | null | undefined;
+            if (
+                !documentError &&
+                fallbackPath &&
+                fallbackPath !== activeFile.storagePath
+            ) {
+                const fallbackDownload = await this.supabase.storage
+                    .from("documents")
+                    .download(fallbackPath);
+
+                data = fallbackDownload.data;
+                error = fallbackDownload.error;
+                resolvedStoragePath = fallbackPath;
+                resolvedFileName =
+                    (currentDocument?.file_name as string | null) ?? activeFile.fileName;
+                resolvedMimeType =
+                    (currentDocument?.mime_type as string | null) ?? activeFile.mimeType;
+            }
+        }
 
         if (error || !data) {
             throw new EmailAttachmentNotFoundError(
@@ -48,14 +85,14 @@ export class SupabaseDocumentAttachmentReader implements EmailAttachmentReaderPo
             documentId: activeFile.documentId,
             documentVersionId: activeFile.versionId,
             fileName: getDocumentDownloadFileName({
-                storedFileName: activeFile.fileName,
+                storedFileName: resolvedFileName,
                 documentType: activeFile.documentType,
-                mimeType: activeFile.mimeType ?? data.type ?? "application/octet-stream",
+                mimeType: resolvedMimeType ?? data.type ?? "application/octet-stream",
                 invoiceNumber: activeFile.invoiceNumber,
-                storagePath: activeFile.storagePath,
+                storagePath: resolvedStoragePath,
                 versionNumber: activeFile.versionNumber,
             }),
-            mimeType: activeFile.mimeType ?? data.type ?? "application/octet-stream",
+            mimeType: resolvedMimeType ?? data.type ?? "application/octet-stream",
             fileSizeBytes: content.byteLength,
             content,
             attachmentType: params.attachmentType,
