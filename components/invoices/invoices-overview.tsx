@@ -37,6 +37,7 @@ import { useTemporaryHighlight } from "@/components/shared/temporary-highlight";
 import { cn } from "@/lib/utils";
 import { sendInvoicesToDatevAction } from "@/app/dashboard/invoices/actions";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
+import { getInvoiceOverviewReference } from "@/lib/invoices/invoice-overview-reference";
 import { ActionMessage } from "@/components/shared/action-message";
 
 type InvoicesOverviewProps = {
@@ -531,7 +532,10 @@ export function InvoicesOverview({
                                             <InvoiceTypePill invoice={invoice} />
 
                                             <p className="mt-2 break-all text-lg font-extrabold text-cyan-700">
-                                                {invoice.sale_number ?? invoice.invoice_number}
+                                                {getInvoiceOverviewReference(invoice).invoiceNumber}
+                                            </p>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                                                Verkauf: {getInvoiceOverviewReference(invoice).saleReference}
                                             </p>
                                             <p className="mt-1 text-sm font-bold text-slate-950">
                                                 {invoice.customer_name}
@@ -721,10 +725,10 @@ export function InvoicesOverview({
                                             <InvoiceTypePill invoice={invoice} />
 
                                             <p className="mt-2 font-extrabold text-cyan-700">
-                                                {invoice.sale_number ?? invoice.invoice_number}
+                                                {getInvoiceOverviewReference(invoice).invoiceNumber}
                                             </p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                Verkauf: {invoice.sale_number ?? invoice.sale_id}
+                                                Verkauf: {getInvoiceOverviewReference(invoice).saleReference}
                                             </p>
                                         </td>
 
