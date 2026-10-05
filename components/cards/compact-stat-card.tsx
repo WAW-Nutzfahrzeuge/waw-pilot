@@ -9,7 +9,7 @@ type CompactStatTone = "default" | "success" | "warning" | "danger" | "info" | "
 type CompactStatCardProps = {
     label: string;
     value: string | number;
-    description: string;
+    description?: string;
     icon: LucideIcon;
     tone?: CompactStatTone;
     href?: string;
@@ -50,9 +50,11 @@ export function CompactStatCard({
                         <p className="mt-2 break-words text-lg font-extrabold tracking-tight text-slate-950 xl:text-xl">
                             {value}
                         </p>
-                        <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
-                            {description}
-                        </p>
+                        {description ? (
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                                {description}
+                            </p>
+                        ) : null}
                     </div>
 
                     <div

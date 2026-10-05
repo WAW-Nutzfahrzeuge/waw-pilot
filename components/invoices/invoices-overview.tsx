@@ -405,7 +405,6 @@ export function InvoicesOverview({
                 <InvoiceStatCard
                     label="Netto-Betrag"
                     value={formatCurrency(invoiceSummary.totalNet)}
-                    description={`Brutto: ${formatCurrency(invoiceSummary.totalGross)}`}
                     icon={FileText}
                 />
                 <InvoiceStatCard
@@ -939,7 +938,7 @@ function InvoiceTypePill({ invoice }: { invoice: InvoiceRow }) {
 type InvoiceStatCardProps = {
     label: string;
     value: string | number;
-    description: string;
+    description?: string;
     icon: typeof Receipt;
     danger?: boolean;
 };
