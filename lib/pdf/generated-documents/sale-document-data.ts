@@ -48,6 +48,7 @@ type SaleQueryRow = {
     id: string;
     company_id: string;
     sale_number: string | null;
+    sale_identifier: string;
     buyer_customer_id: string;
     vehicle_id: string;
     sale_type: string | null;
@@ -125,6 +126,7 @@ export async function getSaleGeneratedDocumentData(
                 `
     id,
             sale_number,
+            sale_identifier,
             company_id,
             buyer_customer_id,
             vehicle_id,
@@ -280,6 +282,7 @@ export async function getSaleGeneratedDocumentData(
 
         sale: {
             id: sale.id,
+            saleIdentifier: sale.sale_identifier,
             saleNumber: sale.sale_number,
             saleType: sale.sale_type ?? "inland",
             saleDate: sale.sale_date,

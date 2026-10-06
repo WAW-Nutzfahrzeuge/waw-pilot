@@ -12,6 +12,7 @@ import {
     embedCompanyPdfImage,
     type CompanySignatureStampAssets,
 } from "@/lib/pdf/company-signature-assets";
+import { drawSaleIdentifierOnEveryPage } from "@/lib/pdf/core/sale-identifier-footer";
 
 function requireValue(value: string | number | null | undefined): string {
     if (value === null || value === undefined) return "—";
@@ -318,6 +319,11 @@ export async function generateHandoverProtocolPdf(
         signatureY,
         ctx.width - ctx.margin,
         signatureY,
+    );
+
+    await drawSaleIdentifierOnEveryPage(
+        ctx.pdfDoc,
+        requireValue(data.sale.saleIdentifier),
     );
 
     return ctx.pdfDoc.save();

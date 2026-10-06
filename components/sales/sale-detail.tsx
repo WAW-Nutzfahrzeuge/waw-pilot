@@ -74,6 +74,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 import { isSaleCustomDocument, saleCustomDocumentType } from "@/lib/sales/sale-custom-documents";
+import { SaleIdentifierCopy } from "@/components/sales/sale-identifier-copy";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
@@ -277,6 +278,8 @@ export async function SaleDetail({
                     </div>
                 }
             />
+
+            <SaleIdentifierCopy identifier={sale.sale_identifier} />
 
             {invoiceCreatedNumber ? (
                 <FlashMessage
@@ -962,6 +965,7 @@ export async function SaleDetail({
                                                 country: sale.customer.country,
                                             }}
                                             vehicleLabel={sale.vehicle.name}
+                                            saleIdentifier={sale.sale_identifier}
                                             documents={sale.documents}
                                             destinationCountry={
                                                 exportDetails.export_destination_country

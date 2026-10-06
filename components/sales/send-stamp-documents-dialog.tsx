@@ -34,6 +34,7 @@ type SendStampDocumentsDialogProps = {
         country: string | null;
     };
     vehicleLabel: string;
+    saleIdentifier: string;
     documents: StampDocumentCandidate[];
     saleType: SaleType;
     destinationCountry?: string | null;
@@ -48,6 +49,7 @@ export function SendStampDocumentsDialog({
                                              saleId,
                                              customer,
                                              vehicleLabel,
+                                             saleIdentifier,
                                              documents,
                                              saleType,
                                              destinationCountry = null,
@@ -69,6 +71,7 @@ export function SendStampDocumentsDialog({
         customerName: customer.name,
         vehicleLabel,
         documentLabels: availableDocuments.map((document) => document.label),
+        saleIdentifier,
     });
     const [open, setOpen] = useState(false);
     const [language, setLanguage] = useState<EmailLanguage>(suggestedLanguage);
@@ -98,11 +101,19 @@ export function SendStampDocumentsDialog({
             documentLabels: availableDocuments
                 .filter((document) => selectedDocumentIds.has(document.id))
                 .map((document) => document.label),
+            saleIdentifier,
         });
 
         setSubject(template.subject);
         setBody(template.text);
-    }, [availableDocuments, customer.name, language, selectedDocumentIds, vehicleLabel]);
+    }, [
+        availableDocuments,
+        customer.name,
+        language,
+        saleIdentifier,
+        selectedDocumentIds,
+        vehicleLabel,
+    ]);
 
     useEffect(() => {
         if (lastCustomerLanguageRef.current === suggestedLanguage) return;

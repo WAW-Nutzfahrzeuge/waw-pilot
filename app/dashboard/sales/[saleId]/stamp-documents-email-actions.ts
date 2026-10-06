@@ -16,6 +16,8 @@ import {
     getAvailableStampDocuments,
     getStampDocumentsEmailTemplate,
     getStampDocumentType,
+    ensureSaleIdentifierInEmailText,
+    ensureSaleIdentifierInSubject,
 } from "@/lib/sales/stamp-documents";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -55,6 +57,7 @@ type SaleEmailCustomer = {
 
 type SaleEmailQueryRow = {
     id: string;
+    sale_identifier: string;
     sale_type: SaleType | null;
     export_destination_country: string | null;
     buyer_customer_id: string;
@@ -167,6 +170,7 @@ export async function sendStampDocumentsEmailAction(
         .select(
             `
             id,
+            sale_identifier,
             sale_type,
             export_destination_country,
             buyer_customer_id,
@@ -222,6 +226,16 @@ export async function sendStampDocumentsEmailAction(
         sale.export_destination_country ?? customer.country,
     ).filter((document) => selectedDocumentIds.has(document.id));
 
+    const safeSubject = ensureSaleIdentifierInSubject(
+        subject,
+        sale.sale_identifier,
+    );
+    const safeBody = ensureSaleIdentifierInEmailText(
+        body,
+        sale.sale_identifier,
+        language,
+    );
+
     if (availableStampDocuments.length === 0) {
         return {
             success: false,
@@ -271,9 +285,9 @@ export async function sendStampDocumentsEmailAction(
             senderName: sender.senderName,
             senderEmail: sender.senderEmail,
             toRecipients: [{ email: recipientEmail, name: null }],
-            subject,
-            bodyText: body,
-            bodyHtml: toHtml(body),
+            subject: safeSubject,
+            bodyText: safeBody,
+            bodyHtml: toHtml(safeBody),
             documentAttachments: selectedAttachments.map((attachment) => ({
                 documentId: attachment.documentId,
                 attachmentType: attachment.attachmentType,
@@ -281,9 +295,10 @@ export async function sendStampDocumentsEmailAction(
             relations: [{ relationType: "SALE", relationId: saleId }],
             idempotencyKey: `stamp-documents-email:${companyId}:${saleId}:${Array.from(selectedDocumentIds)
                 .sort()
-                .join(",")}:${recipientEmail}:${subject}`,
+                .join(",")}:${recipientEmail}:${safeSubject}`,
             metadata: {
                 language,
+                saleIdentifier: sale.sale_identifier,
                 vehicle: `${vehicle.manufacturer} ${vehicle.model}`,
                 documentLabels: availableStampDocuments.map((document) => document.label),
             },
@@ -326,6 +341,7 @@ export async function sendEndUseDeclarationEmailAction(
         .select(
             `
             id,
+            sale_identifier,
             sale_type,
             export_destination_country,
             customers:buyer_customer_id (
@@ -407,6 +423,7 @@ export async function sendEndUseDeclarationEmailAction(
         customerName: getCustomerName(customer),
         vehicleLabel: `${vehicle.manufacturer} ${vehicle.model}`.trim(),
         documentLabels: [declaration.label],
+        saleIdentifier: sale.sale_identifier,
     });
 
     try {
@@ -436,6 +453,7 @@ export async function sendEndUseDeclarationEmailAction(
             idempotencyKey: `end-use-declaration-email:${companyId}:${saleId}:${declaration.id}:${customer.email}:${template.subject}`,
             metadata: {
                 language,
+                saleIdentifier: sale.sale_identifier,
                 vehicle: `${vehicle.manufacturer} ${vehicle.model}`,
                 documentLabels: [declaration.label],
             },

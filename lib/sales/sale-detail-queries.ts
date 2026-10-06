@@ -122,6 +122,7 @@ type SaleRefundRelation = {
 type SaleDetailQueryRow = {
     id: string;
     sale_number: string | null;
+    sale_identifier: string;
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
@@ -316,6 +317,7 @@ export type RequiredDocumentStatus = RequiredDocumentDefinition & {
 export type SaleDetail = {
     id: string;
     sale_number: string | null;
+    sale_identifier: string;
     sale_date: string;
     sale_type: SaleType;
     status: SaleStatus;
@@ -636,6 +638,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
             `
 	      id,
 	      sale_number,
+	      sale_identifier,
 	      vehicle_id,
       buyer_customer_id,
       sale_date,
@@ -793,6 +796,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
                 `
 	      id,
 	      sale_number,
+	      sale_identifier,
 	      vehicle_id,
       buyer_customer_id,
       sale_date,
@@ -1182,6 +1186,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
     return {
         id: sale.id,
         sale_number: sale.sale_number,
+        sale_identifier: sale.sale_identifier,
         sale_date: sale.sale_date,
         sale_type: saleType,
         status: sale.status,

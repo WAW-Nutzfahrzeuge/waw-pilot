@@ -32,6 +32,7 @@ function buildGeneratedDocumentMetadata(params: {
     documentDate: DocumentDateSuggestion;
     generatedAt: string;
     overrideDate: string | null;
+    saleIdentifier: string;
 }): Record<string, unknown> {
     return {
         documentDate: params.documentDate.usedDate,
@@ -46,6 +47,7 @@ function buildGeneratedDocumentMetadata(params: {
         overrideDate: params.overrideDate,
         generatedAt: params.generatedAt,
         source: "generated_sale_document",
+        saleIdentifier: params.saleIdentifier,
     };
 }
 
@@ -206,6 +208,7 @@ export async function generateAndStoreSaleGeneratedDocument(params: {
         documentDate,
         generatedAt,
         overrideDate: params.documentDateOverride ?? null,
+        saleIdentifier: documentData.sale?.saleIdentifier ?? "",
     });
 
     const [uploadResult, existingDocumentResult] = await Promise.all([

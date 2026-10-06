@@ -2,6 +2,15 @@ import type { EmailLanguage } from "@/lib/customers/email-languages";
 import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import {
+    ensureSaleIdentifierInEmailText,
+    ensureSaleIdentifierInSubject,
+} from "@/lib/sales/sale-identifier";
+
+export {
+    ensureSaleIdentifierInEmailText,
+    ensureSaleIdentifierInSubject,
+} from "@/lib/sales/sale-identifier";
 
 export const STAMP_DOCUMENT_TYPES = [
     {
@@ -127,16 +136,37 @@ export function getMissingStampDocumentLabels(
     ).map((definition) => definition.label);
 }
 
+function finalizeStampDocumentsEmailTemplate(params: {
+    subject: string;
+    text: string;
+    saleIdentifier: string;
+    language: EmailLanguage;
+}) {
+    return {
+        subject: ensureSaleIdentifierInSubject(
+            params.subject,
+            params.saleIdentifier,
+        ),
+        text: ensureSaleIdentifierInEmailText(
+            params.text,
+            params.saleIdentifier,
+            params.language,
+        ),
+    };
+}
+
 export function getStampDocumentsEmailTemplate({
                                                    language,
                                                    customerName,
                                                    vehicleLabel,
                                                    documentLabels,
+                                                   saleIdentifier,
                                                }: {
     language: EmailLanguage;
     customerName: string;
     vehicleLabel: string;
     documentLabels: string[];
+    saleIdentifier: string;
 }) {
     const documentList = documentLabels.map((label) => `- ${label}`).join("\n");
 
@@ -156,7 +186,7 @@ ${documentList}
 Z poważaniem
 W.A.W Nutzfahrzeuge`;
 
-        return {
+        return finalizeStampDocumentsEmailTemplate({
             subject,
             text: composeBilingualEmailText({
                 language,
@@ -167,7 +197,9 @@ W.A.W Nutzfahrzeuge`;
                     documentList,
                 }),
             }),
-        };
+            saleIdentifier,
+            language,
+        });
     }
 
     if (language === "bg") {
@@ -186,7 +218,7 @@ ${documentList}
 С уважение
 W.A.W Nutzfahrzeuge`;
 
-        return {
+        return finalizeStampDocumentsEmailTemplate({
             subject,
             text: composeBilingualEmailText({
                 language,
@@ -197,7 +229,9 @@ W.A.W Nutzfahrzeuge`;
                     documentList,
                 }),
             }),
-        };
+            saleIdentifier,
+            language,
+        });
     }
 
     const localizedCopy = STAMP_LANGUAGE_COPY[language];
@@ -219,7 +253,7 @@ ${localizedCopy.thanks}
 ${localizedCopy.closing}
 W.A.W Nutzfahrzeuge`;
 
-        return {
+        return finalizeStampDocumentsEmailTemplate({
             subject: `${localizedCopy.subject} ${vehicleLabel}`,
             text: composeBilingualEmailText({
                 language,
@@ -230,7 +264,9 @@ W.A.W Nutzfahrzeuge`;
                     documentList,
                 }),
             }),
-        };
+            saleIdentifier,
+            language,
+        });
     }
 
     const englishSubject = `Documents for signature and stamp - Vehicle ${vehicleLabel}`;
@@ -241,7 +277,12 @@ W.A.W Nutzfahrzeuge`;
     });
 
     if (language === "en") {
-        return { subject: englishSubject, text: englishText };
+        return finalizeStampDocumentsEmailTemplate({
+            subject: englishSubject,
+            text: englishText,
+            saleIdentifier,
+            language,
+        });
     }
 
     const subject = `Dokumente zum Unterschreiben und Stempeln - Fahrzeug ${vehicleLabel}`;
@@ -264,7 +305,12 @@ W.A.W Nutzfahrzeuge`;
         englishText,
     });
 
-    return { subject, text };
+    return finalizeStampDocumentsEmailTemplate({
+        subject,
+        text,
+        saleIdentifier,
+        language,
+    });
 }
 
 function getEnglishStampDocumentsEmailText({

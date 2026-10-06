@@ -8,6 +8,7 @@ import {
 import { createPdfLayout } from "@/lib/pdf/core/pdf-layout";
 import { formatPdfDate } from "@/lib/pdf/core/pdf-format";
 import { drawCompanyDocumentHeader } from "@/lib/pdf/core/company-document-header";
+import { drawSaleIdentifierOnEveryPage } from "@/lib/pdf/core/sale-identifier-footer";
 import type { SaleGeneratedDocumentData } from "@/lib/pdf/generated-documents/sale-document-data";
 
 function requireValue(value: string | number | null | undefined): string {
@@ -569,6 +570,11 @@ export async function generateEntryCertificatePdf(
         font: timesRoman,
         color: rgb(0, 0, 0),
     });
+
+    await drawSaleIdentifierOnEveryPage(
+        ctx.pdfDoc,
+        requireValue(data.sale.saleIdentifier),
+    );
 
     return ctx.pdfDoc.save();
 }

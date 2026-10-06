@@ -30,6 +30,7 @@ export type GeneratedDocumentValidationField =
     | "vehicle.constructionYear"
 
     | "sale.id"
+    | "sale.saleIdentifier"
     | "sale.saleDate"
     | "sale.invoiceNumber"
     | "sale.invoiceDate"
@@ -118,6 +119,7 @@ export type GeneratedDocumentValidationData = {
 
     sale?: {
         id?: string | null;
+        saleIdentifier?: string | null;
         saleNumber?: string | null;
         saleType?: string | null;
         saleDate?: string | null;
@@ -289,6 +291,12 @@ const invoiceRules: GeneratedDocumentValidationRule[] = [
     },
 ];
 
+const saleIdentifierRule: GeneratedDocumentValidationRule = {
+    field: "sale.saleIdentifier",
+    label: "Verkaufskennung",
+    message: "Die Verkaufskennung fehlt.",
+};
+
 const purchaseBaseRules: GeneratedDocumentValidationRule[] = [
     {
         field: "purchase.id",
@@ -350,6 +358,7 @@ export const documentValidationRules: Record<
         ...vehicleBaseRules,
         ...saleBaseRules,
         ...invoiceRules,
+        saleIdentifierRule,
     ],
 
     entry_certificate: [
@@ -364,6 +373,7 @@ export const documentValidationRules: Record<
         ...saleBaseRules,
         ...invoiceRules,
         ...exportBaseRules,
+        saleIdentifierRule,
     ],
 
     transport_proof: [
@@ -378,6 +388,7 @@ export const documentValidationRules: Record<
         ...saleBaseRules,
         ...invoiceRules,
         ...exportBaseRules,
+        saleIdentifierRule,
         {
             field: "export.transportType",
             label: "Verbringung: Art",
