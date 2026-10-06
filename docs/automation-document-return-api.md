@@ -252,3 +252,39 @@ Postfachüberwachung, KI-Auswertung, PDF-Aufteilung, OneDrive und Druck sind bew
 ## Sichere End-to-End-Prüfung
 
 Vor einem Live-Test müssen eine isolierte Test-Verkaufsakte, eine Testrechnung, ein Testfahrzeug und eine Testkundin beziehungsweise ein Testkunde vorhanden sein. Der Test darf nicht auf eine reale Akte zeigen. Nach dem Test sind nur die erzeugten Test-Rückläufe und Original-Uploads kontrolliert zu bereinigen; Finanzdaten, Nummernkreise und Fahrzeugstatus werden nicht verändert.
+
+Der vorbereitete Testlauf liegt unter `scripts/test-automation-document-return-e2e.mjs`. Er erzeugt selbst **keinen** Verkauf, keine Rechnung, keine Buchung und keinen Kunden. Vor Schreibzugriffen prüft er zwingend:
+
+- Verkaufsnotiz enthält `[AUTOMATION-E2E]`
+- Kundenadresse endet auf `@example.invalid`
+- VIN enthält `TEST`
+- mindestens eine bereits vorbereitete Rechnung mit `TEST` in der Rechnungsnummer ist vorhanden
+- `AUTOMATION_TEST_ALLOW_WRITES=true` wurde ausdrücklich gesetzt
+
+Erforderliche lokale Variablen, ohne Werte ins Repository zu schreiben:
+
+```text
+AUTOMATION_TEST_ALLOW_WRITES=true
+AUTOMATION_TEST_BASE_URL=https://<WAW-VERCEL-DOMAIN>
+AUTOMATION_TEST_SALE_ID=<ISOLIERTE-TEST-SALE-UUID>
+AUTOMATION_API_TOKEN=<TOKEN-AUS-VERCEL>
+NEXT_PUBLIC_SUPABASE_URL=<SUPABASE-URL>
+SUPABASE_SERVICE_ROLE_KEY=<SERVER-ONLY-KEY>
+```
+
+Ausführung:
+
+```bash
+npm run test:automation:e2e
+```
+
+Der Lauf prüft API-Zuordnung, Konflikte, privaten Original-Storage, Seitenverknüpfung, unsigned-Status, sequentielle und parallele Idempotenz, Inhaltskonflikt, Korrekturversion, aktive Version und privaten Storage-Download. Die erzeugten Dateien bleiben als eindeutig mit einer Run-ID markierte Testnachweise in der isolierten Akte erhalten, damit die Anzeige und das Öffnen anschließend angemeldet im Browser geprüft werden können.
+
+### Aktueller Prüfstatus (2026-10-06)
+
+- Beide Migrationsdateien sind im Repository vorhanden.
+- Im aktuell konfigurierten Supabase-Projekt sind `sales.sale_identifier` und `automation_return_uploads` read-only erfolgreich auflösbar.
+- Die RPC `complete_automation_sale_document_upload` existiert und verweigert dem Anon-Key erwartungsgemäß den Zugriff (`42501`).
+- Lokale Route-Tests ergaben `401` für ungültigen Zugang, `400` für ungültiges JSON und `415` für eine als PDF deklarierte Nicht-PDF.
+- Der schreibende E2E-Test wurde noch nicht ausgeführt, weil lokal kein `SUPABASE_SERVICE_ROLE_KEY`, kein `AUTOMATION_API_TOKEN`, keine `AUTOMATION_TEST_BASE_URL` und keine eindeutig markierte `AUTOMATION_TEST_SALE_ID` konfiguriert waren.
+- Eine Browserprüfung der Verkaufsakte wurde daher ebenfalls nicht ausgeführt.

@@ -2,6 +2,7 @@ import type { EmailLanguage } from "@/lib/customers/email-languages";
 import { composeBilingualEmailText } from "@/lib/email/bilingual-email";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import { getStampDocumentKeysForSaleRule } from "@/lib/sales/stamp-document-requirement-rules";
 import {
     ensureSaleIdentifierInEmailText,
     ensureSaleIdentifierInSubject,
@@ -45,23 +46,14 @@ export const STAMP_DOCUMENT_TYPES = [
 
 export type StampDocumentKey = (typeof STAMP_DOCUMENT_TYPES)[number]["key"];
 
-const STAMP_DOCUMENT_KEYS_BY_SALE_TYPE: Record<SaleType, readonly StampDocumentKey[]> = {
-    inland: ["handover_protocol"],
-    eu: ["entry_certificate", "transport_proof", "handover_protocol"],
-    export_third_country: [],
-};
-
 export function getStampDocumentKeysForSaleType(
     saleType: SaleType,
     destinationCountry?: string | null,
 ): readonly StampDocumentKey[] {
-    if (saleType === "export_third_country") {
-        return requiresEndUseDeclaration(destinationCountry)
-            ? ["end_use_declaration"]
-            : [];
-    }
-
-    return STAMP_DOCUMENT_KEYS_BY_SALE_TYPE[saleType];
+    return getStampDocumentKeysForSaleRule(
+        saleType,
+        saleType === "export_third_country" && requiresEndUseDeclaration(destinationCountry),
+    ) as readonly StampDocumentKey[];
 }
 
 export type StampDocumentCandidate = {

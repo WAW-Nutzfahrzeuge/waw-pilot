@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { isSignedReturnSatisfied } from "../lib/automation/document-return-status.ts";
 import { isUuid } from "../lib/automation/validation.ts";
+import { getStampDocumentKeysForSaleRule } from "../lib/sales/stamp-document-requirement-rules.ts";
 
 test("sale and document identifiers must be UUIDs before database access", () => {
     assert.equal(isUuid("00000000-0000-4000-8000-000000000000"), true);
@@ -46,4 +47,10 @@ test("only the active corrected document version can satisfy the requirement", (
         documentVersionId: "version-2",
         activeVersionId: "version-2",
     }), true);
+});
+
+test("automation requirements reuse the existing inland, EU and third-country rules", () => {
+    assert.deepEqual(getStampDocumentKeysForSaleRule("inland"), ["handover_protocol"]);
+    assert.deepEqual(getStampDocumentKeysForSaleRule("eu"), ["entry_certificate", "transport_proof", "handover_protocol"]);
+    assert.deepEqual(getStampDocumentKeysForSaleRule("export_third_country"), []);
 });
