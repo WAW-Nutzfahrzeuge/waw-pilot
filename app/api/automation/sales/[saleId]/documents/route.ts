@@ -8,6 +8,7 @@ import {
 } from "@/lib/automation/document-return-upload";
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
+import { isUuid } from "@/lib/automation/validation";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ saleId: string }> };
@@ -17,6 +18,7 @@ export async function POST(request: Request, routeContext: Context) {
     const auth = authenticateAutomationRequest(request);
     if (!auth) return automationUnauthorized();
     const { saleId } = await routeContext.params;
+    if (!isUuid(saleId)) return automationError(422, "invalid_sale_id", "Die Verkaufs-ID ist ungültig.");
     const idempotencyKey = request.headers.get("idempotency-key")?.trim();
     if (!idempotencyKey || idempotencyKey.length > 200) return automationError(400, "invalid_idempotency_key", "Ein gültiger Idempotency-Key ist erforderlich.");
     let form: FormData;
@@ -34,11 +36,16 @@ export async function POST(request: Request, routeContext: Context) {
     if (file.type !== "application/pdf" || !isPdf(bytes)) return automationError(415, "invalid_file_type", "Nur echte PDF-Dateien werden akzeptiert.");
     if (!documentType || !automationReturnDocumentTypes.includes(documentType as never)) return automationError(422, "invalid_document_type", "Der Dokumenttyp ist ungültig.");
     if (!saleIdentifier) return automationError(422, "sale_identifier_required", "Die Verkaufskennung ist als Zuordnungskontrolle erforderlich.");
+    if (!/^VK-[A-F0-9]{10}$/.test(saleIdentifier)) return automationError(422, "invalid_sale_identifier", "Die Verkaufskennung hat ein ungültiges Format.");
     if (!signatureStatus || !automationSignatureStatuses.includes(signatureStatus as never)) return automationError(422, "invalid_signature_status", "Der Unterschriftsstatus ist ungültig.");
     if (!automationReviewStatuses.includes(reviewStatus as never)) return automationError(422, "invalid_review_status", "Der Prüfstatus ist ungültig.");
     if (originalPageNumbersRaw && !originalPageNumbers) return automationError(422, "invalid_page_numbers", "Originalseiten müssen als eindeutige positive Zahlen, z. B. 1,2, angegeben werden.");
-    const receivedAtRaw = field(form, "receivedAt") ?? new Date().toISOString();
+    const receivedAtInput = field(form, "receivedAt");
+    const receivedAtRaw = receivedAtInput ?? new Date().toISOString();
     if (Number.isNaN(Date.parse(receivedAtRaw))) return automationError(422, "invalid_received_at", "Das Eingangsdatum ist ungültig.");
+    if (file.name.length > 255 || ["reviewReason", "returnId", "sourceEmailId", "sourceAttachmentId"].some((key) => (field(form, key)?.length ?? 0) > 500)) {
+        return automationError(422, "metadata_too_long", "Dateiname oder Rücklaufmetadaten sind zu lang.");
+    }
 
     const supabase = createAutomationSupabaseClient();
     const { data: sale, error: saleError } = await supabase.from("sales")
@@ -50,6 +57,7 @@ export async function POST(request: Request, routeContext: Context) {
 
     const parentOriginalUploadId = field(form, "originalUploadId");
     if (parentOriginalUploadId) {
+        if (!isUuid(parentOriginalUploadId)) return automationError(422, "invalid_original_upload_id", "Die Original-Upload-ID ist ungültig.");
         const { data: original } = await supabase.from("automation_return_uploads").select("id")
             .eq("id", parentOriginalUploadId).eq("company_id", auth.companyId).eq("upload_kind", "original").eq("processing_status", "completed").maybeSingle();
         if (!original) return automationError(422, "original_not_found", "Der angegebene Originalanhang ist nicht vorhanden.");
@@ -57,6 +65,7 @@ export async function POST(request: Request, routeContext: Context) {
     const replacesDocumentId = field(form, "replacesDocumentId");
     let replacement: { id: string } | null = null;
     if (replacesDocumentId) {
+        if (!isUuid(replacesDocumentId)) return automationError(422, "invalid_replacement_id", "Die zu ersetzende Dokument-ID ist ungültig.");
         const { data } = await supabase.from("documents").select("id").eq("id", replacesDocumentId)
             .eq("company_id", auth.companyId).eq("sale_id", saleId).eq("document_type", documentType).eq("source", "automation_return").maybeSingle();
         if (!data) return automationError(422, "replacement_not_found", "Das zu ersetzende Rücklaufdokument ist ungültig.");
@@ -66,8 +75,12 @@ export async function POST(request: Request, routeContext: Context) {
     const receivedAt = new Date(receivedAtRaw).toISOString();
     const metadata = { kind: "sale_document", saleId, saleIdentifier, documentType, signatureStatus, reviewStatus,
         reviewReason: field(form, "reviewReason"), returnId: field(form, "returnId"), sourceEmailId: field(form, "sourceEmailId"),
-        sourceAttachmentId: field(form, "sourceAttachmentId"), originalPageNumbers, parentOriginalUploadId, replacesDocumentId, receivedAt, fileName: file.name };
-    const { fileHash, fingerprint } = createUploadFingerprint(bytes, metadata);
+        sourceAttachmentId: field(form, "sourceAttachmentId"), originalPageNumbers, parentOriginalUploadId, replacesDocumentId,
+        receivedAt, fileName: file.name };
+    const { fileHash, fingerprint } = createUploadFingerprint(bytes, {
+        ...metadata,
+        receivedAt: receivedAtInput ? receivedAt : null,
+    });
     let claim;
     try {
         claim = await claimUpload({ supabase, row: { company_id: auth.companyId, upload_kind: "sale_document", idempotency_key: idempotencyKey,

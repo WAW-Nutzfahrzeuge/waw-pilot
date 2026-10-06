@@ -33,14 +33,18 @@ export async function POST(request: Request) {
     const bytes = Buffer.from(await file.arrayBuffer());
     if (file.type !== "application/pdf" || !isPdf(bytes)) return automationError(415, "invalid_file_type", "Nur echte PDF-Dateien werden akzeptiert.");
 
-    const receivedAt = textField(form, "receivedAt") ?? new Date().toISOString();
+    const receivedAtInput = textField(form, "receivedAt");
+    const receivedAt = receivedAtInput ?? new Date().toISOString();
     if (Number.isNaN(Date.parse(receivedAt))) return automationError(422, "invalid_received_at", "Das Eingangsdatum ist ungültig.");
+    if (file.name.length > 255 || ["returnId", "sourceEmailId", "sourceAttachmentId"].some((key) => (textField(form, key)?.length ?? 0) > 500)) {
+        return automationError(422, "metadata_too_long", "Dateiname oder Quellmetadaten sind zu lang.");
+    }
     const metadata = {
         kind: "original",
         returnId: textField(form, "returnId"),
         sourceEmailId: textField(form, "sourceEmailId"),
         sourceAttachmentId: textField(form, "sourceAttachmentId"),
-        receivedAt: new Date(receivedAt).toISOString(),
+        receivedAt: receivedAtInput ? new Date(receivedAtInput).toISOString() : null,
         fileName: file.name,
     };
     const { fileHash, fingerprint } = createUploadFingerprint(bytes, metadata);
@@ -50,7 +54,7 @@ export async function POST(request: Request) {
         claim = await claimUpload({ supabase, row: {
             company_id: context.companyId, upload_kind: "original", idempotency_key: idempotencyKey,
             request_fingerprint: fingerprint, original_file_name: file.name, mime_type: "application/pdf",
-            file_size_bytes: file.size, sha256: fileHash, received_at: metadata.receivedAt,
+            file_size_bytes: file.size, sha256: fileHash, received_at: new Date(receivedAt).toISOString(),
             return_id: metadata.returnId, source_email_id: metadata.sourceEmailId, source_attachment_id: metadata.sourceAttachmentId,
         } });
     } catch (error) {

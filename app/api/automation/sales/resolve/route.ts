@@ -9,7 +9,7 @@ import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 export const runtime = "nodejs";
 
 const schema = z.object({
-    saleIdentifier: z.string().trim().max(64).optional(),
+    saleIdentifier: z.string().trim().toUpperCase().regex(/^VK-[A-F0-9]{10}$/).optional(),
     invoiceNumber: z.string().trim().max(100).optional(),
     vin: z.string().trim().max(100).optional(),
     senderEmail: z.string().trim().email().max(320).optional(),

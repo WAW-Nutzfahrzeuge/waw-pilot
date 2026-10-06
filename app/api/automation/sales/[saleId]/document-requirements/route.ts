@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
+import { isSignedReturnSatisfied } from "@/lib/automation/document-return-status";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { getStampDocumentKeysForSaleType, STAMP_DOCUMENT_TYPES } from "@/lib/sales/stamp-documents";
 import type { SaleType } from "@/lib/sales/sale-queries";
+import { isUuid } from "@/lib/automation/validation";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ saleId: string }> };
@@ -14,6 +16,7 @@ export async function GET(request: Request, routeContext: Context) {
     const auth = authenticateAutomationRequest(request);
     if (!auth) return automationUnauthorized();
     const { saleId } = await routeContext.params;
+    if (!isUuid(saleId)) return automationError(422, "invalid_sale_id", "Die Verkaufs-ID ist ungültig.");
     const supabase = createAutomationSupabaseClient();
     const { data: sale, error: saleError } = await supabase.from("sales")
         .select("id, sale_identifier, sale_type, customers(country)")
@@ -33,6 +36,18 @@ export async function GET(request: Request, routeContext: Context) {
         .eq("processing_status", "completed").order("created_at", { ascending: false });
     if (uploadError) return automationError(500, "returns_lookup_failed", "Die Rückläufe konnten nicht geladen werden.");
 
+    const documentIds = Array.from(new Set((uploads ?? []).map((upload) => upload.document_id).filter((id): id is string => Boolean(id))));
+    const activeVersions = new Map<string, string | null>();
+    if (documentIds.length > 0) {
+        const { data: documents, error: documentsError } = await supabase.from("documents")
+            .select("id, active_version_id, archive_status")
+            .eq("company_id", auth.companyId).eq("sale_id", saleId).in("id", documentIds);
+        if (documentsError) return automationError(500, "documents_lookup_failed", "Die aktiven Dokumentversionen konnten nicht geprüft werden.");
+        for (const document of documents ?? []) {
+            if (document.archive_status === "ACTIVE") activeVersions.set(document.id, document.active_version_id);
+        }
+    }
+
     const returns = (uploads ?? []).map((upload) => ({
         uploadId: upload.id,
         documentId: upload.document_id,
@@ -44,7 +59,14 @@ export async function GET(request: Request, routeContext: Context) {
         reviewReason: upload.review_reason,
         originalPageNumbers: upload.original_page_numbers,
         originalUploadId: upload.parent_original_upload_id,
-        satisfiesSignedReturn: upload.signature_status === "present" && upload.review_status !== "rejected",
+        isCurrentVersion: Boolean(upload.document_id) && activeVersions.get(upload.document_id) === upload.document_version_id,
+        satisfiesSignedReturn: isSignedReturnSatisfied({
+            signatureStatus: upload.signature_status,
+            reviewStatus: upload.review_status,
+            documentId: upload.document_id,
+            documentVersionId: upload.document_version_id,
+            activeVersionId: upload.document_id ? activeVersions.get(upload.document_id) : null,
+        }),
     }));
     const requirements = expectedKeys.map((documentType) => {
         const matching = returns.filter((item) => item.documentType === documentType);
