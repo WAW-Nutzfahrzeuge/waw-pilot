@@ -1079,7 +1079,8 @@ export async function SaleDetail({
                                                                 </Link>
                                                             </Button>
 
-                                                            {requiredDocument.document.source === "uploaded" ? (
+                                                            {requiredDocument.document.source === "uploaded" ||
+                                                            requiredDocument.document.source === "automation_return" ? (
                                                                 <DeleteSaleDocumentForm
                                                                     saleId={sale.id}
                                                                     documentId={requiredDocument.document.id}
@@ -1288,7 +1289,7 @@ export async function SaleDetail({
                                                                 Download
                                                             </Link>
                                                         </Button>
-                                                        {document.source === "uploaded" ? (
+                                                        {document.source === "uploaded" || document.source === "automation_return" ? (
                                                             <DeleteSaleDocumentForm
                                                                 saleId={sale.id}
                                                                 documentId={document.id}

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --no-warnings --test --experimental-strip-types tests/**/*.test.ts",
-    "test:automation:e2e": "node scripts/test-automation-document-return-e2e.mjs"
+    "test:automation:e2e": "node --env-file=.env.local scripts/test-automation-document-return-e2e.mjs",
+    "test:automation:limited": "node --env-file=.env.local scripts/test-automation-limited-upload-delete.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",

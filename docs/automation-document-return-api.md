@@ -280,7 +280,7 @@ npm run test:automation:e2e
 
 Der Lauf prüft API-Zuordnung, Konflikte, privaten Original-Storage, Seitenverknüpfung, unsigned-Status, sequentielle und parallele Idempotenz, Inhaltskonflikt, Korrekturversion, aktive Version und privaten Storage-Download. Die erzeugten Dateien bleiben als eindeutig mit einer Run-ID markierte Testnachweise in der isolierten Akte erhalten, damit die Anzeige und das Öffnen anschließend angemeldet im Browser geprüft werden können.
 
-### Aktueller Prüfstatus (2026-10-06)
+### Aktueller Prüfstatus (2026-10-07)
 
 - Beide Migrationsdateien sind im Repository vorhanden.
 - Im aktuell konfigurierten Supabase-Projekt sind `sales.sale_identifier` und `automation_return_uploads` read-only erfolgreich auflösbar.
@@ -288,3 +288,67 @@ Der Lauf prüft API-Zuordnung, Konflikte, privaten Original-Storage, Seitenverkn
 - Lokale Route-Tests ergaben `401` für ungültigen Zugang, `400` für ungültiges JSON und `415` für eine als PDF deklarierte Nicht-PDF.
 - Der schreibende E2E-Test wurde noch nicht ausgeführt, weil lokal kein `SUPABASE_SERVICE_ROLE_KEY`, kein `AUTOMATION_API_TOKEN`, keine `AUTOMATION_TEST_BASE_URL` und keine eindeutig markierte `AUTOMATION_TEST_SALE_ID` konfiguriert waren.
 - Eine Browserprüfung der Verkaufsakte wurde daher ebenfalls nicht ausgeführt.
+
+## Begrenzter Upload-und-Lösch-Test mit ausgewählter Akte
+
+Dieser Test ist vom umfassenden E2E-Test getrennt. Er benötigt keine besonderen Testkunden-, VIN- oder Rechnungsmarker, sondern verwendet ausschließlich die explizit gesetzte `AUTOMATION_TEST_SALE_ID`. Er erstellt weder Kunden-, Fahrzeug-, Verkaufs- oder Rechnungsdaten noch E-Mails oder Buchungen.
+
+Vorbereitung:
+
+1. Migration `20261007100000_delete_automation_return_document_version.sql` in Supabase ausführen.
+2. Den aktuellen Code nach Vercel deployen.
+3. In `.env.local` setzen:
+
+```text
+AUTOMATION_API_TOKEN=<IDENTISCH-MIT-VERCEL>
+SUPABASE_SERVICE_ROLE_KEY=<SERVER-ONLY-KEY>
+AUTOMATION_TEST_ALLOW_WRITES=true
+AUTOMATION_TEST_BASE_URL=https://<AKTUELLE-WAW-VERCEL-DOMAIN>
+AUTOMATION_TEST_SALE_ID=<AUSDRÜCKLICH-AUSGEWÄHLTE-VERKAUFS-UUID>
+```
+
+`NEXT_PUBLIC_SUPABASE_URL` und `NEXT_PUBLIC_WAW_COMPANY_ID` müssen wie für die Anwendung vorhanden sein. Die npm-Skripte laden `.env.local` ausdrücklich über Node `--env-file=.env.local`; Next.js-automatisches Laden gilt nicht für eigenständige Node-Skripte.
+
+### Phase 1: Upload
+
+```bash
+npm run test:automation:limited -- upload
+```
+
+Der Runner:
+
+- erzeugt ausschließlich `AUTOMATION-UPLOAD-TEST.pdf`
+- lädt sie als `handover_protocol` mit `signatureStatus=absent` und `reviewStatus=needs_review`
+- ersetzt keine vorhandenen Dokumente
+- speichert keine Originalanlage und keine Korrekturversion
+- prüft privaten Storage und den unerfüllten Unterschriftsstatus
+- schreibt alle erzeugten IDs und den vorherigen Dokumentbestand in ein Manifest unter `/tmp/waw-automation-upload-test-<saleId>.json`
+
+Optional kann der Manifestpfad über `AUTOMATION_LIMITED_TEST_MANIFEST` gesetzt werden. Das Manifest enthält keine Secrets.
+
+### Phase 2: UI
+
+1. Mit einem Admin-Konto anmelden.
+2. `/dashboard/sales/<AUTOMATION_TEST_SALE_ID>#documents` öffnen.
+3. In „Alle Dokumente“ `AUTOMATION-UPLOAD-TEST.pdf` suchen.
+4. „Öffnen“ anklicken und prüfen, dass die synthetische PDF angezeigt wird.
+5. Ausschließlich bei diesem Dokument „Löschen“ anklicken.
+6. Nach dem Redirect prüfen, dass das Dokument nicht mehr angezeigt wird und der Pflichtdokumentstatus neu berechnet wurde.
+
+Der Löschpfad ist auf Admins begrenzt. Bei einer einzelnen Version werden Dokument, Version, abgeleiteter Ledger-Eintrag und ausschließlich dessen private Storage-Datei entfernt. Ein verknüpftes Original oder andere daraus abgeleitete Dokumente werden nicht gelöscht. Bei mehreren Versionen wird nur die aktive Version entfernt und die vorherige Version wieder aktiviert.
+
+### Phase 3: Löschung verifizieren
+
+```bash
+npm run test:automation:limited -- verify-deleted
+```
+
+Der Runner prüft anhand des Manifests:
+
+- Test-Dokumentdatensatz entfernt
+- Test-Dokumentversion entfernt
+- zugehöriger `automation_return_uploads`-Eintrag entfernt
+- private Storage-Datei nicht mehr vorhanden
+- alle vor dem Test vorhandenen Dokumente weiterhin vorhanden
+- deren aktive Versionen und Storage-Pfade unverändert
+- Test-Rücklauf nicht mehr in `document-requirements` enthalten

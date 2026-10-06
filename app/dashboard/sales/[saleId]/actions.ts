@@ -29,6 +29,8 @@ import {
     saleCustomDocumentType,
 } from "@/lib/sales/sale-custom-documents";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
+import { getCurrentUserContext } from "@/lib/auth/current-user";
 
 type SaleUploadQueryResult = {
     id: string;
@@ -65,6 +67,7 @@ type SaleDocumentDeleteQueryResult = {
     source: string;
     generated_by_system: boolean | null;
     document_type: string;
+    active_version_id?: string | null;
 };
 
 function isBzstVerificationDocument(documentType: string): boolean {
@@ -334,6 +337,11 @@ export async function uploadSaleDocumentAction(formData: FormData) {
 }
 
 export async function deleteSaleDocumentAction(formData: FormData) {
+    const userContext = await getCurrentUserContext();
+    if (userContext.profile.role !== "admin") {
+        throw new Error("Nur Admins dürfen Verkaufsdokumente löschen.");
+    }
+
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
@@ -350,7 +358,7 @@ export async function deleteSaleDocumentAction(formData: FormData) {
 
     const { data: documentData, error: documentError } = await supabase
         .from("documents")
-        .select("id, sale_id, file_path, source, generated_by_system, document_type")
+        .select("id, sale_id, file_path, source, generated_by_system, document_type, active_version_id")
         .eq("id", documentId)
         .eq("company_id", companyId)
         .eq("sale_id", saleId)
@@ -365,6 +373,51 @@ export async function deleteSaleDocumentAction(formData: FormData) {
     }
 
     const document = documentData as SaleDocumentDeleteQueryResult;
+
+    if (document.source === "automation_return") {
+        const automationSupabase = createAutomationSupabaseClient();
+        const stagedFiles = await stagePrivateDocumentFilesForDelete({
+            supabase: automationSupabase,
+            filePaths: [document.file_path],
+            operationId: `automation-return-${document.id}-${document.active_version_id ?? "active"}`,
+        });
+
+        const { error: deleteError } = await automationSupabase.rpc(
+            "delete_automation_return_document_version",
+            {
+                p_company_id: companyId,
+                p_sale_id: saleId,
+                p_document_id: document.id,
+            },
+        );
+
+        if (deleteError) {
+            await restoreStagedPrivateDocumentFiles({
+                supabase: automationSupabase,
+                stagedFiles,
+            });
+            throw new Error(`Automatisierter Rücklauf konnte nicht gelöscht werden: ${deleteError.message}`);
+        }
+
+        await finalizeStagedPrivateDocumentDeletes({
+            supabase: automationSupabase,
+            stagedFiles,
+        });
+
+        await logActivity({
+            action: "Automatisierter Dokumentenrücklauf wurde gelöscht.",
+            entityType: "sale",
+            entityId: saleId,
+        });
+
+        revalidatePaths([
+            `/dashboard/sales/${saleId}`,
+            "/dashboard/sales",
+            "/dashboard/documents",
+        ]);
+
+        redirect(`/dashboard/sales/${saleId}?documentDeleted=1`);
+    }
 
     if (document.source !== "uploaded" || document.generated_by_system) {
         throw new Error(
