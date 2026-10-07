@@ -1,18 +1,25 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Crop, FileUp, Loader2 } from "lucide-react";
 
-import { uploadSaleDocumentAction } from "@/app/dashboard/sales/[saleId]/actions";
+import {
+    finalizeSaleDocumentUploadAction,
+    prepareSaleDocumentUploadAction,
+} from "@/app/dashboard/sales/[saleId]/actions";
 import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isConvertibleVehicleDocumentImage } from "@/lib/documents/client-image-compression";
 import {
     documentAcceptMimeTypes,
+    getDirectSaleDocumentTooLargeMessage,
     getUnsupportedDocumentTypeMessage,
     isAllowedDocumentFile,
+    maxDirectSaleDocumentFileSizeBytes,
 } from "@/lib/documents/upload-validation";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type SaleDocumentUploadFormProps = {
     saleId: string;
@@ -46,6 +53,7 @@ export function SaleDocumentUploadForm({
                                            existingDocumentId = null,
                                            existingFileName = null,
                                        }: SaleDocumentUploadFormProps) {
+    const router = useRouter();
     const inputId = useId();
     const formRef = useRef<HTMLFormElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -77,20 +85,62 @@ export function SaleDocumentUploadForm({
             return;
         }
 
+        if (file.size > maxDirectSaleDocumentFileSizeBytes) {
+            setErrorMessage(getDirectSaleDocumentTooLargeMessage());
+            setSelectedFileName(null);
+            return;
+        }
+
         if (isCustomDocument && !customDocumentLabel.trim()) {
             setErrorMessage("Bitte gib zuerst eine Dokumentbezeichnung ein.");
             return;
         }
 
         const formData = new FormData(formElement);
-        formData.set("file", file);
+        const resolvedDocumentLabel = String(formData.get("document_label") ?? "");
 
         setErrorMessage(null);
         setSelectedFileName(file.name);
 
         startTransition(async () => {
             try {
-                await uploadSaleDocumentAction(formData);
+                const uploadInput = {
+                    saleId,
+                    documentType,
+                    documentLabel: resolvedDocumentLabel,
+                    existingDocumentId,
+                    originalFileName: file.name,
+                    mimeType: file.type || "application/octet-stream",
+                    fileSize: file.size,
+                };
+                const preparedUpload = await prepareSaleDocumentUploadAction(uploadInput);
+                const supabase = createBrowserSupabaseClient();
+                const { error: uploadError } = await supabase.storage
+                    .from(preparedUpload.bucket)
+                    .uploadToSignedUrl(
+                        preparedUpload.path,
+                        preparedUpload.token,
+                        file,
+                        {
+                            contentType: file.type || "application/octet-stream",
+                            upsert: false,
+                        },
+                    );
+
+                if (uploadError) {
+                    throw new Error(
+                        "Datei konnte nicht in den privaten Speicher hochgeladen werden. Bitte versuche es erneut.",
+                    );
+                }
+
+                await finalizeSaleDocumentUploadAction({
+                    ...uploadInput,
+                    path: preparedUpload.path,
+                });
+
+                setSelectedFileName(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+                router.refresh();
             } catch (error) {
                 if (isNextRedirectError(error)) {
                     throw error;

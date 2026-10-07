@@ -1,17 +1,20 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomUUID } from "node:crypto";
 
 import { getStringFormValue } from "@/lib/actions/form-data";
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getBzstVerificationTooLargeMessage,
+    getDirectSaleDocumentTooLargeMessage,
     getDocumentUploadFailedMessage,
     getDocumentTooLargeMessage,
     getUnsupportedDocumentTypeMessage,
     isAllowedDocumentFile,
     maxBzstVerificationFileSizeBytes,
+    maxDirectSaleDocumentFileSizeBytes,
     maxDocumentFileSizeBytes,
 } from "@/lib/documents/upload-validation";
 import {
@@ -19,6 +22,7 @@ import {
     finalizeStagedPrivateDocumentDeletes,
     getRequiredFileFromFormData,
     restoreStagedPrivateDocumentFiles,
+    sanitizeDocumentFileName,
     stagePrivateDocumentFilesForDelete,
     uploadPrivateDocumentFile,
 } from "@/lib/documents/private-document-upload";
@@ -59,6 +63,287 @@ type ExistingDocumentQueryResult = {
     file_path: string | null;
     document_type: string;
 };
+
+export type PrepareSaleDocumentUploadInput = {
+    saleId: string;
+    documentType: string;
+    documentLabel: string;
+    existingDocumentId?: string | null;
+    originalFileName: string;
+    mimeType: string;
+    fileSize: number;
+};
+
+export type PreparedSaleDocumentUpload = {
+    bucket: "documents";
+    path: string;
+    token: string;
+};
+
+export type FinalizeSaleDocumentUploadInput = PrepareSaleDocumentUploadInput & {
+    path: string;
+};
+
+const directSaleUploadPathPattern =
+    /^companies\/([0-9a-f-]{36})\/sales\/([0-9a-f-]{36})\/direct\/([a-z0-9_-]+)-([0-9a-f-]{36})(\.[a-z0-9]+)?$/;
+
+function validateDirectSaleUploadInput(input: PrepareSaleDocumentUploadInput): void {
+    if (!input.saleId) throw new Error("Verkauf fehlt.");
+    if (!input.documentType) throw new Error("Dokumenttyp fehlt.");
+
+    if (isSaleCustomDocument(input.documentType)) {
+        const label = normalizeSaleCustomDocumentLabel(input.documentLabel);
+        if (!label) {
+            throw new Error("Bitte gib eine Dokumentbezeichnung mit maximal 120 Zeichen ein.");
+        }
+    }
+
+    const fileDescriptor = {
+        name: input.originalFileName,
+        type: input.mimeType,
+    } as File;
+
+    if (!isAllowedDocumentFile(fileDescriptor)) {
+        throw new Error(getUnsupportedDocumentTypeMessage());
+    }
+
+    const maximumSize = isBzstVerificationDocument(input.documentType)
+        ? maxBzstVerificationFileSizeBytes
+        : maxDirectSaleDocumentFileSizeBytes;
+
+    if (!Number.isSafeInteger(input.fileSize) || input.fileSize <= 0) {
+        throw new Error("Die ausgewählte Datei ist leer oder ungültig.");
+    }
+
+    if (input.fileSize > maximumSize) {
+        throw new Error(
+            isBzstVerificationDocument(input.documentType)
+                ? getBzstVerificationTooLargeMessage()
+                : getDocumentTooLargeMessage(),
+        );
+    }
+}
+
+async function loadSaleForDocumentUpload({
+    saleId,
+    companyId,
+}: {
+    saleId: string;
+    companyId: string;
+}): Promise<SaleUploadQueryResult> {
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+        .from("sales")
+        .select(`
+            id,
+            vehicle_id,
+            buyer_customer_id,
+            customers:buyer_customer_id (
+                type,
+                company_name,
+                first_name,
+                last_name,
+                vat_id
+            )
+        `)
+        .eq("id", saleId)
+        .eq("company_id", companyId)
+        .single();
+
+    if (error || !data) {
+        throw new Error(`Verkauf konnte nicht geladen werden: ${error?.message ?? "Nicht gefunden"}`);
+    }
+
+    return data as SaleUploadQueryResult;
+}
+
+export async function prepareSaleDocumentUploadAction(
+    input: PrepareSaleDocumentUploadInput,
+): Promise<PreparedSaleDocumentUpload> {
+    await getCurrentUserContext();
+    validateDirectSaleUploadInput(input);
+
+    const companyId = getCurrentCompanyId();
+    await loadSaleForDocumentUpload({ saleId: input.saleId, companyId });
+
+    const safeOriginalName = sanitizeDocumentFileName(input.originalFileName);
+    const extension = safeOriginalName.includes(".")
+        ? `.${safeOriginalName.split(".").pop()}`
+        : "";
+    const safeDocumentType = input.documentType
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]/g, "-")
+        .slice(0, 80);
+    const path = `companies/${companyId}/sales/${input.saleId}/direct/${safeDocumentType}-${randomUUID()}${extension}`;
+    const storageSupabase = createAutomationSupabaseClient();
+    const { data, error } = await storageSupabase.storage
+        .from("documents")
+        .createSignedUploadUrl(path, { upsert: false });
+
+    if (error || !data) {
+        console.error("[upload] signed sale document upload could not be prepared", {
+            saleId: input.saleId,
+            message: error?.message,
+        });
+        throw new Error("Dokument-Upload konnte nicht vorbereitet werden. Bitte versuche es erneut.");
+    }
+
+    return { bucket: "documents", path, token: data.token };
+}
+
+export async function finalizeSaleDocumentUploadAction(
+    input: FinalizeSaleDocumentUploadInput,
+): Promise<{ success: true }> {
+    await getCurrentUserContext();
+    validateDirectSaleUploadInput(input);
+
+    const companyId = getCurrentCompanyId();
+    const pathMatch = directSaleUploadPathPattern.exec(input.path);
+    if (!pathMatch || pathMatch[1] !== companyId || pathMatch[2] !== input.saleId) {
+        throw new Error("Der Upload-Pfad ist ungültig.");
+    }
+
+    const sale = await loadSaleForDocumentUpload({ saleId: input.saleId, companyId });
+    const supabase = createServerSupabaseClient();
+    const storageSupabase = createAutomationSupabaseClient();
+    const storage = storageSupabase.storage.from("documents");
+    const { data: storedFile, error: storedFileError } = await storage.info(input.path);
+
+    if (storedFileError || !storedFile) {
+        throw new Error("Die hochgeladene Datei wurde nicht im privaten Speicher gefunden.");
+    }
+
+    const storedSize = storedFile.size ?? storedFile.metadata?.size ?? 0;
+    const storedMimeType = storedFile.contentType ?? storedFile.metadata?.mimetype ?? input.mimeType;
+    const maximumSize = isBzstVerificationDocument(input.documentType)
+        ? maxBzstVerificationFileSizeBytes
+        : maxDirectSaleDocumentFileSizeBytes;
+
+    if (storedSize <= 0 || storedSize > maximumSize || storedSize !== input.fileSize) {
+        await storage.remove([input.path]);
+        throw new Error(getDirectSaleDocumentTooLargeMessage());
+    }
+
+    if (!isAllowedDocumentFile({ name: input.originalFileName, type: storedMimeType } as File)) {
+        await storage.remove([input.path]);
+        throw new Error(getUnsupportedDocumentTypeMessage());
+    }
+
+    const customDocumentLabel = isSaleCustomDocument(input.documentType)
+        ? normalizeSaleCustomDocumentLabel(input.documentLabel)
+        : null;
+    const customer = getSingleRelation(sale.customers);
+    const metadata = isBzstVerificationDocument(input.documentType)
+        ? {
+            source: "MANUAL_BZST_CHECK",
+            saleId: sale.id,
+            buyerId: sale.buyer_customer_id,
+            vatNumberSnapshot: customer?.vat_id ?? null,
+            buyerNameSnapshot: getCustomerName(customer),
+            verificationSlot:
+                input.documentType === "bzst_vat_verification_primary"
+                    ? "PRIMARY"
+                    : "SECONDARY",
+            uploadedAt: new Date().toISOString(),
+            reviewStatus: "REVIEW_REQUIRED",
+        }
+        : {};
+    const originalFileName = sanitizeDocumentFileName(input.originalFileName);
+    const displayFileName = isSaleCustomDocument(input.documentType)
+        ? originalFileName
+        : input.documentLabel
+          ? `${input.documentLabel} - ${originalFileName}`
+          : originalFileName;
+
+    let existingDocument: ExistingDocumentQueryResult | null = null;
+    if (input.existingDocumentId) {
+        let query = supabase
+            .from("documents")
+            .select("id, file_path, document_type")
+            .eq("id", input.existingDocumentId)
+            .eq("company_id", companyId);
+        query = isBzstVerificationDocument(input.documentType)
+            ? query.or(
+                  `sale_id.eq.${input.saleId},and(sale_id.is.null,customer_id.eq.${sale.buyer_customer_id})`,
+              )
+            : query.eq("sale_id", input.saleId);
+
+        const { data, error } = await query.single();
+        if (error || !data) {
+            await storage.remove([input.path]);
+            throw new Error("Bestehendes Dokument konnte nicht geladen werden.");
+        }
+        existingDocument = data as ExistingDocumentQueryResult;
+        if (existingDocument.document_type !== input.documentType) {
+            await storage.remove([input.path]);
+            throw new Error("Dieses Dokument kann nicht durch einen anderen Dokumenttyp ersetzt werden.");
+        }
+    }
+
+    const documentValues = {
+        source: "uploaded",
+        status: "available",
+        file_name: displayFileName,
+        file_path: input.path,
+        mime_type: storedMimeType,
+        file_size: storedSize,
+        customer_id: sale.buyer_customer_id,
+        vehicle_id: sale.vehicle_id,
+        sale_id: sale.id,
+        generated_by_system: false,
+        metadata,
+        ...(isSaleCustomDocument(input.documentType)
+            ? { title: customDocumentLabel }
+            : {}),
+    };
+
+    const result = existingDocument
+        ? await supabase
+              .from("documents")
+              .update(documentValues)
+              .eq("id", existingDocument.id)
+              .eq("company_id", companyId)
+        : await supabase.from("documents").insert({
+              company_id: companyId,
+              document_type: input.documentType,
+              invoice_id: null,
+              ...documentValues,
+          });
+
+    if (result.error) {
+        // A repeated finalization can race with the first one. The version path
+        // constraint is the source of truth; never delete a file already linked.
+        const { data: linkedVersion } = await supabase
+            .from("document_versions")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("storage_bucket", "documents")
+            .eq("storage_path", input.path)
+            .maybeSingle();
+
+        if (!linkedVersion) {
+            await storage.remove([input.path]);
+            console.error("[upload] direct sale document finalization failed", {
+                saleId: input.saleId,
+                message: result.error.message,
+            });
+            throw new Error("Dokument konnte nicht gespeichert werden. Bitte versuche es erneut.");
+        }
+    }
+
+    await logActivity({
+        action: `${customDocumentLabel ?? input.documentLabel} wurde hochgeladen.`,
+        entityType: "sale",
+        entityId: sale.id,
+    });
+    revalidatePaths([
+        `/dashboard/sales/${input.saleId}`,
+        "/dashboard/sales",
+        "/dashboard/documents",
+    ]);
+
+    return { success: true };
+}
 
 type SaleDocumentDeleteQueryResult = {
     id: string;

@@ -5,7 +5,10 @@ export const imageAssetAcceptMimeTypes = "image/png,image/jpeg,image/webp";
 export const termsPdfAcceptMimeTypes = "application/pdf";
 export const maxImageAssetFileSizeBytes = 5 * 1024 * 1024;
 export const maxTermsPdfFileSizeBytes = 10 * 1024 * 1024;
-export const maxDocumentFileSizeBytes = 5 * 1024 * 1024;
+// Uploads that still pass through a Vercel Function must stay below its 4.5 MB
+// complete-request limit. Sale documents use the separate direct-storage limit.
+export const maxDocumentFileSizeBytes = 4 * 1024 * 1024;
+export const maxDirectSaleDocumentFileSizeBytes = 10 * 1024 * 1024;
 export const maxBzstVerificationFileSizeBytes = 10 * 1024 * 1024;
 export const maxPurchaseCreateUploadPayloadBytes = 3.5 * 1024 * 1024;
 
@@ -77,7 +80,11 @@ export function getUnsupportedDocumentTypeMessage(): string {
 }
 
 export function getDocumentTooLargeMessage(): string {
-    return "Die Datei ist zu groß. Bitte wähle ein Dokument bis maximal 5 MB aus.";
+    return "Die Datei ist zu groß. Bitte wähle ein Dokument bis maximal 4 MB aus.";
+}
+
+export function getDirectSaleDocumentTooLargeMessage(): string {
+    return "Die Datei ist zu groß. Bitte wähle ein Dokument bis maximal 10 MB aus.";
 }
 
 export function getPurchaseCreateUploadTooLargeMessage(): string {
