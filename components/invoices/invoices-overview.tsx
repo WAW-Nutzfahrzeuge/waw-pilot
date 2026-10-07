@@ -206,7 +206,7 @@ export function InvoicesOverview({
     const router = useRouter();
     const [query, setQuery] = useState("");
     const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
-    const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("descending");
     const [selectedDatevInvoiceIds, setSelectedDatevInvoiceIds] = useState<
         Set<string>
     >(new Set());

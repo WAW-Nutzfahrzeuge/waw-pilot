@@ -81,7 +81,7 @@ export function SalesOverview({
     const [monthFilter, setMonthFilter] = useState(() =>
         normalizeMonthFilter(initialMonthFilter ?? "all"),
     );
-    const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
+    const [sortDirection, setSortDirection] = useState<SortDirection>("descending");
     const saleSearchIndex = useMemo(() => {
         const index = new Map<string, string>();
 
