@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { sendInvoicesToDatevAction } from "@/app/dashboard/invoices/actions";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
 import { getInvoiceOverviewReference } from "@/lib/invoices/invoice-overview-reference";
+import { createBrowserZip } from "@/lib/archives/browser-zip";
 import { ActionMessage } from "@/components/shared/action-message";
 import {
     Select,
@@ -216,6 +217,8 @@ export function InvoicesOverview({
         failedMessages: string[];
     } | null>(null);
     const [isDatevBatchPending, startDatevBatchTransition] = useTransition();
+    const [isZipDownloadPending, setIsZipDownloadPending] = useState(false);
+    const [zipDownloadError, setZipDownloadError] = useState<string | null>(null);
     const activeHighlightId = useTemporaryHighlight(
         highlightedInvoiceId,
     );
@@ -373,6 +376,64 @@ export function InvoicesOverview({
         });
     }
 
+    async function downloadSelectedInvoicesZip() {
+        const selectedInvoices = invoices.filter(
+            (invoice) =>
+                selectedDatevInvoiceIds.has(invoice.id) &&
+                isDatevInvoiceSendable(invoice),
+        );
+
+        if (selectedInvoices.length === 0) return;
+
+        setIsZipDownloadPending(true);
+        setZipDownloadError(null);
+
+        try {
+            const entries = await Promise.all(
+                selectedInvoices.map(async (invoice) => {
+                    const response = await fetch(
+                        `/api/invoices/${encodeURIComponent(invoice.id)}/pdf?download=1`,
+                        { cache: "no-store" },
+                    );
+
+                    if (!response.ok) {
+                        throw new Error(
+                            `Rechnung ${invoice.invoice_number} konnte nicht geladen werden.`,
+                        );
+                    }
+
+                    return {
+                        fileName:
+                            invoice.pdf_file_name ??
+                            `Rechnung_${invoice.invoice_number}.pdf`,
+                        data: new Uint8Array(await response.arrayBuffer()),
+                        modifiedAt: new Date(invoice.created_at),
+                    };
+                }),
+            );
+            const zipBytes = createBrowserZip(entries);
+            const zipBuffer = new ArrayBuffer(zipBytes.byteLength);
+            new Uint8Array(zipBuffer).set(zipBytes);
+            const blob = new Blob([zipBuffer], { type: "application/zip" });
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = `Rechnungen_${new Date().toISOString().slice(0, 10)}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+            setZipDownloadError(
+                error instanceof Error
+                    ? error.message
+                    : "Die ausgewählten Rechnungen konnten nicht heruntergeladen werden.",
+            );
+        } finally {
+            setIsZipDownloadPending(false);
+        }
+    }
+
     return (
         <div className="space-y-6">
             <PageHeader
@@ -517,9 +578,29 @@ export function InvoicesOverview({
                                     <p className="mt-0.5 text-sm font-semibold text-cyan-800">
                                         Nur noch nicht gesendete Standardrechnungen sind auswählbar.
                                     </p>
+                                    {zipDownloadError ? (
+                                        <p className="mt-1 text-sm font-bold text-red-700">
+                                            {zipDownloadError}
+                                        </p>
+                                    ) : null}
                                 </div>
 
                                 <div className="flex flex-wrap gap-2">
+                                    {selectedDatevInvoiceCount > 0 ? (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={downloadSelectedInvoicesZip}
+                                            disabled={isZipDownloadPending || isDatevBatchPending}
+                                            className="rounded-xl border-cyan-200 bg-white font-bold text-cyan-800 hover:bg-cyan-100"
+                                        >
+                                            <Download className="mr-1.5 size-3.5" />
+                                            {isZipDownloadPending
+                                                ? "ZIP wird erstellt..."
+                                                : "Auswahl herunterladen"}
+                                        </Button>
+                                    ) : null}
                                     <Button
                                         type="button"
                                         variant="outline"
