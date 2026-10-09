@@ -48,6 +48,7 @@ import { FlashMessage } from "@/components/shared/flash-message";
 import { DeleteSaleDocumentForm } from "@/components/sales/delete-sale-document-form";
 import { TemporaryHighlight } from "@/components/shared/temporary-highlight";
 import { RegenerateInvoicePdfForm } from "@/components/sales/regenerate-invoice-pdf-form";
+import { InvoiceAgreementForm } from "@/components/sales/invoice-agreement-form";
 import { SendInvoiceEmailForm } from "@/components/sales/send-invoice-email-form";
 import { SendInvoiceDatevEmailForm } from "@/components/sales/send-invoice-datev-email-form";
 import { SendStampDocumentsDialog } from "@/components/sales/send-stamp-documents-dialog";
@@ -69,9 +70,6 @@ import {
 } from "@/utils/sale-document-status";
 import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
 import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
-import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 import { isSaleCustomDocument, saleCustomDocumentType } from "@/lib/sales/sale-custom-documents";
 import { SaleIdentifierCopy } from "@/components/sales/sale-identifier-copy";
@@ -825,37 +823,10 @@ export async function SaleDetail({
                                     )}
                                 />
 
-                                <form
-                                    id="invoice-agreement"
-                                    action={updateSaleInvoiceNotesAction}
-                                    className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-4"
-                                >
-                                    <input type="hidden" name="sale_id" value={sale.id} />
-                                    <div className="space-y-2">
-                                        <Label
-                                            htmlFor="sale-invoice-notes"
-                                            className="font-bold text-slate-700"
-                                        >
-                                            Zusätzliche Vereinbarung auf der Rechnung
-                                        </Label>
-                                        <Textarea
-                                            id="sale-invoice-notes"
-                                            name="invoice_notes"
-                                            defaultValue={sale.invoice_notes ?? ""}
-                                            placeholder="z. B. Sondervereinbarung, Abholbedingung oder ergänzender Rechnungstext..."
-                                            className="min-h-24 rounded-2xl border-slate-200 bg-white font-medium"
-                                        />
-                                    </div>
-
-                                    <div className="mt-4 flex justify-end">
-                                        <Button
-                                            type="submit"
-                                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                                        >
-                                            Vereinbarung speichern & PDF neu erstellen
-                                        </Button>
-                                    </div>
-                                </form>
+                                <InvoiceAgreementForm
+                                    saleId={sale.id}
+                                    invoiceNotes={sale.invoice_notes}
+                                />
 
                                 {sale.invoices.length > 0 ? (
                                     <div className="mt-6 divide-y-2 divide-slate-900/20">

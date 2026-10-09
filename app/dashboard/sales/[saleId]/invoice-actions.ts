@@ -1200,9 +1200,17 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
 
     const saleId = getStringValue(formData, "sale_id");
     const invoiceNotes = getStringValue(formData, "invoice_notes");
+    const includeSignatureStamp =
+        getStringValue(formData, "include_signature_stamp") === "yes";
+    const includeTermsPdf =
+        getStringValue(formData, "include_terms_pdf") !== "no";
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
+    }
+
+    if (includeSignatureStamp) {
+        await assertCompanySignatureStampConfigured();
     }
 
     const { error: saleUpdateError } = await supabase
@@ -1221,7 +1229,7 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
 
     const { data: invoicesData, error: invoicesError } = await supabase
         .from("invoices")
-        .select("id, invoice_number, pdf_document_id")
+        .select("id, invoice_number, pdf_document_id, include_signature_stamp, include_terms_pdf")
         .eq("sale_id", saleId)
         .eq("company_id", companyId);
 
@@ -1235,9 +1243,31 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
         id: string;
         invoice_number: string;
         pdf_document_id: string | null;
+        include_signature_stamp: boolean | null;
+        include_terms_pdf: boolean | null;
     }>;
 
     for (const invoice of invoices) {
+        if (
+            Boolean(invoice.include_signature_stamp) !== includeSignatureStamp ||
+            (invoice.include_terms_pdf !== false) !== includeTermsPdf
+        ) {
+            const invoiceUpdate = await supabase
+                .from("invoices")
+                .update({
+                    include_signature_stamp: includeSignatureStamp,
+                    include_terms_pdf: includeTermsPdf,
+                })
+                .eq("id", invoice.id)
+                .eq("company_id", companyId);
+
+            if (invoiceUpdate.error) {
+                throw new Error(
+                    `Rechnungsoptionen für ${invoice.invoice_number} konnten nicht gespeichert werden: ${invoiceUpdate.error.message}`,
+                );
+            }
+        }
+
         const storedPdf = await generateAndStoreInvoicePdf(invoice.id);
 
         if (!invoice.pdf_document_id) continue;
