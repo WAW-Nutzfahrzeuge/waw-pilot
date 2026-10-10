@@ -112,6 +112,7 @@ type SaleDetailProps = {
     correctionError?: string | null;
     recordSaved?: string | null;
     recordError?: string | null;
+    backHref?: "/dashboard/sales" | "/dashboard/invoices";
 };
 
 function getSaleDocumentDisplayFileName(
@@ -166,6 +167,7 @@ export async function SaleDetail({
                                correctionError = null,
                                recordSaved = null,
                                recordError = null,
+                               backHref = "/dashboard/sales",
                            }: SaleDetailProps) {
     const missingRequirementLabels = [
         ...sale.missing_required_labels,
@@ -268,7 +270,7 @@ export async function SaleDetail({
                             variant="outline"
                             className="h-11 rounded-2xl border-slate-200 bg-white font-bold"
                         >
-                            <Link href="/dashboard/sales">
+                            <Link href={backHref}>
                                 <ArrowLeft className="mr-2 size-4" />
                                 Zurück
                             </Link>

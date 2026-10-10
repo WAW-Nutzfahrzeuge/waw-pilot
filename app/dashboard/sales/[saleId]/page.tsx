@@ -42,6 +42,7 @@ type SaleDetailPageProps = {
         correctionError?: string;
         recordSaved?: string;
         recordError?: string;
+        returnTo?: string;
     }>;
 };
 
@@ -111,6 +112,11 @@ export default async function SaleDetailPage({
             correctionError={resolvedSearchParams.correctionError ?? null}
             recordSaved={resolvedSearchParams.recordSaved ?? null}
             recordError={resolvedSearchParams.recordError ?? null}
+            backHref={
+                resolvedSearchParams.returnTo === "/dashboard/invoices"
+                    ? "/dashboard/invoices"
+                    : "/dashboard/sales"
+            }
         />
     );
 }

@@ -61,6 +61,10 @@ type InvoicesOverviewProps = {
 
 type InvoiceFilter = "all" | "standard" | "proforma" | "past_proforma";
 
+function getInvoiceSaleHref(saleId: string, hash = ""): string {
+    return `/dashboard/sales/${saleId}?returnTo=${encodeURIComponent("/dashboard/invoices")}${hash}`;
+}
+
 const amountSearchFormatter = new Intl.NumberFormat("de-DE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -661,7 +665,7 @@ export function InvoicesOverview({
                                 <div
                                     key={invoice.id}
                                     onClick={() => {
-                                        router.push(`/dashboard/sales/${invoice.sale_id}`);
+                                        router.push(getInvoiceSaleHref(invoice.sale_id));
                                     }}
                                     className={cn(
                                         "cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-500 active:scale-[0.99]",
@@ -775,7 +779,7 @@ export function InvoicesOverview({
                                             variant="outline"
                                             className="h-11 rounded-2xl font-bold"
                                         >
-                                            <Link href={`/dashboard/sales/${invoice.sale_id}`}>
+                                            <Link href={getInvoiceSaleHref(invoice.sale_id)}>
                                                 Öffnen
                                             </Link>
                                         </Button>
@@ -842,7 +846,7 @@ export function InvoicesOverview({
                                     <tr
                                         key={invoice.id}
                                         onClick={() => {
-                                            router.push(`/dashboard/sales/${invoice.sale_id}`);
+                                            router.push(getInvoiceSaleHref(invoice.sale_id));
                                         }}
                                         className={cn(
                                             "group cursor-pointer transition-all duration-500 hover:bg-cyan-50/30",
@@ -951,7 +955,7 @@ export function InvoicesOverview({
                                                     size="sm"
                                                     className="rounded-xl font-bold"
                                                 >
-                                                    <Link href={`/dashboard/sales/${invoice.sale_id}`}>
+                                                    <Link href={getInvoiceSaleHref(invoice.sale_id)}>
                                                         Öffnen
                                                         <ArrowUpRight className="ml-1 size-3.5" />
                                                     </Link>
@@ -1141,7 +1145,7 @@ function MarkInvoicePaidButton({ invoice }: { invoice: InvoiceRow }) {
                     : "rounded-xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
             }
         >
-            <Link href={`/dashboard/sales/${invoice.sale_id}#payments`}>
+            <Link href={getInvoiceSaleHref(invoice.sale_id, "#payments")}>
                 {invoice.payment_status === "paid" ? "Zahlungen öffnen" : "Zahlung erfassen"}
             </Link>
         </Button>
