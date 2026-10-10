@@ -59,7 +59,7 @@ type InvoicesOverviewProps = {
     highlightedInvoiceId?: string;
 };
 
-type InvoiceFilter = "all" | "standard" | "proforma";
+type InvoiceFilter = "all" | "standard" | "proforma" | "past_proforma";
 
 const amountSearchFormatter = new Intl.NumberFormat("de-DE", {
     minimumFractionDigits: 2,
@@ -233,6 +233,7 @@ export function InvoicesOverview({
         const summary = {
             notSentToDatev: 0,
             openInvoices: 0,
+            pastProformaInvoices: 0,
             proformaInvoices: 0,
             standardInvoices: 0,
             totalGross: 0,
@@ -249,8 +250,18 @@ export function InvoicesOverview({
                 summary.standardInvoices += 1;
             }
 
-            if (invoice.invoice_type === "proforma") {
+            if (
+                invoice.invoice_type === "proforma" &&
+                invoice.status !== "converted"
+            ) {
                 summary.proformaInvoices += 1;
+            }
+
+            if (
+                invoice.invoice_type === "proforma" &&
+                invoice.status === "converted"
+            ) {
+                summary.pastProformaInvoices += 1;
             }
 
             if (invoice.payment_status !== "paid") {
@@ -280,7 +291,15 @@ export function InvoicesOverview({
         return invoices
             .filter((invoice) => {
                 const matchesFilter =
-                    invoiceFilter === "all" || invoice.invoice_type === invoiceFilter;
+                    invoiceFilter === "all" ||
+                    (invoiceFilter === "standard" &&
+                        invoice.invoice_type === "standard") ||
+                    (invoiceFilter === "proforma" &&
+                        invoice.invoice_type === "proforma" &&
+                        invoice.status !== "converted") ||
+                    (invoiceFilter === "past_proforma" &&
+                        invoice.invoice_type === "proforma" &&
+                        invoice.status === "converted");
 
                 if (!matchesFilter) return false;
 
@@ -481,7 +500,7 @@ export function InvoicesOverview({
                 <InvoiceStatCard
                     label="Rechnungen"
                     value={invoices.length}
-                    description={`${invoiceSummary.standardInvoices} normal · ${invoiceSummary.proformaInvoices} Proforma/Anzahlung`}
+                    description={`${invoiceSummary.standardInvoices} normal · ${invoiceSummary.proformaInvoices} Proforma · ${invoiceSummary.pastProformaInvoices} vergangen`}
                     icon={Receipt}
                 />
                 <InvoiceStatCard
@@ -565,6 +584,12 @@ export function InvoicesOverview({
                                     onClick={() => setInvoiceFilter("proforma")}
                                     label="Proforma"
                                     count={invoiceSummary.proformaInvoices}
+                                />
+                                <InvoiceFilterButton
+                                    active={invoiceFilter === "past_proforma"}
+                                    onClick={() => setInvoiceFilter("past_proforma")}
+                                    label="Vergangene Proforma-Rechnungen"
+                                    count={invoiceSummary.pastProformaInvoices}
                                 />
                             </div>
                         </div>
