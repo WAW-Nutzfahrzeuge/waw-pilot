@@ -62,6 +62,7 @@ export type SaleGeneratedDocumentCheck = {
         filePath: string | null;
         status: string;
         source: string;
+        reviewState: "manual" | "accepted" | "needs_review";
     } | null;
 
     dateSuggestion: DocumentDateSuggestion | null;
@@ -75,6 +76,8 @@ type DocumentRow = {
     file_name: string;
     file_path: string | null;
     created_at: string;
+    active_version_id: string | null;
+    archive_status: string | null;
 };
 
 const saleGeneratedDocumentTypes = new Set<GeneratedDocumentType>([
@@ -177,20 +180,30 @@ function getDefinitionForSaleDocuments(): GeneratedDocumentDefinition[] {
 }
 
 function getGeneratedDocument(
-    documentsByType: Map<string, { generated: DocumentRow | null; signed: DocumentRow | null }>,
+    documentsByType: Map<string, DocumentCandidates>,
     documentType: string,
 ): DocumentRow | null {
     return documentsByType.get(documentType)?.generated ?? null;
 }
 
 function getSignedDocument(
-    documentsByType: Map<string, { generated: DocumentRow | null; signed: DocumentRow | null }>,
+    documentsByType: Map<string, DocumentCandidates>,
     documentType: string,
 ): DocumentRow | null {
-    return documentsByType.get(documentType)?.signed ?? null;
+    const candidates = documentsByType.get(documentType);
+    return candidates?.approvedReturn ?? candidates?.returnNeedsReview ?? null;
 }
 
-function mapDocumentRow(document: DocumentRow | null) {
+type DocumentCandidates = {
+    generated: DocumentRow | null;
+    approvedReturn: DocumentRow | null;
+    returnNeedsReview: DocumentRow | null;
+};
+
+function mapDocumentRow(
+    document: DocumentRow | null,
+    reviewState: "manual" | "accepted" | "needs_review" = "manual",
+) {
     if (!document) return null;
 
     return {
@@ -199,6 +212,7 @@ function mapDocumentRow(document: DocumentRow | null) {
         filePath: document.file_path,
         status: document.status,
         source: document.source,
+        reviewState,
     };
 }
 
@@ -221,11 +235,15 @@ export async function getSaleGeneratedDocumentChecks(
                 status,
                 file_name,
                 file_path,
-                created_at
+                created_at,
+                active_version_id,
+                archive_status
             `,
             )
             .eq("company_id", companyId)
             .eq("sale_id", saleId)
+            .eq("archive_status", "ACTIVE")
+            .not("active_version_id", "is", null)
             .order("created_at", { ascending: false }),
     ]);
 
@@ -236,15 +254,13 @@ export async function getSaleGeneratedDocumentChecks(
     }
 
     const documents = (documentsResult.data ?? []) as DocumentRow[];
-    const documentsByType = new Map<
-        string,
-        { generated: DocumentRow | null; signed: DocumentRow | null }
-    >();
+    const documentsByType = new Map<string, DocumentCandidates>();
 
     for (const document of documents) {
         const entry = documentsByType.get(document.document_type) ?? {
             generated: null,
-            signed: null,
+            approvedReturn: null,
+            returnNeedsReview: null,
         };
 
         if (document.source === "generated" && !entry.generated) {
@@ -252,11 +268,20 @@ export async function getSaleGeneratedDocumentChecks(
         }
 
         if (
-            document.source === "uploaded" &&
+            (document.source === "uploaded" ||
+                document.source === "automation_return") &&
             document.status === "available" &&
-            !entry.signed
+            !entry.approvedReturn
         ) {
-            entry.signed = document;
+            entry.approvedReturn = document;
+        }
+
+        if (
+            document.source === "automation_return" &&
+            document.status === "needs_review" &&
+            !entry.returnNeedsReview
+        ) {
+            entry.returnNeedsReview = document;
         }
 
         documentsByType.set(document.document_type, entry);
@@ -282,6 +307,16 @@ export async function getSaleGeneratedDocumentChecks(
         const signedDocument = getSignedDocument(
             documentsByType,
             definition.documentType,
+        );
+        const signedDocumentIsApproved = Boolean(
+            signedDocument &&
+                (signedDocument.source === "uploaded" ||
+                    (signedDocument.source === "automation_return" &&
+                        signedDocument.status === "available")),
+        );
+        const returnNeedsReview = Boolean(
+            signedDocument?.source === "automation_return" &&
+                signedDocument.status === "needs_review",
         );
 
         const generationMode = getGenerationMode({
@@ -314,7 +349,8 @@ export async function getSaleGeneratedDocumentChecks(
                     definition,
                     validation,
                     documentExists: Boolean(generatedDocument),
-                    signedDocumentExists: Boolean(signedDocument),
+                    signedDocumentExists: signedDocumentIsApproved,
+                    returnNeedsReview,
                     sentToCustomer: false,
                 })
                 : getNonAutomaticStatus({
@@ -347,7 +383,14 @@ export async function getSaleGeneratedDocumentChecks(
             })),
 
             generatedDocument: mapDocumentRow(generatedDocument),
-            signedDocument: mapDocumentRow(signedDocument),
+            signedDocument: mapDocumentRow(
+                signedDocument,
+                signedDocument?.source === "automation_return"
+                    ? signedDocument.status === "available"
+                        ? "accepted"
+                        : "needs_review"
+                    : "manual",
+            ),
             dateSuggestion,
         };
     });

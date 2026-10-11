@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getCurrentCompanyId } from "@/lib/company";
 import {
     getRequiredDocumentsForSale,
+    isRequiredDocumentAvailable,
     type RequiredDocumentDefinition,
 } from "@/lib/sales/sale-required-documents";
 import type {
@@ -79,6 +80,8 @@ type DocumentRelation = {
     mime_type: string | null;
     file_size: number | null;
     created_at: string;
+    archive_status: string | null;
+    active_version_id: string | null;
 };
 
 type SalePaymentRelation = {
@@ -222,6 +225,8 @@ export type SaleDetailDocument = {
     mime_type: string | null;
     file_size: number | null;
     created_at: string;
+    archive_status: string | null;
+    active_version_id: string | null;
 };
 
 export type SaleDetailInvoice = {
@@ -494,10 +499,7 @@ async function attachCustomerScopedRequiredDocuments({
 
     const customerDocumentsByType = new Map<string, SaleDetailDocument>();
     for (const document of (data ?? []) as SaleDetailDocument[]) {
-        if (
-            document.status !== "available" &&
-            !(document.status === "needs_review" && document.source === "generated")
-        ) {
+        if (!isRequiredDocumentAvailable(document)) {
             continue;
         }
         if (!customerDocumentsByType.has(document.document_type)) {
@@ -745,7 +747,9 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         file_path,
         mime_type,
         file_size,
-        created_at
+        created_at,
+        archive_status,
+        active_version_id
       ),
       sale_payments (
         id,
@@ -867,7 +871,9 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         file_path,
         mime_type,
         file_size,
-        created_at
+        created_at,
+        archive_status,
+        active_version_id
       ),
       sale_payments (
         id,
@@ -1002,7 +1008,13 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         invoices[0] ??
         null;
 
-    const documents = getManyRelation(sale.documents).map((document) => ({
+    const documents = getManyRelation(sale.documents)
+        .filter(
+            (document) =>
+                document.archive_status === "ACTIVE" &&
+                Boolean(document.active_version_id),
+        )
+        .map((document) => ({
         id: document.id,
         document_type: document.document_type,
         title: document.title,
@@ -1013,6 +1025,8 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         mime_type: document.mime_type,
         file_size: document.file_size,
         created_at: document.created_at,
+        archive_status: document.archive_status,
+        active_version_id: document.active_version_id,
     }));
 
     const saleType = sale.sale_type ?? "inland";
@@ -1075,7 +1089,15 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
     });
 
     const availableDocumentsByType = new Map<string, SaleDetailDocument>();
+    const pendingAutomationDocumentsByType = new Map<string, SaleDetailDocument>();
     for (const document of documents) {
+        if (
+            document.source === "automation_return" &&
+            document.status === "needs_review" &&
+            !pendingAutomationDocumentsByType.has(document.document_type)
+        ) {
+            pendingAutomationDocumentsByType.set(document.document_type, document);
+        }
         if (
             document.status !== "available" &&
             !(document.status === "needs_review" && document.source === "generated")
@@ -1101,11 +1123,17 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             acceptedDocumentTypes
                 .map((documentType) => availableDocumentsByType.get(documentType))
                 .find(Boolean) ?? null;
+        const pendingAutomationDocument =
+            acceptedDocumentTypes
+                .map((documentType) =>
+                    pendingAutomationDocumentsByType.get(documentType),
+                )
+                .find(Boolean) ?? null;
 
         requiredDocumentStatuses.push({
             ...requiredDocument,
             isAvailable: Boolean(matchingDocument),
-            document: matchingDocument,
+            document: matchingDocument ?? pendingAutomationDocument,
         });
 
         if (matchingDocument) {

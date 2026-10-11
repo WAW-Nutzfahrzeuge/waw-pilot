@@ -32,7 +32,7 @@ Antwortstatus im JSON: `matched`, `ambiguous`, `unmatched` oder `conflict`. Eine
 
 `GET /api/automation/sales/{saleId}/document-requirements`
 
-Die Antwort basiert auf den vorhandenen WAW-Regeln: Inland nur Übergabebestätigung, EU zusätzlich Gelangensbestätigung und Verbringungsnachweis, Drittland keine dieser drei Arten. `signatureStatus=present` heißt nur „sichtbare Unterschrift erkannt“. `absent`, `uncertain` und abgelehnte Rückläufe erfüllen die Anforderung nicht.
+Die Antwort basiert auf den vorhandenen WAW-Regeln: Inland nur Übergabebestätigung, EU zusätzlich Gelangensbestätigung und Verbringungsnachweis, Drittland keine dieser drei Arten. `signatureStatus=present` heißt nur „sichtbare Unterschrift erkannt“. Ein automatisierter Rücklauf erfüllt eine Anforderung ausschließlich mit `signatureStatus=present` und `reviewStatus=accepted`. `pending`, `needs_review`, `rejected`, `absent` und `uncertain` werden als eingegangen beziehungsweise prüfbedürftig geführt, erfüllen die Anforderung aber nicht.
 
 ## Unveränderten Originalanhang speichern
 
@@ -58,6 +58,10 @@ Originale werden privat und ohne Verkaufszuordnung gespeichert. Die Antwort lief
 - optional: `replacesDocumentId` für eine korrigierte neue Dokumentversion
 
 Neue Rückläufe erzeugen neue Dokumente. Mit `replacesDocumentId` wird über die vorhandene `document_versions`-Logik eine neue, unveränderliche Version erzeugt; die alte Storage-Datei bleibt erhalten. Storage-Pfade enthalten Company, Verkauf und eine Upload-UUID, `upsert` ist deaktiviert.
+
+In der Verkaufsakte wird nur die aktive Dokumentversion berücksichtigt. Automatisierte Rückläufe mit `pending` oder `needs_review` erscheinen im passenden Bereich unter „Automatische Dokumente“ als „Rücklauf eingegangen – Prüfung erforderlich“ und unter den Pflichtdokumenten weiterhin als offen. Erst `present` plus `accepted` führt zum Status „Unterschrieben vorhanden“ und erfüllt die Pflichtdokumentanforderung. Manuelle Uploads behalten ihre bisherige Behandlung als verfügbare unterschriebene Dokumente.
+
+Ein manueller Upload darf einen Datensatz mit `source=automation_return` nicht ersetzen. Dadurch bleiben Rücklauf-Metadaten, Originalverknüpfung und Versionierungsprovenienz erhalten. Ein späterer manueller Upload wird als eigener Datensatz gespeichert.
 
 ## Fehlercodes
 

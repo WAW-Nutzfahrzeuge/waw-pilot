@@ -9,5 +9,15 @@ export function isSignedReturnSatisfied(params: {
         Boolean(params.documentVersionId) &&
         params.documentVersionId === params.activeVersionId &&
         params.signatureStatus === "present" &&
-        params.reviewStatus !== "rejected";
+        params.reviewStatus === "accepted";
+}
+
+export function getAutomationReturnDocumentStatus(params: {
+    signatureStatus: string | null;
+    reviewStatus: string | null;
+}): "available" | "needs_review" {
+    return params.signatureStatus === "present" &&
+        params.reviewStatus === "accepted"
+        ? "available"
+        : "needs_review";
 }

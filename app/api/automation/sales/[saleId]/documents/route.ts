@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import {
@@ -9,10 +10,16 @@ import {
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { isUuid } from "@/lib/automation/validation";
+import { getAutomationReturnDocumentStatus } from "@/lib/automation/document-return-status";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ saleId: string }> };
 const field = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" && value.trim() ? value.trim() : null; };
+const revalidateSaleDocuments = (saleId: string) => {
+    revalidatePath(`/dashboard/sales/${saleId}`);
+    revalidatePath("/dashboard/sales");
+    revalidatePath("/dashboard/documents");
+};
 
 export async function POST(request: Request, routeContext: Context) {
     const auth = authenticateAutomationRequest(request);
@@ -95,7 +102,10 @@ export async function POST(request: Request, routeContext: Context) {
     }
     if (claim.kind === "conflict") return automationError(409, "idempotency_conflict", "Dieser Idempotency-Key wurde bereits mit anderem Inhalt verwendet.");
     if (claim.kind === "processing") return NextResponse.json({ status: "processing", uploadId: claim.id }, { status: 202 });
-    if (claim.kind === "replay") return NextResponse.json({ status: "stored", uploadId: claim.row.id, documentId: claim.row.document_id, documentVersionId: claim.row.document_version_id }, { status: 200 });
+    if (claim.kind === "replay") {
+        revalidateSaleDocuments(saleId);
+        return NextResponse.json({ status: "stored", uploadId: claim.row.id, documentId: claim.row.document_id, documentVersionId: claim.row.document_version_id }, { status: 200 });
+    }
 
     const safeName = sanitizeAutomationFileName(file.name);
     const path = `companies/${auth.companyId}/sales/${saleId}/automation-returns/${claim.id}/${safeName}`;
@@ -106,7 +116,10 @@ export async function POST(request: Request, routeContext: Context) {
         return automationError(502, "storage_upload_failed", "Das Rücklaufdokument konnte nicht gespeichert werden.");
     }
 
-    const documentStatus = signatureStatus === "present" && reviewStatus !== "rejected" ? "available" : "needs_review";
+    const documentStatus = getAutomationReturnDocumentStatus({
+        signatureStatus,
+        reviewStatus,
+    });
     const documentMetadata = { automationReturn: { uploadId: claim.id, ...metadata, sha256: fileHash,
         signatureMeaning: "visible_signature_only_no_authenticity_check" } };
     const { data: completedRows, error: documentError } = await supabase.rpc("complete_automation_sale_document_upload", {
@@ -123,6 +136,7 @@ export async function POST(request: Request, routeContext: Context) {
         const { data: verified } = await supabase.from("automation_return_uploads").select("processing_status, document_id, document_version_id")
             .eq("id", claim.id).eq("company_id", auth.companyId).maybeSingle();
         if (verified?.processing_status === "completed" && verified.document_id) {
+            revalidateSaleDocuments(saleId);
             return NextResponse.json({ status: "stored", uploadId: claim.id, documentId: verified.document_id, documentVersionId: verified.document_version_id }, { status: 201 });
         }
         await supabase.storage.from("documents").remove([path]);
@@ -131,5 +145,6 @@ export async function POST(request: Request, routeContext: Context) {
         return automationError(500, "document_write_failed", "Das Rücklaufdokument konnte nicht in der Verkaufsakte registriert werden.");
     }
     console.info("automation.document.stored", { saleId, uploadId: claim.id, documentId });
+    revalidateSaleDocuments(saleId);
     return NextResponse.json({ status: "stored", uploadId: claim.id, documentId, documentVersionId: completed?.document_version_id ?? null }, { status: 201 });
 }

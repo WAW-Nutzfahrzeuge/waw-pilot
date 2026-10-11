@@ -72,7 +72,17 @@ type DocumentRelation = {
     document_type: string;
     status: "available" | "missing" | "needs_review";
     source: string | null;
+    archive_status: string | null;
+    active_version_id: string | null;
 };
+
+function getActiveDocuments(documents: SupabaseRelation<DocumentRelation>): DocumentRelation[] {
+    return getManyRelation(documents).filter(
+        (document) =>
+            document.archive_status === "ACTIVE" &&
+            Boolean(document.active_version_id),
+    );
+}
 
 type PaymentRelation = {
     amount: number | string;
@@ -253,7 +263,7 @@ function getSaleCheckStatus(row: SaleCheckQueryRow): DocumentCheckStatus {
     });
     const documentCheck = evaluateRequiredDocuments({
         requiredDocuments,
-        documents: getManyRelation(row.documents),
+        documents: getActiveDocuments(row.documents),
     });
     const taxConfiguration = getSaleTaxConfiguration({
         buyerType: row.customers?.type,
@@ -410,7 +420,9 @@ export async function getSalesToCheckSummary(): Promise<SalesToCheckSummary> {
       documents (
         document_type,
         status,
-        source
+        source,
+        archive_status,
+        active_version_id
       )
     `,
         )
@@ -500,7 +512,9 @@ export async function getSales(): Promise<SaleRow[]> {
       documents (
         document_type,
         status,
-        source
+        source,
+        archive_status,
+        active_version_id
       ),
       sale_payments (
         amount,
@@ -532,7 +546,7 @@ export async function getSales(): Promise<SaleRow[]> {
             getSingleRelation(sale.invoices);
         const saleType = sale.sale_type ?? "inland";
 
-        const relatedDocuments = getManyRelation(sale.documents);
+        const relatedDocuments = getActiveDocuments(sale.documents);
         const payments = getManyRelation(sale.sale_payments).map((payment) => ({
             amount: Number(payment.amount),
             is_voided: payment.is_voided,

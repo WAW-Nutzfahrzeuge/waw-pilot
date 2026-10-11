@@ -62,6 +62,7 @@ type ExistingDocumentQueryResult = {
     id: string;
     file_path: string | null;
     document_type: string;
+    source: string;
 };
 
 export type PrepareSaleDocumentUploadInput = {
@@ -259,7 +260,7 @@ export async function finalizeSaleDocumentUploadAction(
     if (input.existingDocumentId) {
         let query = supabase
             .from("documents")
-            .select("id, file_path, document_type")
+            .select("id, file_path, document_type, source")
             .eq("id", input.existingDocumentId)
             .eq("company_id", companyId);
         query = isBzstVerificationDocument(input.documentType)
@@ -274,6 +275,12 @@ export async function finalizeSaleDocumentUploadAction(
             throw new Error("Bestehendes Dokument konnte nicht geladen werden.");
         }
         existingDocument = data as ExistingDocumentQueryResult;
+        if (existingDocument.source === "automation_return") {
+            await storage.remove([input.path]);
+            throw new Error(
+                "Ein automatisierter Rücklauf kann nicht durch einen manuellen Upload überschrieben werden.",
+            );
+        }
         if (existingDocument.document_type !== input.documentType) {
             await storage.remove([input.path]);
             throw new Error("Dieses Dokument kann nicht durch einen anderen Dokumenttyp ersetzt werden.");
@@ -484,7 +491,7 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         // kundengebundene Dokumente dieses Kunden finden, nicht nur verkaufsgebundene.
         let existingDocumentQuery = supabase
             .from("documents")
-            .select("id, file_path, document_type")
+            .select("id, file_path, document_type, source")
             .eq("id", existingDocumentId)
             .eq("company_id", companyId);
 
@@ -506,6 +513,12 @@ export async function uploadSaleDocumentAction(formData: FormData) {
         }
 
         existingDocument = existingDocumentData as ExistingDocumentQueryResult;
+
+        if (existingDocument.source === "automation_return") {
+            throw new Error(
+                "Ein automatisierter Rücklauf kann nicht durch einen manuellen Upload überschrieben werden.",
+            );
+        }
 
         if (
             isSaleCustomDocument(documentType) &&

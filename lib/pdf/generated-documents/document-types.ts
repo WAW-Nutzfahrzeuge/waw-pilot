@@ -24,6 +24,7 @@ export type GeneratedDocumentStatus =
     | "generated_needs_signature"
     | "generated_available"
     | "sent_to_customer"
+    | "return_needs_review"
     | "signed_received"
     | "external_process"
     | "generator_planned"

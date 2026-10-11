@@ -47,6 +47,7 @@ export function SaleGeneratedDocumentsCard({
         (document) =>
             document.status === "generated_available" ||
             document.status === "generated_needs_signature" ||
+            document.status === "return_needs_review" ||
             document.status === "sent_to_customer" ||
             document.status === "signed_received",
     ).length;
@@ -151,7 +152,9 @@ function GeneratedDocumentRow({
 
                                     {showSignatureStatus ? (
                                         <StatusBadge tone="warning">
-                                            Unterschrift nötig
+                                            {document.signedDocument?.reviewState === "needs_review"
+                                                ? "Rücklauf prüfen"
+                                                : "Unterschrift nötig"}
                                         </StatusBadge>
                                     ) : (
                                         <StatusBadge tone="neutral">
@@ -269,7 +272,11 @@ function GeneratedDocumentRow({
 
                         {showSignatureStatus ? (
                             <DocumentFileStatus
-                                title="Unterschriebenes Dokument"
+                                title={
+                                    document.signedDocument?.reviewState === "needs_review"
+                                        ? "Rücklauf eingegangen – Prüfung erforderlich"
+                                        : "Unterschriebenes Dokument"
+                                }
                                 document={document.signedDocument}
                                 emptyText="Noch nicht unterschrieben hochgeladen."
                             />
@@ -306,7 +313,11 @@ function GeneratedDocumentRow({
                                     saleId={saleId}
                                     documentType={document.documentType}
                                     documentLabel={`${document.label} unterschrieben`}
-                                    existingDocumentId={document.signedDocument?.id ?? null}
+                                    existingDocumentId={
+                                        document.signedDocument?.source === "uploaded"
+                                            ? document.signedDocument.id
+                                            : null
+                                    }
                                     existingFileName={document.signedDocument?.fileName ?? null}
                                 />
                             </div>
@@ -458,7 +469,9 @@ function DocumentFileStatus({
                                 emptyText,
                             }: {
     title: string;
-    document: SaleGeneratedDocumentCheck["generatedDocument"];
+    document:
+        | SaleGeneratedDocumentCheck["generatedDocument"]
+        | SaleGeneratedDocumentCheck["signedDocument"];
     displayFileName?: string | null;
     emptyText: string;
 }) {
@@ -482,21 +495,34 @@ function DocumentFileStatus({
         );
     }
 
+    const needsReview =
+        "reviewState" in document && document.reviewState === "needs_review";
+
     return (
         <Link
             href={`/api/documents/${document.id}/file`}
             target="_blank"
-            className="block rounded-2xl border border-slate-900/20 bg-emerald-50 p-4 transition hover:-translate-y-0.5 hover:border-slate-900/30 hover:bg-emerald-100 hover:shadow-sm"
+            className={`block rounded-2xl border border-slate-900/20 p-4 transition hover:-translate-y-0.5 hover:border-slate-900/30 hover:shadow-sm ${
+                needsReview
+                    ? "bg-amber-50 hover:bg-amber-100"
+                    : "bg-emerald-50 hover:bg-emerald-100"
+            }`}
         >
             <div className="flex items-start gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-emerald-700">
+                <div className={`flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white ${
+                    needsReview ? "text-amber-700" : "text-emerald-700"
+                }`}>
                     <FileCheck2 className="size-4" />
                 </div>
                 <div className="min-w-0">
-                    <p className="text-sm font-extrabold text-emerald-900">
+                    <p className={`text-sm font-extrabold ${
+                        needsReview ? "text-amber-900" : "text-emerald-900"
+                    }`}>
                         {title}
                     </p>
-                    <p className="mt-1 truncate text-xs font-semibold leading-5 text-emerald-800">
+                    <p className={`mt-1 truncate text-xs font-semibold leading-5 ${
+                        needsReview ? "text-amber-800" : "text-emerald-800"
+                    }`}>
                         {displayFileName ?? document.fileName}
                     </p>
                 </div>

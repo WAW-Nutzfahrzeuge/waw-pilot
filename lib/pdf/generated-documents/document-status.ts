@@ -9,10 +9,19 @@ export function getGeneratedDocumentStatus(params: {
     validation: GeneratedDocumentValidationResult;
     documentExists: boolean;
     signedDocumentExists?: boolean;
+    returnNeedsReview?: boolean;
     sentToCustomer?: boolean;
 }): GeneratedDocumentStatus {
     if (!params.validation.canGenerate) {
         return "missing_data";
+    }
+
+    if (params.signedDocumentExists) {
+        return "signed_received";
+    }
+
+    if (params.returnNeedsReview) {
+        return "return_needs_review";
     }
 
     if (!params.documentExists) {
@@ -21,10 +30,6 @@ export function getGeneratedDocumentStatus(params: {
 
     if (!params.definition.requiresSignature) {
         return "generated_available";
-    }
-
-    if (params.signedDocumentExists) {
-        return "signed_received";
     }
 
     if (params.sentToCustomer) {
@@ -43,6 +48,7 @@ export function getGeneratedDocumentStatusLabel(
         generated_needs_signature: "Unterschrift fehlt",
         generated_available: "Erzeugt",
         sent_to_customer: "An Kunden gesendet",
+        return_needs_review: "Rücklauf eingegangen – Prüfung erforderlich",
         signed_received: "Unterschrieben vorhanden",
         external_process: "Über anderen Bereich",
         generator_planned: "Generator folgt",
@@ -65,6 +71,7 @@ export function getGeneratedDocumentStatusTone(
 
     if (
         status === "sent_to_customer" ||
+        status === "return_needs_review" ||
         status === "external_process" ||
         status === "generator_planned"
     ) {

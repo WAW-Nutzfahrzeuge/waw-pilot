@@ -1065,9 +1065,21 @@ export async function SaleDetail({
                                             </div>
 
                                             <StatusBadge
-                                                tone={requiredDocument.isAvailable ? "success" : "danger"}
+                                                tone={
+                                                    requiredDocument.isAvailable
+                                                        ? "success"
+                                                        : requiredDocument.document?.source === "automation_return" &&
+                                                            requiredDocument.document.status === "needs_review"
+                                                          ? "warning"
+                                                          : "danger"
+                                                }
                                             >
-                                                {requiredDocument.isAvailable ? "Vorhanden" : "Fehlt"}
+                                                {requiredDocument.isAvailable
+                                                    ? "Vorhanden"
+                                                    : requiredDocument.document?.source === "automation_return" &&
+                                                        requiredDocument.document.status === "needs_review"
+                                                      ? "Eingegangen – Prüfung erforderlich"
+                                                      : "Fehlt"}
                                             </StatusBadge>
                                         </div>
                                         </div>
@@ -1087,7 +1099,9 @@ export async function SaleDetail({
                                                             documentLabel={uploadOption.label}
                                                                 existingDocumentId={
                                                                     isExistingOption
-                                                                        ? requiredDocument.document?.id ?? null
+                                                                        ? requiredDocument.document?.source === "uploaded"
+                                                                            ? requiredDocument.document.id
+                                                                            : null
                                                                         : null
                                                                 }
                                                             existingFileName={
@@ -1108,7 +1122,11 @@ export async function SaleDetail({
                                                     saleId={sale.id}
                                                     documentType={requiredDocument.documentType}
                                                     documentLabel={requiredDocument.label}
-                                                    existingDocumentId={requiredDocument.document?.id ?? null}
+                                                    existingDocumentId={
+                                                        requiredDocument.document?.source === "uploaded"
+                                                            ? requiredDocument.document.id
+                                                            : null
+                                                    }
                                                     existingFileName={getSaleDocumentDisplayFileName(
                                                         requiredDocument.document,
                                                         sale.sale_number,

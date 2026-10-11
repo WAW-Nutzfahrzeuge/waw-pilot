@@ -1,5 +1,8 @@
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { VatVerificationRequirementPolicy } from "@/src/modules/documents/domain/policies/vat-verification-requirement-policy";
+import { isRequiredDocumentAvailable } from "@/lib/sales/required-document-availability";
+
+export { isRequiredDocumentAvailable } from "@/lib/sales/required-document-availability";
 
 export type RequiredDocumentDefinition = {
     documentType: string;
@@ -127,11 +130,7 @@ export function evaluateRequiredDocuments({
 }) {
     const availableDocumentTypes = new Set(
         documents
-            .filter(
-                (document) =>
-                    document.status === "available" ||
-                    (document.status === "needs_review" && document.source === "generated"),
-            )
+            .filter(isRequiredDocumentAvailable)
             .map((document) => document.document_type),
     );
 

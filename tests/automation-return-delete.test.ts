@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const migration = readFileSync("supabase/migrations/20261007100000_delete_automation_return_document_version.sql", "utf8");
+const acceptanceMigration = readFileSync("supabase/migrations/20261012120000_require_accepted_automation_returns.sql", "utf8");
 const action = readFileSync("app/dashboard/sales/[saleId]/actions.ts", "utf8");
 const detail = readFileSync("components/sales/sale-detail.tsx", "utf8");
 
@@ -28,4 +29,10 @@ test("delete RPC removes only the selected derived upload and active version", (
 test("delete RPC restores an older version instead of deleting it", () => {
     assert.match(migration, /set is_active = true\s+where id = previous_version\.id/);
     assert.match(migration, /active_version_id = previous_version\.id/);
+});
+
+test("restored automation versions require explicit acceptance", () => {
+    assert.match(acceptanceMigration, /previous_upload\.signature_status = 'present'/);
+    assert.match(acceptanceMigration, /previous_upload\.review_status = 'accepted'/);
+    assert.doesNotMatch(acceptanceMigration, /previous_upload\.review_status <> 'rejected'/);
 });
