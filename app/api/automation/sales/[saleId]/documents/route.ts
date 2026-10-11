@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
+import { randomUUID } from "node:crypto";
 
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import {
@@ -22,6 +23,7 @@ const revalidateSaleDocuments = (saleId: string) => {
 };
 
 export async function POST(request: Request, routeContext: Context) {
+    const requestId = randomUUID();
     const auth = authenticateAutomationRequest(request);
     if (!auth) return automationUnauthorized();
     const { saleId } = await routeContext.params;
@@ -139,10 +141,30 @@ export async function POST(request: Request, routeContext: Context) {
             revalidateSaleDocuments(saleId);
             return NextResponse.json({ status: "stored", uploadId: claim.id, documentId: verified.document_id, documentVersionId: verified.document_version_id }, { status: 201 });
         }
-        await supabase.storage.from("documents").remove([path]);
-        await markUploadFailed(supabase, claim.id, "document_write_failed");
-        console.error("automation.document.write_failed", { saleId, uploadId: claim.id, code: documentError?.code });
-        return automationError(500, "document_write_failed", "Das Rücklaufdokument konnte nicht in der Verkaufsakte registriert werden.");
+        const databaseCode = documentError?.code ?? "missing_document_id";
+        const cleanupResult = await supabase.storage.from("documents").remove([path]);
+        await markUploadFailed(
+            supabase,
+            claim.id,
+            `document_write_failed:${databaseCode}`,
+        );
+        console.error("automation.document.write_failed", {
+            requestId,
+            saleId,
+            uploadId: claim.id,
+            databaseCode,
+            databaseMessage: documentError?.message ?? null,
+            databaseDetails: documentError?.details ?? null,
+            databaseHint: documentError?.hint ?? null,
+            storageCleanupSucceeded: !cleanupResult.error,
+            storageCleanupCode: cleanupResult.error?.name ?? null,
+        });
+        return automationError(
+            500,
+            "document_write_failed",
+            "Das Rücklaufdokument konnte nicht in der Verkaufsakte registriert werden.",
+            { requestId },
+        );
     }
     console.info("automation.document.stored", { saleId, uploadId: claim.id, documentId });
     revalidateSaleDocuments(saleId);

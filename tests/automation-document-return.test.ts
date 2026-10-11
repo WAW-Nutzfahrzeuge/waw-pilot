@@ -106,6 +106,7 @@ test("sale UI recognizes automation returns without allowing manual overwrite", 
     const checks = readFileSync("lib/pdf/generated-documents/sale-document-checks.ts", "utf8");
     const actions = readFileSync("app/dashboard/sales/[saleId]/actions.ts", "utf8");
     const detail = readFileSync("components/sales/sale-detail.tsx", "utf8");
+    const route = readFileSync("app/api/automation/sales/[saleId]/documents/route.ts", "utf8");
 
     assert.match(checks, /document\.source === "automation_return"/);
     assert.match(checks, /document\.status === "needs_review"/);
@@ -113,4 +114,8 @@ test("sale UI recognizes automation returns without allowing manual overwrite", 
     assert.match(checks, /\.not\("active_version_id", "is", null\)/);
     assert.match(actions, /automatisierter Rücklauf kann nicht durch einen manuellen Upload überschrieben werden/);
     assert.match(detail, /requiredDocument\.document\?\.source === "uploaded"/);
+    assert.match(route, /requestId/);
+    assert.match(route, /databaseCode/);
+    assert.match(route, /storageCleanupSucceeded/);
+    assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY.*console/);
 });
