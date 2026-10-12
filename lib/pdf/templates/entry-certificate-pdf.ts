@@ -1,5 +1,4 @@
 import {
-    StandardFonts,
     rgb,
     type PDFFont,
     type PDFPage,
@@ -323,8 +322,8 @@ export async function generateEntryCertificatePdf(
     const ctx = await createPdfLayout();
     const page = ctx.page;
 
-    const timesRoman = await ctx.pdfDoc.embedFont(StandardFonts.TimesRoman);
-    const timesBold = await ctx.pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const timesRoman = ctx.regularFont;
+    const timesBold = ctx.boldFont;
 
     const contentX = 82;
     const contentWidth = ctx.width - contentX * 2;

@@ -2,9 +2,11 @@ import {
     PDFDocument,
     PDFPage,
     rgb,
-    StandardFonts,
     type PDFFont,
 } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { pdfTheme } from "@/lib/pdf/core/pdf-theme";
 import { joinPdfLines } from "@/lib/pdf/core/pdf-format";
@@ -25,12 +27,41 @@ export type PdfLayoutContext = {
     cursorY: number;
 };
 
+const unicodeFontPath = path.join(
+    process.cwd(),
+    "node_modules",
+    "next",
+    "dist",
+    "compiled",
+    "@vercel",
+    "og",
+    "Geist-Regular.ttf",
+);
+
+let unicodeFontBytesPromise: Promise<Buffer> | null = null;
+
+function loadUnicodeFontBytes(): Promise<Buffer> {
+    if (!unicodeFontBytesPromise) {
+        unicodeFontBytesPromise = readFile(unicodeFontPath).catch((error: unknown) => {
+            unicodeFontBytesPromise = null;
+            throw error;
+        });
+    }
+
+    return unicodeFontBytesPromise;
+}
+
 export async function createPdfLayout(): Promise<PdfLayoutContext> {
     const pdfDoc = await PDFDocument.create();
+    pdfDoc.registerFontkit(fontkit);
 
     const page = pdfDoc.addPage([595.28, 841.89]); // A4
-    const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontBytes = await loadUnicodeFontBytes();
+    const regularFont = await pdfDoc.embedFont(fontBytes, { subset: false });
+    // The bundled Unicode font has one weight. Reusing it for bold text keeps
+    // all customer/address characters encodable; hierarchy is still conveyed
+    // by size and placement in the existing templates.
+    const boldFont = regularFont;
 
     const { width, height } = page.getSize();
     const margin = pdfTheme.spacing.pageMargin;

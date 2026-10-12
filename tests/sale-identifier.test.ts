@@ -61,3 +61,25 @@ test("alle drei Rücklauf-PDFs zeichnen die Verkaufskennung auf jeder Seite", ()
     }
 });
 
+test("Gelangensbestätigung und Verbringungsnachweis verwenden Unicode-Schriften", () => {
+    const layoutSource = readFileSync(
+        new URL("../lib/pdf/core/pdf-layout.ts", import.meta.url),
+        "utf8",
+    );
+
+    assert.match(layoutSource, /registerFontkit/);
+    assert.match(layoutSource, /Geist-Regular\.ttf/);
+
+    for (const template of [
+        "entry-certificate-pdf.ts",
+        "transport-proof-pdf.ts",
+    ]) {
+        const source = readFileSync(
+            new URL(`../lib/pdf/templates/${template}`, import.meta.url),
+            "utf8",
+        );
+        assert.match(source, /ctx\.regularFont/);
+        assert.doesNotMatch(source, /StandardFonts\.(TimesRoman|Helvetica)/);
+    }
+});
+
