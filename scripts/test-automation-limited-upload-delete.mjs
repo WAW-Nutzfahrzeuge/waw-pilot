@@ -36,7 +36,24 @@ async function getSale() {
     const { data, error } = await supabase.from("sales")
         .select("id, company_id, sale_identifier")
         .eq("id", saleId).eq("company_id", process.env.NEXT_PUBLIC_WAW_COMPANY_ID).maybeSingle();
-    if (error || !data) throw new Error("Die ausdrücklich konfigurierte Verkaufsakte wurde nicht gefunden.");
+    if (error) {
+        const technicalCode = error.code || "supabase_request_failed";
+        throw new Error(`Die konfigurierte Verkaufsakte konnte nicht geprüft werden (${technicalCode}): ${error.message}`);
+    }
+    if (!data) {
+        const { data: saleWithoutCompany, error: lookupError } = await supabase.from("sales")
+            .select("id")
+            .eq("id", saleId)
+            .maybeSingle();
+        if (lookupError) {
+            const technicalCode = lookupError.code || "supabase_request_failed";
+            throw new Error(`Die konfigurierte Verkaufsakte konnte nicht geprüft werden (${technicalCode}): ${lookupError.message}`);
+        }
+        if (saleWithoutCompany) {
+            throw new Error("Die konfigurierte Verkaufsakte gehört nicht zu NEXT_PUBLIC_WAW_COMPANY_ID.");
+        }
+        throw new Error("AUTOMATION_TEST_SALE_ID verweist auf keine vorhandene Verkaufsakte in der konfigurierten Supabase-Datenbank.");
+    }
     return data;
 }
 
