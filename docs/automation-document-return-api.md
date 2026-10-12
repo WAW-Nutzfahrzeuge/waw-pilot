@@ -59,6 +59,122 @@ Bei `ambiguous`, `unmatched` und `conflict` werden weder `customerEmail` noch di
 
 Die Antwort basiert auf den vorhandenen WAW-Regeln: Inland nur Übergabebestätigung, EU zusätzlich Gelangensbestätigung und Verbringungsnachweis, Drittland keine dieser drei Arten. `signatureStatus=present` heißt nur „sichtbare Unterschrift erkannt“. Ein automatisierter Rücklauf erfüllt eine Anforderung ausschließlich mit `signatureStatus=present` und `reviewStatus=accepted`. `pending`, `needs_review`, `rejected`, `absent` und `uncertain` werden als eingegangen beziehungsweise prüfbedürftig geführt, erfüllen die Anforderung aber nicht.
 
+## Unterschriften-Rückfrage dauerhaft reservieren
+
+Vor Verwendung müssen zusätzlich die Migration `20261012220000_add_automation_signature_requests.sql` und das anschließende Vercel-Deployment erfolgt sein. WAW Pilot versendet an diesen Endpunkten **keine E-Mail**. Es prüft Empfänger und Anforderungen und führt nur den dauerhaften, atomaren Versandnachweis. n8n darf ausschließlich bei `allowSend=true` versenden.
+
+`POST /api/automation/signature-requests/claim`, JSON:
+
+```json
+{
+  "notificationKey": "return:<RETURN-ID>:sale:<SALE-ID>",
+  "saleId": "<SALE-UUID>",
+  "documentTypes": ["entry_certificate", "transport_proof"]
+}
+```
+
+Erlaubte Dokumenttypen sind `entry_certificate`, `transport_proof` und `handover_protocol`. Die Liste muss eindeutig sein. Die API ermittelt serverseitig die für Verkaufsart und Land geltenden Anforderungen und ignoriert nicht erforderliche Typen. Außerdem filtert sie aktive automatisierte Rückläufe heraus, die bereits `signatureStatus=present` und `reviewStatus=accepted` besitzen, sowie aktive manuelle Uploads, die in der Verkaufsakte bereits als verfügbarer unterschriebener Nachweis gelten. Erzeugte, noch nicht zurückgesendete Ausgangsdokumente erfüllen die Anforderung nicht. Die Käuferadresse stammt ausschließlich aus `sales.buyer_customer_id → customers.email`; eine Adresse aus dem Request oder einer KI wird nicht übernommen.
+
+Erste erfolgreiche Reservierung (`201`):
+
+```json
+{
+  "status": "claimed",
+  "allowSend": true,
+  "requestId": "<REQUEST-UUID>",
+  "reservationToken": "<NUR-FUER-DIESEN-VORGANG>",
+  "customerEmail": "kunde@example.com",
+  "customerEmailSource": "sales.buyer_customer_id.customers.email",
+  "customerEmailOwnershipVerified": false,
+  "documentTypes": ["entry_certificate"]
+}
+```
+
+Kopierbarer Aufruf (nur Platzhalter):
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/signature-requests/claim" \
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "notificationKey": "return:<RETURN-ID>:sale:<SALE-ID>",
+    "saleId": "<SALE-UUID>",
+    "documentTypes": ["entry_certificate", "transport_proof"]
+  }'
+```
+
+Das `reservationToken` muss n8n bis zur Ergebnisbestätigung vertraulich halten. In der Datenbank wird nur sein SHA-256-Hash gespeichert. Bei allen anderen fachlichen Ergebnissen gilt `allowSend=false`:
+
+- `already_sent`: Der Provider-Versand wurde bereits bestätigt.
+- `processing`: Eine Reservierung besteht bereits. Das gilt auch nach langer Laufzeit; es gibt absichtlich keine automatische Ablauf-Freigabe.
+- `suppressed`: Kein angefragter Typ ist noch erforderlich und unerfüllt.
+- `needs_review`: Insbesondere keine eindeutige, syntaktisch geeignete Käuferadresse oder ein zuvor unklarer Ausgang.
+
+Ein wiederholter identischer Aufruf gibt keine zweite Sendefreigabe. Derselbe `notificationKey` mit anderer `saleId` oder anderer ursprünglicher Dokumenttypen-Menge liefert `409 notification_key_conflict`. Reihenfolge der Dokumenttypen ist dabei unerheblich. Für einen neuen Original-Rücklauf muss n8n einen neuen stabilen `notificationKey` bilden; reine technische Wiederholungen behalten ihn bei.
+
+## Versandresultat speichern
+
+`POST /api/automation/signature-requests/{requestId}/result`, JSON:
+
+```json
+{
+  "reservationToken": "<TOKEN-AUS-CLAIM>",
+  "status": "sent",
+  "providerMessageId": "<OPTIONALE-PROVIDER-ID>",
+  "reason": null
+}
+```
+
+`status` ist:
+
+- `sent`: Der Provider hat den Versand bestätigt. Dieser Zustand ist endgültig und wird niemals erneut freigegeben.
+- `failed`: Der Provider bestätigt sicher, dass nicht versendet wurde. Ein neuer identischer Claim darf anschließend einen neuen Versuch mit neuer Reservierung erlauben.
+- `unknown`: Der Ausgang ist beispielsweise nach einem Timeout unklar. Dieser Vorgang wird nicht automatisch erneut freigegeben.
+
+Identische Ergebniswiederholungen sind idempotent und liefern `idempotent=true`. Eine falsche Reservierungskennung liefert `403 invalid_reservation`; widersprüchliche Resultate liefern `409`. Token, Mailtext und Dokumentinhalt werden nicht protokolliert.
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/signature-requests/<REQUEST-UUID>/result" \
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "reservationToken": "<TOKEN-AUS-CLAIM>",
+    "status": "sent",
+    "providerMessageId": "<OPTIONALE-PROVIDER-ID>"
+  }'
+```
+
+Erste Speicherung:
+
+```json
+{
+  "status": "recorded",
+  "deliveryStatus": "sent",
+  "idempotent": false
+}
+```
+
+Identische Wiederholung:
+
+```json
+{
+  "status": "unchanged",
+  "deliveryStatus": "sent",
+  "idempotent": true
+}
+```
+
+### n8n-Ablauf und manuelle Klärung
+
+1. Nach dem Prüfen der aktuellen `document-requirements` einen stabilen Schlüssel aus Original-Rücklauf-ID und Verkauf bilden.
+2. Claim per HTTP Request senden.
+3. Nur im `claimed`-Zweig und ausschließlich an `customerEmail` senden; die tatsächlich zurückgegebenen `documentTypes` in der Rückfrage nennen.
+4. Direkt nach der Providerantwort das Resultat mit `requestId` und `reservationToken` bestätigen.
+5. Bei `processing`, `already_sent`, `suppressed` oder `needs_review` nicht senden.
+6. Bei einem Timeout `unknown` speichern. Anschließend im Provider-Dashboard anhand der Provider-/Workflow-Daten manuell feststellen, ob die Nachricht versendet wurde. Bis zur Klärung bleibt der Vorgang gesperrt. Es darf weder ein neuer `notificationKey` für denselben Original-Rücklauf erfunden noch allein wegen des Alters erneut gesendet werden.
+
+Für die manuelle Klärung wird der Datensatz über `requestId` in `automation_signature_requests` geprüft. Eine Änderung des Zustands erfolgt nur kontrolliert durch einen Administrator nach belegtem Provider-Ergebnis; es existiert bewusst kein öffentlicher Reset- oder Reclaim-Endpunkt.
+
 ## Unveränderten Originalanhang speichern
 
 `POST /api/automation/document-returns/originals`, `multipart/form-data`:
