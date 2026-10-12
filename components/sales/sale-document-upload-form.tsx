@@ -61,9 +61,12 @@ export function SaleDocumentUploadForm({
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
     const [customDocumentLabel, setCustomDocumentLabel] = useState(documentLabel);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [cropOpen, setCropOpen] = useState(false);
     const [cropImageFile, setCropImageFile] = useState<File | null>(null);
-    const [isPending, startTransition] = useTransition();
+    const [isUploading, setIsUploading] = useState(false);
+    const [, startRefreshTransition] = useTransition();
+    const isPending = isUploading;
 
     const hasExistingDocument = Boolean(existingDocumentId);
     const displayFileName = selectedFileName ?? existingFileName;
@@ -100,9 +103,11 @@ export function SaleDocumentUploadForm({
         const resolvedDocumentLabel = String(formData.get("document_label") ?? "");
 
         setErrorMessage(null);
+        setSuccessMessage(null);
         setSelectedFileName(file.name);
+        setIsUploading(true);
 
-        startTransition(async () => {
+        void (async () => {
             try {
                 const uploadInput = {
                     saleId,
@@ -138,9 +143,14 @@ export function SaleDocumentUploadForm({
                     path: preparedUpload.path,
                 });
 
+                setSuccessMessage(
+                    hasExistingDocument
+                        ? "Dokument wurde erfolgreich ersetzt."
+                        : "Dokument wurde erfolgreich hochgeladen.",
+                );
                 setSelectedFileName(null);
                 if (fileInputRef.current) fileInputRef.current.value = "";
-                router.refresh();
+                startRefreshTransition(() => router.refresh());
             } catch (error) {
                 if (isNextRedirectError(error)) {
                     throw error;
@@ -152,8 +162,10 @@ export function SaleDocumentUploadForm({
                         : "Datei konnte nicht hochgeladen werden.",
                 );
                 setSelectedFileName(null);
+            } finally {
+                setIsUploading(false);
             }
-        });
+        })();
     }
 
     function handleFileChange() {
@@ -326,6 +338,12 @@ export function SaleDocumentUploadForm({
             {errorMessage ? (
                 <p className="mt-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
                     {errorMessage}
+                </p>
+            ) : null}
+
+            {successMessage ? (
+                <p className="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">
+                    {successMessage}
                 </p>
             ) : null}
 

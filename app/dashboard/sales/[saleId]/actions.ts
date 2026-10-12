@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { randomUUID } from "node:crypto";
 
 import { getStringFormValue } from "@/lib/actions/form-data";
@@ -204,11 +205,14 @@ export async function finalizeSaleDocumentUploadAction(
         throw new Error("Der Upload-Pfad ist ungültig.");
     }
 
-    const sale = await loadSaleForDocumentUpload({ saleId: input.saleId, companyId });
     const supabase = createServerSupabaseClient();
     const storageSupabase = createAutomationSupabaseClient();
     const storage = storageSupabase.storage.from("documents");
-    const { data: storedFile, error: storedFileError } = await storage.info(input.path);
+    const [sale, storedFileResult] = await Promise.all([
+        loadSaleForDocumentUpload({ saleId: input.saleId, companyId }),
+        storage.info(input.path),
+    ]);
+    const { data: storedFile, error: storedFileError } = storedFileResult;
 
     if (storedFileError || !storedFile) {
         throw new Error("Die hochgeladene Datei wurde nicht im privaten Speicher gefunden.");
@@ -338,10 +342,12 @@ export async function finalizeSaleDocumentUploadAction(
         }
     }
 
-    await logActivity({
-        action: `${customDocumentLabel ?? input.documentLabel} wurde hochgeladen.`,
-        entityType: "sale",
-        entityId: sale.id,
+    after(async () => {
+        await logActivity({
+            action: `${customDocumentLabel ?? input.documentLabel} wurde hochgeladen.`,
+            entityType: "sale",
+            entityId: sale.id,
+        });
     });
     revalidatePaths([
         `/dashboard/sales/${input.saleId}`,
