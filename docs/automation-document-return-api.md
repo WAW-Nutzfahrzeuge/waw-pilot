@@ -44,6 +44,48 @@ Die Antwort basiert auf den vorhandenen WAW-Regeln: Inland nur Übergabebestäti
 
 Originale werden privat und ohne Verkaufszuordnung gespeichert. Die Antwort liefert `originalUploadId`; erst ein abgeleitetes Dokument verknüpft dieses Original mit einer Verkaufsakte.
 
+## Originalseiten als eigene PDF extrahieren
+
+`POST /api/automation/document-returns/extract-pages`, `multipart/form-data`:
+
+- `file`: unveränderte Original-PDF
+- `pages`: JSON-Array mit eindeutigen, aufsteigend sortierten, 1-basierten Seitenzahlen, z. B. `[1,2]`
+- `expectedPageCount`: von der Analyse ermittelte Gesamtseitenzahl als positive Ganzzahl
+
+Der Endpunkt nutzt denselben Bearer-Token wie die übrigen Automatisierungs-APIs. Er lädt die PDF ausschließlich in den Arbeitsspeicher, vergleicht die tatsächliche Seitenzahl mit `expectedPageCount` und kopiert exakt die ausgewählten PDF-Seiten in ein neues Dokument. Dabei werden die vorhandenen PDF-Seiten und ihre sichtbaren Inhalte übernommen; es findet keine KI-Erzeugung und kein Raster-Neurendering statt. Die Originaldatei wird nicht verändert und es werden weder Storage-Dateien noch Datenbankeinträge angelegt.
+
+Erfolg liefert `200 application/pdf` mit `Content-Disposition: attachment`. Die Antwort ist mit `Cache-Control: private, no-store, max-age=0` nicht öffentlich cachebar. Die Gültigkeit eventuell vorhandener kryptografischer PDF-Signaturen kann nach dem Kopieren einzelner Seiten nicht garantiert werden.
+
+### Effektives Größenlimit auf Vercel
+
+Die produktive Bereitstellung verwendet einen Node.js Route Handler als Vercel Function. Vercel begrenzt derzeit sowohl Request- als auch Response-Payloads auf 4,5 MB. Anders als die direkten Browser-zu-Supabase-Uploads läuft diese PDF vollständig durch die Function. Deshalb gilt für diesen Endpunkt bewusst ein Dateilimit von **4 MiB**; auch die erzeugte PDF darf maximal 4 MiB groß sein. Der Abstand zum Plattformlimit ist für Multipart-Header und Response-Overhead vorgesehen. Ein 10-MB-Upload wird hier nicht unterstützt.
+
+Zusätzliche Fehlercodes:
+
+- `400 invalid_multipart`: Anfrage ist kein lesbares Multipart-Formular
+- `401 unauthorized`: Automatisierungstoken fehlt oder ist ungültig
+- `413 file_too_large`: Eingabe überschreitet 4 MiB
+- `413 extracted_pdf_too_large`: Ausgabe überschreitet 4 MiB
+- `415 invalid_file_type`: Datei ist keine echte PDF
+- `422 invalid_pages`: Seitenliste fehlt, ist ungültig, doppelt oder nicht aufsteigend
+- `422 invalid_expected_page_count`: Gesamtseitenzahl ist ungültig
+- `422 invalid_pdf`: PDF ist beschädigt oder nicht lesbar
+- `422 encrypted_pdf`: PDF ist verschlüsselt und kann nicht verarbeitet werden
+- `422 page_out_of_range`: eine Seite liegt außerhalb der PDF
+- `409 page_count_mismatch`: tatsächliche Seitenzahl weicht von `expectedPageCount` ab
+- `500 pdf_extraction_failed`: unerwarteter interner Verarbeitungsfehler
+
+Beispiel:
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/document-returns/extract-pages" \
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --form "file=@./sammel-ruecklauf.pdf;type=application/pdf" \
+  --form 'pages=[1,2]' \
+  --form 'expectedPageCount=6' \
+  --output ./extrahierte-seiten-1-2.pdf
+```
+
 ## Rücklauf in Verkaufsakte speichern
 
 `POST /api/automation/sales/{saleId}/documents`, `multipart/form-data`:
@@ -208,7 +250,19 @@ Den Token nicht in einem Set-/Code-Knoten und nicht in Workflow-Logs speichern.
    - Wert: `={{ $json.resolution.status }}` (oder `={{ $json.status }}`, falls die Antwort nicht in ein Feld gelegt wurde)
    - `matched`: nur dieser Ausgang darf zum Upload führen
    - `ambiguous`, `unmatched`, `conflict`: in einen Prüfzweig leiten, Ergebnis anzeigen beziehungsweise als Testfehler beenden
-6. **HTTP Request – Dokument hochladen** am `matched`-Ausgang
+6. **HTTP Request – Originalseiten extrahieren** am `matched`-Ausgang
+   - Method: `POST`
+   - URL: `https://<WAW-VERCEL-DOMAIN>/api/automation/document-returns/extract-pages`
+   - Authentication: dasselbe Header-Auth-Credential
+   - Send Body: aktiv
+   - Body Content Type: `Form-Data`
+   - Parameter `file`: Typ **n8n Binary File**, Input Data Field Name `data`
+   - Textparameter `pages`: `={{ JSON.stringify($json.pages) }}`
+   - Textparameter `expectedPageCount`: `={{ String($json.expectedPageCount) }}`
+   - Response Format: `File`
+   - Put Output in Field: `extractedDocument`
+   - Bei `409 page_count_mismatch` oder `422` nicht hochladen, sondern in den Prüfzweig leiten.
+7. **HTTP Request – Dokument hochladen** am erfolgreichen Extraktionsausgang
    - Method: `POST`
    - URL: `=https://<WAW-VERCEL-DOMAIN>/api/automation/sales/{{ $json.resolution.sale.saleId }}/documents`
    - Authentication: dasselbe Header-Auth-Credential
@@ -216,7 +270,7 @@ Den Token nicht in einem Set-/Code-Knoten und nicht in Workflow-Logs speichern.
    - Header `Idempotency-Key`: `={{ $json.idempotencyKey }}`
    - Send Body: aktiv
    - Body Content Type: `Form-Data`
-   - Parameter `file`: Typ **n8n Binary File**, Input Data Field Name `data`
+   - Parameter `file`: Typ **n8n Binary File**, Input Data Field Name `extractedDocument`
    - Textparameter:
      - `documentType`: `={{ $json.documentType }}`
      - `saleIdentifier`: `={{ $json.resolution.sale.saleIdentifier }}`
@@ -226,7 +280,7 @@ Den Token nicht in einem Set-/Code-Knoten und nicht in Workflow-Logs speichern.
      - `sourceEmailId`: `={{ $json.sourceEmailId }}`
      - `sourceAttachmentId`: `={{ $json.sourceAttachmentId }}`
      - `receivedAt`: ein einmal am Workflow-Anfang erzeugter und danach unverändert wiederverwendeter ISO-Zeitstempel
-7. **Switch/IF – Uploadantwort**
+8. **Switch/IF – Uploadantwort**
    - `201`: neu gespeichert
    - `200`: identischer Upload war bereits gespeichert
    - `202`: identischer Upload wird gerade verarbeitet; mit Warte-/Retry-Knoten und demselben Idempotency-Key wiederholen
