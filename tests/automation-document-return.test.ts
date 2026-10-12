@@ -119,3 +119,15 @@ test("sale UI recognizes automation returns without allowing manual overwrite", 
     assert.match(route, /storageCleanupSucceeded/);
     assert.doesNotMatch(route, /SUPABASE_SERVICE_ROLE_KEY.*console/);
 });
+
+test("automation return migration extends the deployed document source constraint", () => {
+    const migration = readFileSync(
+        "supabase/migrations/20261012150000_allow_automation_return_document_source.sql",
+        "utf8",
+    );
+
+    assert.match(migration, /documents_source_check/);
+    assert.match(migration, /pg_get_expr/);
+    assert.match(migration, /automation_return/);
+    assert.match(migration, /validate constraint documents_source_check/);
+});
