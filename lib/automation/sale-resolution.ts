@@ -6,7 +6,69 @@ export type ResolutionSale = {
     vin: string | null;
     customerName: string | null;
     customerEmail: string | null;
+    customerEmailReason?: CustomerEmailReason | null;
+    customerEmailSource?: typeof buyerCustomerEmailSource;
 };
+
+export const buyerCustomerEmailSource = "sales.buyer_customer_id.customers.email" as const;
+
+export type CustomerEmailReason =
+    | "buyer_customer_email_missing"
+    | "buyer_customer_email_invalid"
+    | "buyer_customer_email_conflict";
+
+export type BuyerCustomerEmailResolution = {
+    customerEmail: string | null;
+    customerEmailReason: CustomerEmailReason | null;
+    customerEmailSource: typeof buyerCustomerEmailSource;
+    customerEmailOwnershipVerified: false;
+};
+
+const emailSyntax = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function resolveBuyerCustomerEmail(
+    candidates: Array<string | null | undefined>,
+): BuyerCustomerEmailResolution {
+    const normalizedCandidates = candidates
+        .map((candidate) => candidate?.trim().toLowerCase() ?? "")
+        .filter(Boolean);
+    const distinctCandidates = [...new Set(normalizedCandidates)];
+
+    if (distinctCandidates.length === 0) {
+        return {
+            customerEmail: null,
+            customerEmailReason: "buyer_customer_email_missing",
+            customerEmailSource: buyerCustomerEmailSource,
+            customerEmailOwnershipVerified: false,
+        };
+    }
+
+    if (distinctCandidates.length > 1) {
+        return {
+            customerEmail: null,
+            customerEmailReason: "buyer_customer_email_conflict",
+            customerEmailSource: buyerCustomerEmailSource,
+            customerEmailOwnershipVerified: false,
+        };
+    }
+
+    const customerEmail = distinctCandidates[0];
+    if (!emailSyntax.test(customerEmail)) {
+        return {
+            customerEmail: null,
+            customerEmailReason: "buyer_customer_email_invalid",
+            customerEmailSource: buyerCustomerEmailSource,
+            customerEmailOwnershipVerified: false,
+        };
+    }
+
+    return {
+        customerEmail,
+        customerEmailReason: null,
+        customerEmailSource: buyerCustomerEmailSource,
+        customerEmailOwnershipVerified: false,
+    };
+}
 
 export type ResolutionInput = {
     saleIdentifier?: string | null;
@@ -35,6 +97,13 @@ export function resolveSales(input: ResolutionInput, sales: ResolutionSale[]) {
         vin: sale.vin,
         customerName: sale.customerName,
     });
+    const matched = (sale: ResolutionSale) => ({
+        ...minimal(sale),
+        ...resolveBuyerCustomerEmail([sale.customerEmail]),
+        ...(sale.customerEmailReason
+            ? { customerEmail: null, customerEmailReason: sale.customerEmailReason }
+            : {}),
+    });
     const invoiceMatches = (sale: ResolutionSale) => sale.invoiceNumbers.some((value) => normalized(value) === invoiceNumber);
     const vinMatches = (sale: ResolutionSale) => normalizedVin(sale.vin) === vin;
 
@@ -49,7 +118,7 @@ export function resolveSales(input: ResolutionInput, sales: ResolutionSale[]) {
         ].filter(Boolean);
         return conflicts.length
             ? { status: "conflict" as const, candidates: [minimal(sale)], conflictingFields: conflicts }
-            : { status: "matched" as const, sale: minimal(sale) };
+            : { status: "matched" as const, sale: matched(sale) };
     }
 
     if (!invoiceNumber && !vin) {
@@ -74,12 +143,12 @@ export function resolveSales(input: ResolutionInput, sales: ResolutionSale[]) {
         }
     }
 
-    if (candidates.length === 1) return { status: "matched" as const, sale: minimal(candidates[0]) };
+    if (candidates.length === 1) return { status: "matched" as const, sale: matched(candidates[0]) };
     const hardCandidates = candidates;
     if (senderEmail) candidates = candidates.filter((sale) => normalizedEmail(sale.customerEmail) === senderEmail);
     if (customerName) candidates = candidates.filter((sale) => normalizedName(sale.customerName).includes(customerName));
     if (candidates.length === 0 && hardCandidates.length > 0) candidates = hardCandidates;
-    if (candidates.length === 1) return { status: "matched" as const, sale: minimal(candidates[0]) };
+    if (candidates.length === 1) return { status: "matched" as const, sale: matched(candidates[0]) };
     if (candidates.length > 1) return { status: "ambiguous" as const, candidates: candidates.map(minimal) };
     return { status: "unmatched" as const, candidates: [] };
 }

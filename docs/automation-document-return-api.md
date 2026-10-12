@@ -28,6 +28,31 @@ Alle Requests senden `Authorization: Bearer <token>`. Uploads benötigen zusätz
 
 Antwortstatus im JSON: `matched`, `ambiguous`, `unmatched` oder `conflict`. Eine gültige Verkaufskennung ist führend; Rechnungsnummer/VIN dürfen ihr nicht widersprechen. E-Mail und Name können Kandidaten nur eingrenzen und reichen nie allein für `matched`.
 
+Nur bei `status="matched"` enthält `sale` zusätzlich die gespeicherte Käuferadresse:
+
+```json
+{
+  "status": "matched",
+  "sale": {
+    "saleId": "<SALE-UUID>",
+    "customerEmail": "kunde@example.com",
+    "customerEmailReason": null,
+    "customerEmailSource": "sales.buyer_customer_id.customers.email",
+    "customerEmailOwnershipVerified": false
+  }
+}
+```
+
+Die Adresse stammt ausschließlich aus dem über `sales.buyer_customer_id` verbundenen `customers.email`-Datensatz. `senderEmail` aus dem Suchrequest dient nur zur Kandidatensuche und wird niemals als Versandempfänger zurückgegeben. Eine syntaktisch gültige Adresse bestätigt nicht, dass der Kunde Zugriff auf dieses Postfach besitzt; deshalb ist `customerEmailOwnershipVerified` aktuell immer `false`.
+
+Ist keine eindeutige geeignete Käuferadresse vorhanden, bleibt der Verkauf trotzdem eindeutig zugeordnet, aber `customerEmail` ist `null`. `customerEmailReason` enthält dann einen technischen Grund:
+
+- `buyer_customer_email_missing`
+- `buyer_customer_email_invalid`
+- `buyer_customer_email_conflict`
+
+Bei `ambiguous`, `unmatched` und `conflict` werden weder `customerEmail` noch die übrigen E-Mail-Metadaten in den Kandidaten ausgegeben.
+
 ## Anforderungen abfragen
 
 `GET /api/automation/sales/{saleId}/document-requirements`

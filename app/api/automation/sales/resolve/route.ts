@@ -3,7 +3,11 @@ import { z } from "zod";
 
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
-import { resolveSales, type ResolutionSale } from "@/lib/automation/sale-resolution";
+import {
+    resolveBuyerCustomerEmail,
+    resolveSales,
+    type ResolutionSale,
+} from "@/lib/automation/sale-resolution";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
 export const runtime = "nodejs";
@@ -52,7 +56,7 @@ export async function POST(request: Request) {
     const supabase = createAutomationSupabaseClient();
     const { data, error } = await supabase
         .from("sales")
-        .select(`id, sale_identifier, sale_number, vehicles(vin), customers(type, company_name, first_name, last_name, email), invoices(invoice_number)`)
+        .select(`id, sale_identifier, sale_number, vehicles(vin), customers:buyer_customer_id(type, company_name, first_name, last_name, email), invoices(invoice_number)`)
         .eq("company_id", context.companyId);
 
     if (error) {
@@ -61,11 +65,15 @@ export async function POST(request: Request) {
     }
 
     const sales: ResolutionSale[] = ((data ?? []) as unknown as DbSale[]).map((row) => {
-        const customer = one(row.customers);
+        const customerCandidates = many(row.customers);
+        const customer = customerCandidates.length === 1 ? customerCandidates[0] : null;
         const vehicle = one(row.vehicles);
         const customerName = customer?.type === "company"
             ? customer.company_name
             : [customer?.first_name, customer?.last_name].filter(Boolean).join(" ") || null;
+        const emailResolution = resolveBuyerCustomerEmail(
+            customerCandidates.map((candidate) => candidate.email),
+        );
         return {
             id: row.id,
             saleIdentifier: row.sale_identifier,
@@ -73,7 +81,9 @@ export async function POST(request: Request) {
             invoiceNumbers: many(row.invoices).map((invoice) => invoice.invoice_number).filter((value): value is string => Boolean(value)),
             vin: vehicle?.vin ?? null,
             customerName,
-            customerEmail: customer?.email ?? null,
+            customerEmail: emailResolution.customerEmail,
+            customerEmailReason: emailResolution.customerEmailReason,
+            customerEmailSource: emailResolution.customerEmailSource,
         };
     });
 
