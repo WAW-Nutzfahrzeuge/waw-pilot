@@ -156,19 +156,19 @@ function GeneratedDocumentRow({
                                         {document.statusLabel}
                                     </StatusBadge>
 
-                                    {showSignatureStatus ? (
+                                    {showSignatureStatus && document.status !== "signed_received" ? (
                                         <StatusBadge tone="warning">
                                             {document.signedDocument?.reviewState === "needs_review"
                                                 ? "Rücklauf prüfen"
                                                 : "Unterschrift nötig"}
                                         </StatusBadge>
-                                    ) : (
+                                    ) : !showSignatureStatus ? (
                                         <StatusBadge tone="neutral">
                                             {document.requiresSignature
                                                 ? "Kein Rücklauf hier"
                                                 : "Keine Unterschrift"}
                                         </StatusBadge>
-                                    )}
+                                    ) : null}
 
                                     {document.generationMode !== "automatic" ? (
                                         <StatusBadge

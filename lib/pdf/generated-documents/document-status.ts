@@ -49,7 +49,7 @@ export function getGeneratedDocumentStatusLabel(
         generated_available: "Erzeugt",
         sent_to_customer: "An Kunden gesendet",
         return_needs_review: "Rücklauf eingegangen – Prüfung erforderlich",
-        signed_received: "Unterschrieben vorhanden",
+        signed_received: "Unterschrift vorhanden",
         external_process: "Über anderen Bereich",
         generator_planned: "Generator folgt",
         not_relevant: "Nicht relevant",
