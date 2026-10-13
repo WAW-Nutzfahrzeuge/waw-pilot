@@ -910,6 +910,7 @@ export async function SaleDetail({
                             saleNumber={sale.sale_number}
                             documents={generatedDocuments}
                             generatedDocumentType={generatedDocumentType}
+                            canReviewAutomationReturns={canAdminDelete}
                         />
                     ) : null}
 

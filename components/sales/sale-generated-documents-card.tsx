@@ -21,12 +21,14 @@ import { TemporarySuccessMessage } from "@/components/shared/temporary-success-m
 import { DocumentCard } from "@/components/shared/document-card";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { SendEndUseDeclarationEmailButton } from "@/components/sales/send-end-use-declaration-email-button";
+import { AutomationReturnReviewForm } from "@/components/sales/automation-return-review-form";
 
 type SaleGeneratedDocumentsCardProps = {
     saleId: string;
     saleNumber: string | null;
     documents: SaleGeneratedDocumentCheck[];
     generatedDocumentType?: string | null;
+    canReviewAutomationReturns?: boolean;
 };
 
 export function SaleGeneratedDocumentsCard({
@@ -34,6 +36,7 @@ export function SaleGeneratedDocumentsCard({
                                                saleNumber,
                                                documents,
                                                generatedDocumentType = null,
+                                               canReviewAutomationReturns = false,
                                            }: SaleGeneratedDocumentsCardProps) {
     const missingDataCount = documents.filter(
         (document) => document.status === "missing_data",
@@ -106,6 +109,7 @@ export function SaleGeneratedDocumentsCard({
                             saleNumber={saleNumber}
                             document={document}
                             wasJustGenerated={generatedDocumentType === document.type}
+                            canReviewAutomationReturns={canReviewAutomationReturns}
                         />
                     ))}
                 </div>
@@ -119,11 +123,13 @@ function GeneratedDocumentRow({
                                   saleNumber,
                                   document,
                                   wasJustGenerated,
+                                  canReviewAutomationReturns,
                               }: {
     saleId: string;
     saleNumber: string | null;
     document: SaleGeneratedDocumentCheck;
     wasJustGenerated: boolean;
+    canReviewAutomationReturns: boolean;
 }) {
     const isAutomaticDocument = document.generationMode === "automatic";
     const canGenerateNow = document.canGenerate && isAutomaticDocument;
@@ -298,6 +304,65 @@ function GeneratedDocumentRow({
                             </div>
                         )}
                     </div>
+
+                    {document.automationReturns.length > 0 ? (
+                        <div className="mt-4 space-y-3 rounded-3xl border border-slate-900/20 bg-white p-4">
+                            <p className="text-sm font-extrabold text-slate-950">
+                                Automatisierte Rückläufe
+                            </p>
+                            {document.automationReturns.map((automationReturn) => {
+                                const isReviewable =
+                                    automationReturn.activeVersionId &&
+                                    (automationReturn.reviewStatus === "pending" ||
+                                        automationReturn.reviewStatus === "needs_review");
+                                const reviewLabel = automationReturn.reviewStatus === "accepted"
+                                    ? "Freigegeben"
+                                    : automationReturn.reviewStatus === "rejected"
+                                        ? "Abgelehnt"
+                                        : "Prüfung erforderlich";
+
+                                return (
+                                    <div key={`${automationReturn.id}:${automationReturn.activeVersionId}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-extrabold text-slate-950">
+                                                    {automationReturn.fileName}
+                                                </p>
+                                                <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                    Prüfstatus: {reviewLabel}
+                                                </p>
+                                                {automationReturn.reviewReason ? (
+                                                    <p className="mt-1 text-xs font-medium leading-5 text-red-800">
+                                                        Prüfgrund: {automationReturn.reviewReason}
+                                                    </p>
+                                                ) : null}
+                                            </div>
+                                            <div className="flex shrink-0 flex-wrap gap-2">
+                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                    <Link href={`/api/documents/${automationReturn.id}/file`} target="_blank">
+                                                        Öffnen
+                                                    </Link>
+                                                </Button>
+                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                    <Link href={`/api/documents/${automationReturn.id}/file?download=1`}>
+                                                        Download
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {canReviewAutomationReturns && isReviewable ? (
+                                            <AutomationReturnReviewForm
+                                                saleId={saleId}
+                                                documentId={automationReturn.id}
+                                                documentVersionId={automationReturn.activeVersionId!}
+                                            />
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : null}
 
                     {isAutomaticDocument && document.requiresSignature && document.generatedDocument ? (
                         <div className="mt-4 rounded-3xl border border-slate-900/20 bg-slate-50 p-4">

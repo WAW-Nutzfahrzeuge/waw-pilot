@@ -59,6 +59,28 @@ Bei `ambiguous`, `unmatched` und `conflict` werden weder `customerEmail` noch di
 
 Die Antwort basiert auf den vorhandenen WAW-Regeln: Inland nur Übergabebestätigung, EU zusätzlich Gelangensbestätigung und Verbringungsnachweis, Drittland keine dieser drei Arten. `signatureStatus=present` heißt nur „sichtbare Unterschrift erkannt“. Ein automatisierter Rücklauf erfüllt eine Anforderung ausschließlich mit `signatureStatus=present` und `reviewStatus=accepted`. `pending`, `needs_review`, `rejected`, `absent` und `uncertain` werden als eingegangen beziehungsweise prüfbedürftig geführt, erfüllen die Anforderung aber nicht.
 
+## Automatisierten Rücklauf manuell prüfen
+
+Die Migration `20261013090000_add_automation_return_manual_review.sql` muss vor dem dazugehörigen Web-Deployment ausgeführt werden. Sie ergänzt Prüfer und Prüfzeitpunkt und stellt die atomare Datenbankfunktion bereit.
+
+Ein Admin öffnet die Verkaufsakte und findet aktive automatisierte Rückläufe unter „Automatische Dokumente“. Bei `pending` oder `needs_review` stehen zwei Aktionen bereit:
+
+- **Rücklauf freigeben:** Zuerst muss ausdrücklich bestätigt werden, dass das Dokument zu diesem Verkauf gehört und die erforderliche Kundenunterschrift sichtbar vorhanden ist. Die Bestätigung ist keine Aussage über Echtheit oder rechtliche Gültigkeit.
+- **Rücklauf ablehnen:** Ein kurzer Prüfgrund ist Pflicht. Die bisherige automatische Signaturbewertung bleibt erhalten.
+
+Die Entscheidung bezieht sich stets auf die konkrete aktive `document_version_id`. Wurde die Version zwischenzeitlich ersetzt, wird die Entscheidung abgewiesen. Freigabe setzt `signature_status=present`, `review_status=accepted` und den Dokumentstatus auf `available`. Ablehnung setzt `review_status=rejected` und den Dokumentstatus auf `needs_review`. Entscheidung, Prüfer, Zeitpunkt und Grund werden gemeinsam mit einem Eintrag in `document_audit_log` atomar gespeichert. Eine identische Wiederholung erzeugt keinen zweiten Audit-Eintrag.
+
+Nach einer Freigabe zählt die aktive Version in `document-requirements` als erfüllt und wird beim Claim einer Unterschriften-Rückfrage nicht mehr angefordert. Die Prüfaktion selbst versendet keine E-Mail.
+
+Sicherer manueller Test mit einem synthetischen Testupload:
+
+1. Die eindeutig markierte Test-Verkaufsakte öffnen und das Testdokument über „Öffnen“ kontrollieren.
+2. Prüfen, dass „Prüfstatus: Prüfung erforderlich“ und beide Prüfaktionen sichtbar sind.
+3. Zunächst die Ablehnung ohne Grund testen; der Browser muss die Übermittlung verhindern.
+4. Für einen Freigabetest ausschließlich einen dafür vorgesehenen weiteren Testupload verwenden, die Bestätigung aktivieren und freigeben.
+5. Nach dem Neuladen muss „Freigegeben“ erscheinen; `document-requirements` muss für diesen Typ `fulfilled=true` liefern.
+6. Den identischen Server-Request nicht künstlich mit Produktionsdaten wiederholen. Die automatisierten Tests prüfen die Idempotenz strukturell; ein späterer kontrollierter Integrationstest kann dieselbe Entscheidung zweimal gegen eine isolierte Testakte senden.
+
 ## Unterschriften-Rückfrage dauerhaft reservieren
 
 Vor Verwendung müssen zusätzlich die Migration `20261012220000_add_automation_signature_requests.sql` und das anschließende Vercel-Deployment erfolgt sein. WAW Pilot versendet an diesen Endpunkten **keine E-Mail**. Es prüft Empfänger und Anforderungen und führt nur den dauerhaften, atomaren Versandnachweis. n8n darf ausschließlich bei `allowSend=true` versenden.

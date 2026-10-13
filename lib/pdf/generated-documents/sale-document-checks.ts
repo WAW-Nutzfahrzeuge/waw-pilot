@@ -18,6 +18,7 @@ import {
 import { getSaleGeneratedDocumentData } from "@/lib/pdf/generated-documents/sale-document-data";
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import {
     DocumentDatePolicy,
     type DocumentDateSuggestion,
@@ -63,7 +64,13 @@ export type SaleGeneratedDocumentCheck = {
         status: string;
         source: string;
         reviewState: "manual" | "accepted" | "needs_review";
+        activeVersionId: string | null;
+        reviewStatus: string | null;
+        reviewReason: string | null;
+        reviewedAt: string | null;
     } | null;
+
+    automationReturns: Array<NonNullable<SaleGeneratedDocumentCheck["signedDocument"]>>;
 
     dateSuggestion: DocumentDateSuggestion | null;
 };
@@ -78,6 +85,14 @@ type DocumentRow = {
     created_at: string;
     active_version_id: string | null;
     archive_status: string | null;
+};
+
+type AutomationReturnReviewRow = {
+    document_id: string | null;
+    document_version_id: string | null;
+    review_status: string | null;
+    review_reason: string | null;
+    reviewed_at: string | null;
 };
 
 const saleGeneratedDocumentTypes = new Set<GeneratedDocumentType>([
@@ -203,6 +218,7 @@ type DocumentCandidates = {
 function mapDocumentRow(
     document: DocumentRow | null,
     reviewState: "manual" | "accepted" | "needs_review" = "manual",
+    automationReview: AutomationReturnReviewRow | null = null,
 ) {
     if (!document) return null;
 
@@ -213,6 +229,10 @@ function mapDocumentRow(
         status: document.status,
         source: document.source,
         reviewState,
+        activeVersionId: document.active_version_id,
+        reviewStatus: automationReview?.review_status ?? null,
+        reviewReason: automationReview?.review_reason ?? null,
+        reviewedAt: automationReview?.reviewed_at ?? null,
     };
 }
 
@@ -220,9 +240,10 @@ export async function getSaleGeneratedDocumentChecks(
     saleId: string,
 ): Promise<SaleGeneratedDocumentCheck[]> {
     const supabase = createServerSupabaseClient();
+    const automationSupabase = createAutomationSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const [documentData, documentsResult] = await Promise.all([
+    const [documentData, documentsResult, automationReviewsResult] = await Promise.all([
         getSaleGeneratedDocumentData(saleId),
 
         supabase
@@ -245,6 +266,14 @@ export async function getSaleGeneratedDocumentChecks(
             .eq("archive_status", "ACTIVE")
             .not("active_version_id", "is", null)
             .order("created_at", { ascending: false }),
+
+        automationSupabase
+            .from("automation_return_uploads")
+            .select("document_id, document_version_id, review_status, review_reason, reviewed_at")
+            .eq("company_id", companyId)
+            .eq("sale_id", saleId)
+            .eq("upload_kind", "sale_document")
+            .eq("processing_status", "completed"),
     ]);
 
     if (documentsResult.error) {
@@ -252,8 +281,19 @@ export async function getSaleGeneratedDocumentChecks(
             `Dokumentstatus konnte nicht geladen werden: ${documentsResult.error.message}`,
         );
     }
+    if (automationReviewsResult.error) {
+        throw new Error(
+            `Rücklauf-Prüfstatus konnte nicht geladen werden: ${automationReviewsResult.error.message}`,
+        );
+    }
 
     const documents = (documentsResult.data ?? []) as DocumentRow[];
+    const automationReviews = (automationReviewsResult.data ?? []) as AutomationReturnReviewRow[];
+    const automationReviewsByVersion = new Map(
+        automationReviews
+            .filter((review) => review.document_id && review.document_version_id)
+            .map((review) => [`${review.document_id}:${review.document_version_id}`, review]),
+    );
     const documentsByType = new Map<string, DocumentCandidates>();
 
     for (const document of documents) {
@@ -318,6 +358,26 @@ export async function getSaleGeneratedDocumentChecks(
             signedDocument?.source === "automation_return" &&
                 signedDocument.status === "needs_review",
         );
+        const automationReturns = documents
+            .filter(
+                (document) =>
+                    document.document_type === definition.documentType &&
+                    document.source === "automation_return",
+            )
+            .map((document) => {
+                const review = automationReviewsByVersion.get(
+                    `${document.id}:${document.active_version_id}`,
+                ) ?? null;
+                return mapDocumentRow(
+                    document,
+                    review?.review_status === "accepted" ? "accepted" : "needs_review",
+                    review,
+                );
+            })
+            .filter(
+                (document): document is NonNullable<SaleGeneratedDocumentCheck["signedDocument"]> =>
+                    document !== null,
+            );
 
         const generationMode = getGenerationMode({
             definition,
@@ -390,7 +450,13 @@ export async function getSaleGeneratedDocumentChecks(
                         ? "accepted"
                         : "needs_review"
                     : "manual",
+                signedDocument?.source === "automation_return"
+                    ? automationReviewsByVersion.get(
+                          `${signedDocument.id}:${signedDocument.active_version_id}`,
+                      ) ?? null
+                    : null,
             ),
+            automationReturns,
             dateSuggestion,
         };
     });
