@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
-import { isPdf } from "@/lib/automation/document-return-upload";
+import { isPdf } from "@/lib/automation/file-signature";
 import {
     extractPdfPages,
     maxPdfPageExtractionBytes,

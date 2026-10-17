@@ -201,11 +201,74 @@ Für die manuelle Klärung wird der Datensatz über `requestId` in `automation_s
 
 `POST /api/automation/document-returns/originals`, `multipart/form-data`:
 
-- `file` (PDF, maximal 10 MB)
+- `file` (PDF, JPEG oder PNG; maximal 10 MB laut Anwendungsprüfung)
 - `returnId`, `sourceEmailId`, `sourceAttachmentId` (optional)
 - `receivedAt` (ISO-8601, optional)
 
-Originale werden privat und ohne Verkaufszuordnung gespeichert. Die Antwort liefert `originalUploadId`; erst ein abgeleitetes Dokument verknüpft dieses Original mit einer Verkaufsakte.
+Die tatsächlichen Dateibytes werden unverändert privat im Bucket `documents` gespeichert. Der Server erkennt PDF/JPEG/PNG anhand der Dateisignatur und speichert den ermittelten MIME-Type. JPEG/PNG werden vor der Registrierung vollständig dekodiert; Bilder mit mehr als 40 Megapixeln oder beschädigtem Pixelinhalt werden abgewiesen. SHA-256 und Request-Fingerprint umfassen die Originalbytes; Idempotency-Key, Wiederholung und Konfliktverhalten entsprechen den bisherigen PDF-Uploads. Originale erhalten keine Verkaufszuordnung. Die Antwort liefert `originalUploadId`, über die eine abgeleitete PDF später mit dem Original verbunden wird.
+
+Beispiel für ein Bildoriginal:
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/document-returns/originals" \
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --header "Idempotency-Key: <MAIL-ID>:<ANHANG-ID>:original:v1" \
+  --form "file=@./ruecklauf.jpg;type=image/jpeg" \
+  --form "returnId=<RUECKLAUF-ID>" \
+  --form "sourceEmailId=<QUELL-MAIL-ID>" \
+  --form "sourceAttachmentId=<ANHANG-ID>"
+```
+
+Erfolg (`201`, bei identischer Wiederholung `200`):
+
+```json
+{
+  "status": "stored",
+  "uploadId": "<UPLOAD-UUID>",
+  "originalUploadId": "<UPLOAD-UUID>"
+}
+```
+
+### Tatsächliche Größenbegrenzung
+
+Die Route prüft weiterhin maximal 10 MiB pro Originaldatei. Auf der produktiven Vercel Function ist der gesamte Request-Body jedoch auf etwa 4,5 MB begrenzt. Weil Multipart-Grenzen und weitere Felder dazugehören, muss die Datei praktisch kleiner als 4,5 MB sein; für zuverlässige Requests sollte n8n höchstens **4 MiB** pro Originalanhang senden. Das gilt auch für bestehende PDF-Originale und den `/sales/{saleId}/documents` Upload. Dateien oberhalb des Plattformlimits können vor Erreichen der eigenen 10-MiB-Prüfung durch Vercel abgewiesen werden.
+
+## JPEG/PNG in eine einseitige PDF umwandeln
+
+`POST /api/automation/document-returns/image-to-pdf`, `multipart/form-data`. Der Endpunkt benötigt denselben Bearer-Token wie die übrigen Automatisierungsrouten und schreibt weder Storage-Dateien noch Datenbankeinträge.
+
+Es muss genau eine Quelle angegeben werden:
+
+- `originalUploadId`: bevorzugter Weg. ID aus dem erfolgreichen `/originals`-Aufruf. Die API lädt das Original privat aus Storage, prüft Company, Status, Originaltyp, Inhalt und Größe und antwortet zusätzlich mit `X-Waw-Original-Upload-Id`.
+- `file`: JPEG/PNG direkt als Multipart-Binary. Damit allein wird kein Originaldatensatz angelegt; für nachvollziehbare Provenienz das Original zuerst unter `/originals` sichern und anschließend `originalUploadId` verwenden.
+
+Das Eingabebild und die erzeugte PDF dürfen jeweils maximal 4 MiB groß sein. Die API prüft Dateisignatur und tatsächliche Lesbarkeit. JPEG-EXIF-Ausrichtung wird angewendet. Das vollständige Bild wird unter Wahrung des Seitenverhältnisses mittig auf einer einzelnen A4-Seite platziert; es wird nicht beschnitten. Für die Einbettung wird das Bild intern normalisiert. Die unveränderten Originalbytes bleiben im privaten Originalupload erhalten. Antwort-PDFs werden nicht öffentlich zwischengespeichert.
+
+Erfolg ist `200 application/pdf` mit `Content-Disposition: attachment` und den Headern `Cache-Control: private, no-store, max-age=0`, `X-Content-Type-Options: nosniff`. Bei `originalUploadId` enthält `X-Waw-Original-Upload-Id` dieselbe ID.
+
+Aufruf über ein gespeichertes Bildoriginal:
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/document-returns/image-to-pdf" \
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --form "originalUploadId=<ORIGINAL-UPLOAD-ID>" \
+  --output ./ruecklauf.pdf
+```
+
+Fehlercodes des Umwandlungsendpunkts:
+
+- `400 invalid_multipart`: Multipart-Anfrage nicht lesbar
+- `401 unauthorized`: Token fehlt oder ist ungültig
+- `413 file_too_large`: Bild oder erzeugte PDF überschreitet 4 MiB
+- `415 invalid_file_type`: Inhalt ist kein JPEG/PNG oder passt nicht zum erkannten Typ
+- `422 image_source_required`: nicht genau eine Bildquelle angegeben
+- `422 invalid_original_upload_id`: ungültige UUID
+- `422 image_original_not_found`: kein abgeschlossenes JPEG/PNG-Original in der konfigurierten Company
+- `422 invalid_image`: Bild beschädigt oder nicht lesbar
+- `409 original_integrity_failed`: gespeicherte Bytes stimmen nicht mit der Original-Prüfsumme überein
+- `500 original_lookup_failed`, `502 original_download_failed`, `500 image_conversion_failed`: Datenbank-, Storage- oder Konvertierungsfehler
+
+Die erzeugte PDF wird nicht automatisch freigegeben. Beim anschließenden Upload unter `/api/automation/sales/{saleId}/documents` muss `originalUploadId` gesetzt werden. Wenn diese ID auf ein Bildoriginal verweist, setzt der Server `reviewStatus` unabhängig von einem übermittelten Wert auf `needs_review`. Die üblichen Felder `documentType`, `saleIdentifier`, `signatureStatus`, `returnId`, `sourceEmailId`, `sourceAttachmentId`, `receivedAt` und `Idempotency-Key` bleiben bestehen. PDF und `automation_return_uploads`-Datensatz werden wie bisher mit dem Bildoriginal verknüpft.
 
 ## Originalseiten als eigene PDF extrahieren
 
@@ -276,6 +339,7 @@ Ein manueller Upload darf einen Datensatz mit `source=automation_return` nicht e
 - `409`: widersprüchliche Zuordnung oder wiederverwendeter Idempotency-Key mit anderem Inhalt
 - `413`: Datei größer als 10 MB
 - `415`: keine echte PDF
+- `422 invalid_image`: JPEG/PNG ist beschädigt oder überschreitet die maximale Pixelanzahl
 - `422`: ungültige Metadaten
 - `500/502`: Datenbank- oder Storage-Fehler
 - `202`: identischer Upload wird bereits verarbeitet; später mit demselben Key wiederholen
@@ -454,6 +518,16 @@ Der Idempotency-Key darf bei einem technischen Retry nicht neu erzeugt werden. E
 
 ## Späterer produktiver Ablauf
 
+### n8n-Erweiterung für JPEG/PNG
+
+Im `matched`-Zweig werden drei HTTP Request-Knoten verwendet:
+
+1. **Original sichern**: `POST /api/automation/document-returns/originals`, Header Auth wie oben, `Idempotency-Key` stabil pro Quellanhang. Body Content Type `Form-Data`; `file` als **n8n Binary File** aus Binary-Feld `data`, optionale Quellfelder als Text. `originalUploadId` aus der JSON-Antwort merken.
+2. **Bild in PDF umwandeln**: `POST /api/automation/document-returns/image-to-pdf`, dieselbe Authentifizierung, Body Content Type `Form-Data`, Textparameter `originalUploadId` aus Schritt 1. Response Format `File`, Ausgabe-Binary etwa `extractedDocument`. So wird das gespeicherte Original aus privatem Storage geladen; das Bild wird nicht erneut gesendet.
+3. **Rücklauf speichern**: `POST /api/automation/sales/{saleId}/documents`, Binary-Parameter `file` aus `extractedDocument`, dazu `originalUploadId` aus Schritt 1, `documentType`, `saleIdentifier`, `signatureStatus`, `reviewStatus=needs_review` und Quellmetadaten. Den Idempotency-Key stabil pro erkanntem Rücklauf und Dokument halten. Der Server erzwingt bei Bildoriginalen `needs_review` selbst.
+
+Der Konvertierungsendpunkt antwortet nur mit der PDF. Erst der Rücklauf-Upload speichert diese PDF privat und legt sie in der Verkaufsakte ab.
+
 Der spätere, noch nicht implementierte Workflow ist:
 
 ```text
@@ -463,7 +537,7 @@ Postfach überwachen
 → Dokumenttypen und sichtbare Unterschriften erkennen
 → jedes erkannte Dokument separat über /sales/resolve zuordnen
 → nur bei matched fortfahren
-→ zugehörige Originalseiten zu einer eigenen PDF zusammenfassen
+→ bei PDF-Anhängen zugehörige Originalseiten zu einer eigenen PDF zusammenfassen
 → abgeleitete PDF mit originalUploadId und originalPageNumbers hochladen
 → ambiguous/unmatched/conflict in eine manuelle Prüfliste geben
 ```

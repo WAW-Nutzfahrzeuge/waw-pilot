@@ -7,6 +7,8 @@ export const automationReturnDocumentTypes = ["entry_certificate", "transport_pr
 export const automationSignatureStatuses = ["present", "absent", "uncertain"] as const;
 export const automationReviewStatuses = ["pending", "needs_review", "accepted", "rejected"] as const;
 export const maxAutomationPdfBytes = 10 * 1024 * 1024;
+export const maxAutomationImageConversionBytes = 4 * 1024 * 1024;
+
 
 export type ReturnDocumentType = (typeof automationReturnDocumentTypes)[number];
 export type SignatureStatus = (typeof automationSignatureStatuses)[number];
@@ -15,10 +17,6 @@ export type ReviewStatus = (typeof automationReviewStatuses)[number];
 export function sanitizeAutomationFileName(value: string): string {
     const cleaned = value.trim().replace(/[\\/]/g, "-").replace(/[^\p{L}\p{N}._ -]/gu, "").replace(/\s+/g, "-");
     return (cleaned || "ruecklauf.pdf").slice(-160);
-}
-
-export function isPdf(bytes: Buffer): boolean {
-    return bytes.length >= 5 && bytes.subarray(0, 5).toString("ascii") === "%PDF-";
 }
 
 export function parsePageNumbers(value: string | null): number[] | null {

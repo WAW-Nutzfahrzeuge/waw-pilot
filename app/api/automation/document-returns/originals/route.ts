@@ -5,11 +5,12 @@ import { automationError, automationUnauthorized } from "@/lib/automation/http";
 import {
     claimUpload,
     createUploadFingerprint,
-    isPdf,
     markUploadFailed,
     maxAutomationPdfBytes,
     sanitizeAutomationFileName,
 } from "@/lib/automation/document-return-upload";
+import { detectAutomationOriginalFileType, mimeTypeMatchesOriginalFile } from "@/lib/automation/file-signature";
+import { ImageToPdfError, validateImageReadable } from "@/lib/automation/image-to-pdf";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
 export const runtime = "nodejs";
@@ -28,10 +29,23 @@ export async function POST(request: Request) {
     let form: FormData;
     try { form = await request.formData(); } catch { return automationError(400, "invalid_multipart", "Ungültige multipart/form-data-Anfrage."); }
     const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) return automationError(422, "file_required", "Eine PDF-Datei ist erforderlich.");
-    if (file.size > maxAutomationPdfBytes) return automationError(413, "file_too_large", "Die PDF darf maximal 10 MB groß sein.");
+    if (!(file instanceof File) || file.size === 0) return automationError(422, "file_required", "Eine PDF-, JPEG- oder PNG-Datei ist erforderlich.");
+    if (file.size > maxAutomationPdfBytes) return automationError(413, "file_too_large", "Die Datei darf maximal 10 MB groß sein.");
     const bytes = Buffer.from(await file.arrayBuffer());
-    if (file.type !== "application/pdf" || !isPdf(bytes)) return automationError(415, "invalid_file_type", "Nur echte PDF-Dateien werden akzeptiert.");
+    const detectedMimeType = detectAutomationOriginalFileType(bytes);
+    if (!detectedMimeType || !mimeTypeMatchesOriginalFile(file.type, detectedMimeType)) {
+        return automationError(415, "invalid_file_type", "Nur echte PDF-, JPEG- oder PNG-Dateien werden akzeptiert.");
+    }
+    if (detectedMimeType === "image/jpeg" || detectedMimeType === "image/png") {
+        try {
+            await validateImageReadable(bytes);
+        } catch (error) {
+            if (error instanceof ImageToPdfError) {
+                return automationError(error.status, error.code, error.message);
+            }
+            return automationError(422, "invalid_image", "Das Bild ist beschädigt oder nicht lesbar.");
+        }
+    }
 
     const receivedAtInput = textField(form, "receivedAt");
     const receivedAt = receivedAtInput ?? new Date().toISOString();
@@ -53,7 +67,7 @@ export async function POST(request: Request) {
     try {
         claim = await claimUpload({ supabase, row: {
             company_id: context.companyId, upload_kind: "original", idempotency_key: idempotencyKey,
-            request_fingerprint: fingerprint, original_file_name: file.name, mime_type: "application/pdf",
+            request_fingerprint: fingerprint, original_file_name: file.name, mime_type: detectedMimeType,
             file_size_bytes: file.size, sha256: fileHash, received_at: new Date(receivedAt).toISOString(),
             return_id: metadata.returnId, source_email_id: metadata.sourceEmailId, source_attachment_id: metadata.sourceAttachmentId,
         } });
@@ -68,7 +82,7 @@ export async function POST(request: Request) {
     const fileName = sanitizeAutomationFileName(file.name);
     const path = `companies/${context.companyId}/automation-returns/originals/${claim.id}/${fileName}`;
     await supabase.storage.from("documents").remove([path]);
-    const { error: uploadError } = await supabase.storage.from("documents").upload(path, bytes, { contentType: "application/pdf", upsert: false });
+    const { error: uploadError } = await supabase.storage.from("documents").upload(path, bytes, { contentType: detectedMimeType, upsert: false });
     if (uploadError) {
         await markUploadFailed(supabase, claim.id, "storage_upload_failed");
         console.error("automation.original.storage_failed", { uploadId: claim.id });

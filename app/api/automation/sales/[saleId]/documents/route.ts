@@ -5,13 +5,14 @@ import { randomUUID } from "node:crypto";
 import { authenticateAutomationRequest } from "@/lib/automation/api-auth";
 import {
     automationReturnDocumentTypes, automationReviewStatuses, automationSignatureStatuses,
-    claimUpload, createUploadFingerprint, isPdf, markUploadFailed, maxAutomationPdfBytes,
+    claimUpload, createUploadFingerprint, markUploadFailed, maxAutomationPdfBytes,
     parsePageNumbers, sanitizeAutomationFileName,
 } from "@/lib/automation/document-return-upload";
 import { automationError, automationUnauthorized } from "@/lib/automation/http";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { isUuid } from "@/lib/automation/validation";
 import { getAutomationReturnDocumentStatus } from "@/lib/automation/document-return-status";
+import { isPdf } from "@/lib/automation/file-signature";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ saleId: string }> };
@@ -36,7 +37,7 @@ export async function POST(request: Request, routeContext: Context) {
     const documentType = field(form, "documentType");
     const saleIdentifier = field(form, "saleIdentifier")?.toUpperCase();
     const signatureStatus = field(form, "signatureStatus");
-    const reviewStatus = field(form, "reviewStatus") ?? "pending";
+    let reviewStatus = field(form, "reviewStatus") ?? "pending";
     const originalPageNumbersRaw = field(form, "originalPageNumbers");
     const originalPageNumbers = parsePageNumbers(originalPageNumbersRaw);
     if (!(file instanceof File) || file.size === 0) return automationError(422, "file_required", "Eine PDF-Datei ist erforderlich.");
@@ -67,9 +68,12 @@ export async function POST(request: Request, routeContext: Context) {
     const parentOriginalUploadId = field(form, "originalUploadId");
     if (parentOriginalUploadId) {
         if (!isUuid(parentOriginalUploadId)) return automationError(422, "invalid_original_upload_id", "Die Original-Upload-ID ist ungültig.");
-        const { data: original } = await supabase.from("automation_return_uploads").select("id")
+        const { data: original } = await supabase.from("automation_return_uploads").select("id, mime_type")
             .eq("id", parentOriginalUploadId).eq("company_id", auth.companyId).eq("upload_kind", "original").eq("processing_status", "completed").maybeSingle();
         if (!original) return automationError(422, "original_not_found", "Der angegebene Originalanhang ist nicht vorhanden.");
+        if (original.mime_type === "image/jpeg" || original.mime_type === "image/png") {
+            reviewStatus = "needs_review";
+        }
     }
     const replacesDocumentId = field(form, "replacesDocumentId");
     let replacement: { id: string } | null = null;
