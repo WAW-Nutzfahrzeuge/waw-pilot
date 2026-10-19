@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { sendInvoicesToDatevAction } from "@/app/dashboard/invoices/actions";
 import { isDatevInvoiceSendable } from "@/lib/invoices/datev-invoice-rules";
 import { getInvoiceOverviewReference } from "@/lib/invoices/invoice-overview-reference";
+import { getPastProformaInvoiceIds } from "@/lib/invoices/proforma-history";
 import { createBrowserZip } from "@/lib/archives/browser-zip";
 import { ActionMessage } from "@/components/shared/action-message";
 import {
@@ -243,6 +244,7 @@ export function InvoicesOverview({
             totalGross: 0,
             totalNet: 0,
         };
+        const pastProformaInvoiceIds = getPastProformaInvoiceIds(invoices);
 
         for (const invoice of invoices) {
             index.set(invoice.id, {
@@ -256,14 +258,14 @@ export function InvoicesOverview({
 
             if (
                 invoice.invoice_type === "proforma" &&
-                invoice.status !== "converted"
+                !pastProformaInvoiceIds.has(invoice.id)
             ) {
                 summary.proformaInvoices += 1;
             }
 
             if (
                 invoice.invoice_type === "proforma" &&
-                invoice.status === "converted"
+                pastProformaInvoiceIds.has(invoice.id)
             ) {
                 summary.pastProformaInvoices += 1;
             }
@@ -282,6 +284,7 @@ export function InvoicesOverview({
 
         return {
             searchIndex: index,
+            pastProformaInvoiceIds,
             summary,
         };
     }, [invoices]);
@@ -300,10 +303,10 @@ export function InvoicesOverview({
                         invoice.invoice_type === "standard") ||
                     (invoiceFilter === "proforma" &&
                         invoice.invoice_type === "proforma" &&
-                        invoice.status !== "converted") ||
+                        !invoiceOverviewData.pastProformaInvoiceIds.has(invoice.id)) ||
                     (invoiceFilter === "past_proforma" &&
                         invoice.invoice_type === "proforma" &&
-                        invoice.status === "converted");
+                        invoiceOverviewData.pastProformaInvoiceIds.has(invoice.id));
 
                 if (!matchesFilter) return false;
 
@@ -335,7 +338,7 @@ export function InvoicesOverview({
                     sortDirection,
                 ),
             );
-    }, [query, invoices, invoiceFilter, invoiceSearchIndex, sortDirection]);
+    }, [query, invoices, invoiceFilter, invoiceSearchIndex, invoiceOverviewData.pastProformaInvoiceIds, sortDirection]);
 
     const selectableDatevInvoices = useMemo(
         () => filteredInvoices.filter(isDatevInvoiceSendable),
