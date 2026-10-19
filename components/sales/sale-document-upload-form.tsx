@@ -221,7 +221,7 @@ export function SaleDocumentUploadForm({
                         maxLength={120}
                         required
                         disabled={isPending}
-                        placeholder="z. B. Handelsregisterauszug"
+                        placeholder="z. B. Vollmacht"
                         onChange={(event) => setCustomDocumentLabel(event.target.value)}
                         className="h-11 rounded-xl border-slate-200 bg-white font-semibold text-slate-900 placeholder:text-slate-400"
                     />

@@ -1320,7 +1320,7 @@ export async function SaleDetail({
                                 <SectionTitle
                                     icon={FileText}
                                     title="Weitere Dokumente"
-                                    description="Optionale Unterlagen zur Verkaufsakte, z. B. Handelsregisterauszug, Ausweiskopie oder Vollmacht."
+                                    description="Optionale Unterlagen zur Verkaufsakte, z. B. Ausweiskopie oder Vollmacht."
                                 />
                             </div>
 
