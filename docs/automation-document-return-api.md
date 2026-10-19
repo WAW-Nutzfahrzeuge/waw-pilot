@@ -317,19 +317,83 @@ curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/document-retu
 `POST /api/automation/sales/{saleId}/documents`, `multipart/form-data`:
 
 - `file`: PDF, maximal 10 MB
-- `documentType`: `entry_certificate`, `transport_proof` oder `handover_protocol`
+- `documentType`: `entry_certificate`, `transport_proof`, `handover_protocol`, `owner_id` oder `commercial_register`
 - `saleIdentifier`: Pflicht-Kontrolle gegen `{saleId}`
-- `signatureStatus`: `present`, `absent` oder `uncertain`
-- `reviewStatus`: `pending`, `needs_review`, `accepted` oder `rejected` (Standard `pending`)
+- Für `entry_certificate`, `transport_proof` und `handover_protocol`: `signatureStatus` ist `present`, `absent` oder `uncertain`.
+- Für `owner_id` und `commercial_register`: `signatureStatus` weglassen oder `not_applicable` senden. Andere Werte werden abgewiesen; der Server speichert `not_applicable` und setzt die Prüfung immer auf `needs_review`.
+- `reviewStatus`: bei den drei Nachweistypen `pending`, `needs_review`, `accepted` oder `rejected` (Standard `pending`); bei `owner_id` und `commercial_register` werden `accepted`/`rejected` als Eingabe abgewiesen und der Server erzwingt `needs_review`.
 - optional: `reviewReason`, `returnId`, `sourceEmailId`, `sourceAttachmentId`, `receivedAt`
 - optional: `originalUploadId`, `originalPageNumbers` (z. B. `1,2`)
 - optional: `replacesDocumentId` für eine korrigierte neue Dokumentversion
 
 Neue Rückläufe erzeugen neue Dokumente. Mit `replacesDocumentId` wird über die vorhandene `document_versions`-Logik eine neue, unveränderliche Version erzeugt; die alte Storage-Datei bleibt erhalten. Storage-Pfade enthalten Company, Verkauf und eine Upload-UUID, `upsert` ist deaktiviert.
 
-In der Verkaufsakte wird nur die aktive Dokumentversion berücksichtigt. Automatisierte Rückläufe mit `pending` oder `needs_review` erscheinen im passenden Bereich unter „Automatische Dokumente“ als „Rücklauf eingegangen – Prüfung erforderlich“ und unter den Pflichtdokumenten weiterhin als offen. Erst `present` plus `accepted` führt zum Status „Unterschrieben vorhanden“ und erfüllt die Pflichtdokumentanforderung. Manuelle Uploads behalten ihre bisherige Behandlung als verfügbare unterschriebene Dokumente.
+Die festen Typwerte haben diese UI-Ziele:
+
+| API `documentType` | Feld in der Verkaufsakte | Unterschrift | Pflichtstatus |
+| --- | --- | --- | --- |
+| `owner_id` | Bestehendes Feld „Ausweis vom Inhaber / Käufer“ | Nicht anwendbar; keine Signaturprüfung | Bestehende Verkaufsaktenregel bleibt unverändert |
+| `commercial_register` | Kanonisches Feld „Handelsregisterauszug“ | Nicht anwendbar; keine Signaturprüfung | Inland: bestehende Alternative `commercial_register` ODER `business_registration`; sonst optional |
+| `handover_protocol` | Übergabeprotokoll / Übergabebestätigung | Bisherige Signaturregel | Bestehende Regel |
+| `entry_certificate` | Gelangensbestätigung | Bisherige Signaturregel | Bestehende Regel |
+| `transport_proof` | Verbringungsnachweis | Bisherige Signaturregel | Bestehende Regel |
+
+`commercial_register` ist der einzige kanonische Handelsregister-Dokumenttyp. Bei Inland erfüllt ein verfügbarer Handelsregisterauszug zusammen mit `business_registration` die bestehende Alternativanforderung; ein geeigneter Gewerbeschein allein genügt weiterhin. Für Verkaufsarten ohne diese Anforderung bleibt das Feld optional. Die UI zeigt es nur einmal: bei Inland innerhalb der Alternativanforderung, sonst im optionalen Bereich. Ein Gewerbeschein löst keine zusätzliche Handelsregisterpflicht aus.
+
+`owner_id` nutzt das schon vorhandene strukturierte Ausweisfeld; es wird kein konkurrierender zweiter Ausweistyp angelegt. Mehrere automatisierte Ausweisdateien und Handelsregisterauszüge können als getrennte Dokumentdatensätze erscheinen; sie werden nicht automatisch zusammengeführt.
+
+Automatisierte Uploads von `owner_id` und `commercial_register` starten immer mit `signatureStatus=not_applicable` und `reviewStatus=needs_review`. Admins können sie im strukturierten Feld öffnen, prüfen, freigeben oder ablehnen. Diese Freigabe bestätigt die Zuordnung und Dokumentart, nicht die Echtheit oder rechtliche Gültigkeit. Sie verlangt keine Kundenunterschrift, ändert `signatureStatus` nicht und löst keine Unterschriften-Rückfrage aus. Nur die aktive Version kann geprüft werden.
+
+In der Verkaufsakte wird nur die aktive Dokumentversion berücksichtigt. Für die drei Nachweistypen erscheinen automatisierte Rückläufe mit `pending` oder `needs_review` im passenden Bereich unter „Automatische Dokumente“ und unter den Pflichtdokumenten weiterhin als offen. Erst `present` plus `accepted` erfüllt eine Unterschriftsanforderung. Die beiden neuen festen Typen bleiben bis zur Prüfung nicht verfügbar; nach Freigabe wird ihr Datensatz `available`. Manuelle Uploads behalten ihre bisherige Behandlung.
+
+### Beispiel: Ausweis oder Handelsregisterauszug per n8n ablegen
+
+Der Verkauf wird vorher anhand anderer geeigneter Unterlagen aufgelöst. `saleId` und `saleIdentifier` müssen aus der bestätigten `matched`-Antwort stammen; Name oder E-Mail aus KI-Ausgaben bestimmen weder den Verkauf noch die Berechtigung. Originalanhang zuerst unverändert unter `/document-returns/originals` sichern. Bei JPEG/PNG anschließend `/image-to-pdf` verwenden und die Original-ID weiterreichen. Der Dokument-Upload akzeptiert eine PDF.
+
+```bash
+curl --fail-with-body --request POST "$WAW_BASE_URL/api/automation/sales/$TEST_SALE_ID/documents" \\
+  --header "Authorization: Bearer $WAW_AUTOMATION_TOKEN" \
+  --header "Idempotency-Key: <MAIL-ID>:<ANHANG-ID>:owner-id:v1" \
+  --form "file=@./ausweis.pdf;type=application/pdf" \
+  --form "documentType=owner_id" \
+  --form "saleIdentifier=$TEST_SALE_IDENTIFIER" \
+  --form "returnId=<RUECKLAUF-ID>" \
+  --form "sourceEmailId=<QUELL-MAIL-ID>" \
+  --form "sourceAttachmentId=<ANHANG-ID>" \
+  --form "originalUploadId=<ORIGINAL-UPLOAD-ID>" \
+  --form "receivedAt=<ISO-8601-EINGANGSZEIT>"
+```
+
+Für den Handelsregisterauszug `documentType=commercial_register` und einen eigenen stabilen Idempotency-Key verwenden. Derselbe Typ erscheint im einzigen Handelsregisterfeld und zählt bei Inland erst nach manueller Freigabe als verfügbar. Die Antwort hat die bisherige Uploadantwort (`status`, `uploadId`, `documentId`, `documentVersionId`); Wiederholung und Konflikt richten sich nach dem gleichen Fingerprint-Verfahren. Eine falsche Company, ungültige Verkaufs-ID oder nicht passende Verkaufskennung wird wie bisher abgewiesen.
+
+Upload-Erfolg (`201`, identische Wiederholung `200`):
+
+```json
+{
+  "status": "stored",
+  "uploadId": "<UPLOAD-UUID>",
+  "documentId": "<DOCUMENT-UUID>",
+  "documentVersionId": "<DOCUMENT-VERSION-UUID>"
+}
+```
+
+`document-requirements` bleibt auf die bestehenden signaturpflichtigen Rücklaufanforderungen begrenzt. Neue Einträge in `existingReturns` enthalten zusätzlich `requiresSignature=false`, `signatureAssessment="not_applicable"` und `satisfiesSignedReturn=false`; dadurch werden Ausweis/Handelsregisterauszug nicht als unterschriebene Nachweise oder Unterschriftenanforderungen behandelt.
+
+Im n8n HTTP-Request-Knoten: Methode `POST`, URL `/api/automation/sales/{{$json.saleId}}/documents`, Authentifizierung als Header/Bearer `Authorization: Bearer <Credential>`, Header `Idempotency-Key` aus stabilen Mail-/Anhang-IDs plus Typ/Version und Body `Form-Data`. `file` als n8n Binary File aus dem extrahierten PDF-Binaryfeld setzen. Die Textparameter `documentType`, `saleIdentifier`, `returnId`, `sourceEmailId`, `sourceAttachmentId`, `originalUploadId` und `receivedAt` als Form-Data-Felder mitschicken. Keine Unterschriftsbewertung senden; die API setzt für diese Typen `not_applicable` und `needs_review`.
+
+Eine Wiederholung derselben Datei und Metadaten mit demselben Idempotency-Key bleibt idempotent. Ein anderer Inhalt oder andere Metadaten mit demselben Key führen zu `409 idempotency_conflict`. Korrigierte Dokumente erhalten neue Idempotency-Keys und werden mit `replacesDocumentId` als neue aktive Version angelegt. Original-ID, Originalseiten, Quellmail/-anhang und Rücklauf-ID bleiben verknüpft.
+
+### Vorhandenes freies Zusatzdokument klassifizieren
+
+Ein Admin kann in „Weitere Dokumente“ für eine bestehende Datei ausdrücklich „Als Handelsregisterauszug zuordnen“ bestätigen. Die Aktualisierung ändert nur `documents.document_type` auf `commercial_register` und entfernt die freie Anzeigeüberschrift; die Datei wird nicht kopiert oder verschoben, und Verkauf, Storage-Pfad, aktive Version sowie Versions-/Audit-Historie bleiben erhalten. Es findet keine automatische Umklassifizierung anhand des Namens statt. Die Aktion ist aktuell nur in der Verkaufsakte verfügbar, nicht über die Automatisierungs-API.
 
 Ein manueller Upload darf einen Datensatz mit `source=automation_return` nicht ersetzen. Dadurch bleiben Rücklauf-Metadaten, Originalverknüpfung und Versionierungsprovenienz erhalten. Ein späterer manueller Upload wird als eigener Datensatz gespeichert.
+
+### Migration und Deployment
+
+Die Migration `20261020100000_unify_sale_commercial_register_type.sql` ist vorwärtsgerichtet und behandelt `20261019120000_add_fixed_sale_identity_documents.sql` als möglicherweise bereits ausgeführt. Sie konvertiert vorhandene `documents.document_type`- und `automation_return_uploads.document_type`-Werte von `sale_commercial_register` auf `commercial_register`, aktualisiert den zugehörigen Typwert in der Dokumentmetadaten-Provenienz und ergänzt einen nachvollziehbaren Audit-Eintrag. IDs, Dateien, Storage-Pfade, Versionen, Status und übrige Herkunftsdaten bleiben erhalten; mehrere Dokumente werden nicht zusammengeführt.
+
+Reihenfolge: (1) neue Migration in Supabase ausführen, (2) prüfen, dass keine aktiven Zeilen mit `sale_commercial_register` übrig sind, (3) Next.js-Code deployen. Die Migration wurde nicht automatisch ausgeführt. Der historische Migrationstext vom 19.10.2026 enthält weiterhin den alten Typ, da bereits ausgeführte Migrationen nicht geändert werden.
 
 ## Fehlercodes
 

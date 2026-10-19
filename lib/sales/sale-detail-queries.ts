@@ -82,6 +82,7 @@ type DocumentRelation = {
     created_at: string;
     archive_status: string | null;
     active_version_id: string | null;
+    metadata: Record<string, unknown> | null;
 };
 
 type SalePaymentRelation = {
@@ -227,6 +228,7 @@ export type SaleDetailDocument = {
     created_at: string;
     archive_status: string | null;
     active_version_id: string | null;
+    metadata: Record<string, unknown> | null;
 };
 
 export type SaleDetailInvoice = {
@@ -749,7 +751,8 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         file_size,
         created_at,
         archive_status,
-        active_version_id
+        active_version_id,
+        metadata
       ),
       sale_payments (
         id,
@@ -1027,6 +1030,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         created_at: document.created_at,
         archive_status: document.archive_status,
         active_version_id: document.active_version_id,
+        metadata: document.metadata,
     }));
 
     const saleType = sale.sale_type ?? "inland";

@@ -40,16 +40,35 @@ export async function reviewAutomationReturnAction(formData: FormData) {
         throw new Error("Prüfentscheidung ist ungültig.");
     }
 
+    const supabase = createAutomationSupabaseClient();
+    const { data: upload, error: uploadError } = await supabase
+        .from("automation_return_uploads")
+        .select("document_type, signature_status")
+        .eq("company_id", companyId)
+        .eq("sale_id", saleId)
+        .eq("document_id", documentId)
+        .eq("document_version_id", documentVersionId)
+        .eq("upload_kind", "sale_document")
+        .eq("processing_status", "completed")
+        .maybeSingle();
+    if (uploadError || !upload) throw new Error("Der automatisierte Dokumenteingang wurde nicht gefunden.");
+    const requiresSignature = ["handover_protocol", "entry_certificate", "transport_proof"].includes(upload.document_type);
+    const isFixedIdentityDocument = ["owner_id", "commercial_register"].includes(upload.document_type);
+    if (!requiresSignature && !isFixedIdentityDocument) throw new Error("Dieser Dokumenttyp kann hier nicht geprüft werden.");
+
     const reasonValue = formData.get("reason");
     const reason = typeof reasonValue === "string" ? reasonValue.trim() : "";
     if (reason.length > 500) throw new Error("Der Prüfgrund darf maximal 500 Zeichen enthalten.");
     if (decision === "rejected" && !reason) throw new Error("Bitte gib einen kurzen Ablehnungsgrund an.");
-    if (decision === "accepted" && formData.get("review_confirmation") !== "confirmed") {
+    if (decision === "accepted" && requiresSignature && formData.get("review_confirmation") !== "confirmed") {
         throw new Error("Bitte bestätige zuerst die manuelle Prüfung und die sichtbare erforderliche Unterschrift.");
     }
 
-    const supabase = createAutomationSupabaseClient();
-    const { data, error } = await supabase.rpc("review_automation_return_document", {
+    const { data, error } = await supabase.rpc(
+        isFixedIdentityDocument
+            ? "review_automation_fixed_sale_document"
+            : "review_automation_return_document",
+        {
         p_company_id: companyId,
         p_sale_id: saleId,
         p_document_id: documentId,
@@ -57,7 +76,8 @@ export async function reviewAutomationReturnAction(formData: FormData) {
         p_reviewer_id: userContext.authUserId,
         p_decision: decision,
         p_reason: decision === "rejected" ? reason : null,
-    });
+        },
+    );
     if (error) {
         console.error("automation.return_review.write_failed", { databaseCode: error.code });
         throw new Error("Die Prüfentscheidung konnte nicht gespeichert werden.");
@@ -65,6 +85,9 @@ export async function reviewAutomationReturnAction(formData: FormData) {
 
     const result = (data as ReviewOutcome[] | null)?.[0];
     if (!result) throw new Error("Die Prüfentscheidung konnte nicht gespeichert werden.");
+    if (result.outcome === "inactive_or_not_found") {
+        throw new Error("Diese Dokumentversion ist nicht mehr aktiv. Bitte lade die Verkaufsakte neu.");
+    }
     if (result.outcome === "not_found" || result.outcome === "upload_not_found") {
         throw new Error("Der automatisierte Rücklauf wurde nicht gefunden.");
     }

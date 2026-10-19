@@ -73,6 +73,9 @@ import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 import { isSaleCustomDocument, saleCustomDocumentType } from "@/lib/sales/sale-custom-documents";
 import { SaleIdentifierCopy } from "@/components/sales/sale-identifier-copy";
+import { AutomationReturnReviewForm } from "@/components/sales/automation-return-review-form";
+import { ReclassifySaleCustomDocumentForm } from "@/components/sales/reclassify-sale-custom-document-form";
+import { saleCommercialRegisterDocumentType } from "@/lib/sales/sale-fixed-document-types";
 
 type SaleDetailProps = {
     sale: SaleDetailType;
@@ -114,6 +117,13 @@ type SaleDetailProps = {
     recordError?: string | null;
     backHref?: "/dashboard/sales" | "/dashboard/invoices";
 };
+
+function getAutomationReviewStatus(metadata: Record<string, unknown> | null): string | null {
+    const automationReturn = metadata?.automationReturn;
+    if (!automationReturn || typeof automationReturn !== "object") return null;
+    const reviewStatus = (automationReturn as Record<string, unknown>).reviewStatus;
+    return typeof reviewStatus === "string" ? reviewStatus : null;
+}
 
 function getSaleDocumentDisplayFileName(
     document: SaleDetailType["documents"][number] | null,
@@ -202,6 +212,14 @@ export async function SaleDetail({
     );
     const customDocuments = visibleDocuments.filter((document) =>
         isSaleCustomDocument(document.document_type),
+    );
+    const commercialRegisterDocuments = visibleDocuments.filter(
+        (document) => document.document_type === saleCommercialRegisterDocumentType,
+    );
+    const hasCommercialRegisterRequirement = sale.required_documents.some(
+        (document) =>
+            document.documentType === saleCommercialRegisterDocumentType ||
+            document.acceptedDocumentTypes?.includes(saleCommercialRegisterDocumentType),
     );
     const standardSaleDocuments = visibleDocuments.filter(
         (document) => !isSaleCustomDocument(document.document_type),
@@ -1061,9 +1079,94 @@ export async function SaleDetail({
                                                                 />
                                                             ) : null}
                                                         </div>
+                                                        {requiredDocument.document.source === "automation_return" &&
+                                                        ["owner_id", saleCommercialRegisterDocumentType].includes(requiredDocument.document.document_type) &&
+                                                        canAdminDelete &&
+                                                        ["pending", "needs_review"].includes(getAutomationReviewStatus(requiredDocument.document.metadata) ?? "") ? (
+                                                            <>
+                                                                <p className="mt-2 text-xs font-bold text-amber-800">Prüfstatus: Prüfung erforderlich · Unterschrift nicht anwendbar</p>
+                                                                <AutomationReturnReviewForm
+                                                                    saleId={sale.id}
+                                                                    documentId={requiredDocument.document.id}
+                                                                    documentVersionId={requiredDocument.document.active_version_id!}
+                                                                    requiresSignature={false}
+                                                                />
+                                                            </>
+                                                        ) : null}
                                                     </div>
                                                 ) : null}
                                             </div>
+
+                                            {requiredDocument.documentType === "owner_id" ? sale.documents
+                                                .filter((document) =>
+                                                    document.document_type === "owner_id" &&
+                                                    document.source === "automation_return" &&
+                                                    document.id !== requiredDocument.document?.id,
+                                                )
+                                                .map((document) => {
+                                                    const reviewStatus = getAutomationReviewStatus(document.metadata);
+                                                    return (
+                                                        <div key={document.id} className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/60 p-3">
+                                                            <p className="break-all text-sm font-bold text-slate-900">Ausweis – {document.file_name}</p>
+                                                            <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                                {reviewStatus === "accepted" ? "Geprüft und freigegeben" : reviewStatus === "rejected" ? "Abgelehnt" : "Prüfung erforderlich · Unterschrift nicht anwendbar"}
+                                                            </p>
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                                    <Link href={`/api/documents/${document.id}/file`} target="_blank">Öffnen</Link>
+                                                                </Button>
+                                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                                    <Link href={`/api/documents/${document.id}/file?download=1`}><Download className="mr-1 size-3.5" />Download</Link>
+                                                                </Button>
+                                                                <DeleteSaleDocumentForm saleId={sale.id} documentId={document.id} />
+                                                            </div>
+                                                            {canAdminDelete && ["pending", "needs_review"].includes(reviewStatus ?? "") ? (
+                                                                <AutomationReturnReviewForm
+                                                                    saleId={sale.id}
+                                                                    documentId={document.id}
+                                                                    documentVersionId={document.active_version_id!}
+                                                                    requiresSignature={false}
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                    );
+                                                }) : null}
+
+                                            {requiredDocument.documentType === saleCommercialRegisterDocumentType ? sale.documents
+                                                .filter((document) =>
+                                                    document.document_type === saleCommercialRegisterDocumentType &&
+                                                    document.id !== requiredDocument.document?.id,
+                                                )
+                                                .map((document) => {
+                                                    const reviewStatus = getAutomationReviewStatus(document.metadata);
+                                                    return (
+                                                        <div key={document.id} className="mt-3 rounded-xl border border-cyan-200 bg-cyan-50/60 p-3">
+                                                            <p className="text-sm font-bold text-slate-900">Handelsregisterauszug – <span className="break-all">{document.file_name}</span></p>
+                                                            {document.source === "automation_return" ? (
+                                                                <p className="mt-1 text-xs font-semibold text-slate-600">
+                                                                    {reviewStatus === "accepted" ? "Geprüft und freigegeben" : reviewStatus === "rejected" ? "Abgelehnt" : "Prüfung erforderlich · Unterschrift nicht anwendbar"}
+                                                                </p>
+                                                            ) : null}
+                                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                                    <Link href={`/api/documents/${document.id}/file`} target="_blank">Öffnen</Link>
+                                                                </Button>
+                                                                <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                                    <Link href={`/api/documents/${document.id}/file?download=1`}><Download className="mr-1 size-3.5" />Download</Link>
+                                                                </Button>
+                                                                {document.source === "uploaded" || document.source === "automation_return" ? <DeleteSaleDocumentForm saleId={sale.id} documentId={document.id} /> : null}
+                                                            </div>
+                                                            {document.source === "automation_return" && canAdminDelete && ["pending", "needs_review"].includes(reviewStatus ?? "") ? (
+                                                                <AutomationReturnReviewForm
+                                                                    saleId={sale.id}
+                                                                    documentId={document.id}
+                                                                    documentVersionId={document.active_version_id!}
+                                                                    requiresSignature={false}
+                                                                />
+                                                            ) : null}
+                                                        </div>
+                                                    );
+                                                }) : null}
 
                                             <StatusBadge
                                                 tone={
@@ -1077,6 +1180,9 @@ export async function SaleDetail({
                                             >
                                                 {requiredDocument.isAvailable
                                                     ? "Vorhanden"
+                                                    : requiredDocument.document?.source === "automation_return" &&
+                                                        getAutomationReviewStatus(requiredDocument.document.metadata) === "rejected"
+                                                      ? "Abgelehnt – erneut erforderlich"
                                                     : requiredDocument.document?.source === "automation_return" &&
                                                         requiredDocument.document.status === "needs_review"
                                                       ? "Eingegangen – Prüfung erforderlich"
@@ -1141,6 +1247,70 @@ export async function SaleDetail({
                         </CardContent>
                     </Card>
 
+                    {!hasCommercialRegisterRequirement ? <Card className="overflow-hidden rounded-[1.75rem] border border-cyan-200 bg-white/90 shadow-sm">
+                        <CardContent className="p-0">
+                            <div className="border-b border-cyan-100 p-5">
+                                <SectionTitle
+                                    icon={FileCheck2}
+                                    title="Optionale strukturierte Unterlagen"
+                                    description="Handelsregisterauszug – optional, keine zusätzliche Pflichtanforderung."
+                                />
+                            </div>
+                            <div className="space-y-3 p-5">
+                                {commercialRegisterDocuments.map((document) => {
+                                    const reviewStatus = getAutomationReviewStatus(document.metadata);
+                                    return (
+                                        <div key={document.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                <div className="min-w-0">
+                                                    <p className="font-extrabold text-slate-950">Handelsregisterauszug</p>
+                                                    <p className="mt-1 break-all text-sm font-medium text-slate-600">{document.file_name}</p>
+                                                    {document.source === "automation_return" ? (
+                                                        <p className="mt-1 text-xs font-bold text-amber-800">
+                                                            {reviewStatus === "accepted" ? "Prüfung abgeschlossen" : reviewStatus === "rejected" ? "Abgelehnt" : "Prüfung erforderlich · Unterschrift nicht anwendbar"}
+                                                        </p>
+                                                    ) : null}
+                                                    <p className="mt-1 text-xs font-semibold text-slate-400">Hinzugefügt am {formatDate(document.created_at)}</p>
+                                                </div>
+                                                <div className="flex shrink-0 flex-wrap gap-2">
+                                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                        <Link href={`/api/documents/${document.id}/file`} target="_blank"><ExternalLink className="mr-1 size-3.5" />Öffnen</Link>
+                                                    </Button>
+                                                    <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
+                                                        <Link href={`/api/documents/${document.id}/file?download=1`}><Download className="mr-1 size-3.5" />Download</Link>
+                                                    </Button>
+                                                    {document.source === "uploaded" || document.source === "automation_return" ? <DeleteSaleDocumentForm saleId={sale.id} documentId={document.id} /> : null}
+                                                </div>
+                                            </div>
+                                            {document.source === "uploaded" ? (
+                                                <SaleDocumentUploadForm
+                                                    saleId={sale.id}
+                                                    documentType={saleCommercialRegisterDocumentType}
+                                                    documentLabel="Handelsregisterauszug"
+                                                    existingDocumentId={document.id}
+                                                    existingFileName={document.file_name}
+                                                />
+                                            ) : null}
+                                            {document.source === "automation_return" && canAdminDelete && ["pending", "needs_review"].includes(reviewStatus ?? "") ? (
+                                                <AutomationReturnReviewForm
+                                                    saleId={sale.id}
+                                                    documentId={document.id}
+                                                    documentVersionId={document.active_version_id!}
+                                                    requiresSignature={false}
+                                                />
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
+                                <SaleDocumentUploadForm
+                                    saleId={sale.id}
+                                    documentType={saleCommercialRegisterDocumentType}
+                                    documentLabel="Handelsregisterauszug"
+                                />
+                            </div>
+                        </CardContent>
+                    </Card> : null}
+
                     <Card
                         id="custom-documents"
                         className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
@@ -1191,6 +1361,13 @@ export async function SaleDetail({
                                                         <DeleteSaleDocumentForm saleId={sale.id} documentId={document.id} />
                                                     </div>
                                                 </div>
+
+                                                {canAdminDelete ? (
+                                                    <ReclassifySaleCustomDocumentForm
+                                                        saleId={sale.id}
+                                                        documentId={document.id}
+                                                    />
+                                                ) : null}
 
                                                 <SaleDocumentUploadForm
                                                     saleId={sale.id}

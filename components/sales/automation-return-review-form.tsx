@@ -5,12 +5,14 @@ type AutomationReturnReviewFormProps = {
     saleId: string;
     documentId: string;
     documentVersionId: string;
+    requiresSignature?: boolean;
 };
 
 export function AutomationReturnReviewForm({
     saleId,
     documentId,
     documentVersionId,
+    requiresSignature = true,
 }: AutomationReturnReviewFormProps) {
     const hiddenFields = (
         <>
@@ -25,24 +27,30 @@ export function AutomationReturnReviewForm({
             <form action={reviewAutomationReturnAction} className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 {hiddenFields}
                 <input type="hidden" name="decision" value="accepted" />
-                <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-emerald-950">
-                    <input
-                        type="checkbox"
-                        name="review_confirmation"
-                        value="confirmed"
-                        required
-                        className="mt-1 size-4 shrink-0 rounded border-emerald-300"
-                    />
-                    <span>
-                        Ich habe das Dokument geprüft. Es gehört zu diesem Verkauf und die erforderliche Unterschrift ist sichtbar vorhanden.
-                    </span>
-                </label>
+                {requiresSignature ? (
+                    <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-emerald-950">
+                        <input
+                            type="checkbox"
+                            name="review_confirmation"
+                            value="confirmed"
+                            required
+                            className="mt-1 size-4 shrink-0 rounded border-emerald-300"
+                        />
+                        <span>
+                            Ich habe das Dokument geprüft. Es gehört zu diesem Verkauf und die erforderliche Unterschrift ist sichtbar vorhanden.
+                        </span>
+                    </label>
+                ) : (
+                    <p className="text-xs font-semibold leading-5 text-emerald-950">
+                        Ich habe das Dokument geprüft und bestätigt, dass es zum festen Dokumenttyp und zu diesem Verkauf gehört.
+                    </p>
+                )}
                 <p className="mt-2 text-xs leading-5 text-emerald-800">
                     Die Freigabe bestätigt weder Echtheit noch rechtliche Gültigkeit.
                 </p>
                 <PendingSubmitButton
                     iconName="check-circle"
-                    label="Rücklauf freigeben"
+                    label={requiresSignature ? "Rücklauf freigeben" : "Dokument freigeben"}
                     pendingLabel="Wird freigegeben..."
                     className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl bg-emerald-700 px-4 text-sm font-extrabold text-white hover:bg-emerald-800 disabled:opacity-60"
                 />
@@ -64,7 +72,7 @@ export function AutomationReturnReviewForm({
                     placeholder="Warum wird dieser Rücklauf abgelehnt?"
                 />
                 <PendingSubmitButton
-                    label="Rücklauf ablehnen"
+                    label={requiresSignature ? "Rücklauf ablehnen" : "Dokument ablehnen"}
                     pendingLabel="Wird abgelehnt..."
                     className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-red-300 bg-white px-4 text-sm font-extrabold text-red-700 hover:bg-red-100 disabled:opacity-60"
                 />

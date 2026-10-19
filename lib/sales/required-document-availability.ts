@@ -23,3 +23,15 @@ export function isRequiredDocumentAvailable(
     return document.status === "available" ||
         (document.status === "needs_review" && document.source === "generated");
 }
+
+export function hasAvailableAcceptedDocumentType(
+    acceptedDocumentTypes: readonly string[],
+    documents: RequiredDocumentAvailabilityInput[],
+): boolean {
+    const availableTypes = new Set(
+        documents
+            .filter(isRequiredDocumentAvailable)
+            .map((document) => document.document_type),
+    );
+    return acceptedDocumentTypes.some((documentType) => availableTypes.has(documentType));
+}

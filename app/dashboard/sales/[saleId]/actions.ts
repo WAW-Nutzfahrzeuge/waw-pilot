@@ -640,6 +640,59 @@ export async function uploadSaleDocumentAction(formData: FormData) {
     redirect(`/dashboard/sales/${saleId}?documentUploaded=1&refresh=${Date.now()}`);
 }
 
+export async function reclassifySaleCustomDocumentAction(formData: FormData) {
+    const userContext = await getCurrentUserContext();
+    if (userContext.profile.role !== "admin") {
+        throw new Error("Nur Admins dürfen Dokumente umklassifizieren.");
+    }
+
+    const saleId = getStringFormValue(formData, "sale_id");
+    const documentId = getStringFormValue(formData, "document_id");
+    const confirmed = getStringFormValue(formData, "classification_confirmation");
+    if (!saleId || !documentId) throw new Error("Verkauf oder Dokument fehlt.");
+    if (confirmed !== "confirmed") throw new Error("Bitte bestätige die Dokumentzuordnung.");
+
+    const companyId = getCurrentCompanyId();
+    if (userContext.companyId !== companyId) throw new Error("Unternehmenszuordnung ist ungültig.");
+
+    const supabase = createServerSupabaseClient();
+    const { data: document, error: documentError } = await supabase
+        .from("documents")
+        .select("id, sale_id, company_id, document_type, source, archive_status, active_version_id")
+        .eq("id", documentId)
+        .eq("sale_id", saleId)
+        .eq("company_id", companyId)
+        .eq("document_type", saleCustomDocumentType)
+        .eq("source", "uploaded")
+        .eq("archive_status", "ACTIVE")
+        .not("active_version_id", "is", null)
+        .maybeSingle();
+    if (documentError || !document?.active_version_id) {
+        throw new Error("Das aktive Zusatzdokument kann nicht umklassifiziert werden.");
+    }
+
+    const automationSupabase = createAutomationSupabaseClient();
+    const { data: outcome, error } = await automationSupabase.rpc("reclassify_sale_custom_document", {
+        p_company_id: companyId,
+        p_sale_id: saleId,
+        p_document_id: documentId,
+        p_document_version_id: document.active_version_id,
+        p_actor_id: userContext.authUserId,
+    });
+    if (error || outcome !== "reclassified") {
+        console.error("sale.document.reclassification_failed", { databaseCode: error?.code ?? null });
+        throw new Error("Das Dokument konnte nicht sicher als Handelsregisterauszug zugeordnet werden. Bitte lade die Akte neu.");
+    }
+
+    await logActivity({
+        action: "Ein Zusatzdokument wurde ausdrücklich als Handelsregisterauszug zugeordnet.",
+        entityType: "sale",
+        entityId: saleId,
+    });
+    revalidatePaths([`/dashboard/sales/${saleId}`, "/dashboard/sales", "/dashboard/documents"]);
+    redirect(`/dashboard/sales/${saleId}?documentReclassified=1`);
+}
+
 export async function deleteSaleDocumentAction(formData: FormData) {
     const userContext = await getCurrentUserContext();
     if (userContext.profile.role !== "admin") {

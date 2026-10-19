@@ -17,6 +17,8 @@ import { isPdf } from "@/lib/automation/file-signature";
 export const runtime = "nodejs";
 type Context = { params: Promise<{ saleId: string }> };
 const field = (form: FormData, key: string) => { const value = form.get(key); return typeof value === "string" && value.trim() ? value.trim() : null; };
+const nonSignatureDocumentTypes = ["owner_id", "commercial_register"] as const;
+const automationUploadDocumentTypes = [...automationReturnDocumentTypes, ...nonSignatureDocumentTypes] as const;
 const revalidateSaleDocuments = (saleId: string) => {
     revalidatePath(`/dashboard/sales/${saleId}`);
     revalidatePath("/dashboard/sales");
@@ -36,7 +38,7 @@ export async function POST(request: Request, routeContext: Context) {
     const file = form.get("file");
     const documentType = field(form, "documentType");
     const saleIdentifier = field(form, "saleIdentifier")?.toUpperCase();
-    const signatureStatus = field(form, "signatureStatus");
+    let signatureStatus = field(form, "signatureStatus");
     let reviewStatus = field(form, "reviewStatus") ?? "pending";
     const originalPageNumbersRaw = field(form, "originalPageNumbers");
     const originalPageNumbers = parsePageNumbers(originalPageNumbersRaw);
@@ -44,10 +46,18 @@ export async function POST(request: Request, routeContext: Context) {
     if (file.size > maxAutomationPdfBytes) return automationError(413, "file_too_large", "Die PDF darf maximal 10 MB groß sein.");
     const bytes = Buffer.from(await file.arrayBuffer());
     if (file.type !== "application/pdf" || !isPdf(bytes)) return automationError(415, "invalid_file_type", "Nur echte PDF-Dateien werden akzeptiert.");
-    if (!documentType || !automationReturnDocumentTypes.includes(documentType as never)) return automationError(422, "invalid_document_type", "Der Dokumenttyp ist ungültig.");
+    if (!documentType || !automationUploadDocumentTypes.includes(documentType as never)) return automationError(422, "invalid_document_type", "Der Dokumenttyp ist ungültig.");
     if (!saleIdentifier) return automationError(422, "sale_identifier_required", "Die Verkaufskennung ist als Zuordnungskontrolle erforderlich.");
     if (!/^VK-[A-F0-9]{10}$/.test(saleIdentifier)) return automationError(422, "invalid_sale_identifier", "Die Verkaufskennung hat ein ungültiges Format.");
-    if (!signatureStatus || !automationSignatureStatuses.includes(signatureStatus as never)) return automationError(422, "invalid_signature_status", "Der Unterschriftsstatus ist ungültig.");
+    const signatureNotApplicable = nonSignatureDocumentTypes.includes(documentType as (typeof nonSignatureDocumentTypes)[number]);
+    if (signatureNotApplicable) {
+        if (signatureStatus && signatureStatus !== "not_applicable") return automationError(422, "invalid_signature_status", "Für diesen Dokumenttyp ist keine Unterschriftenbewertung vorgesehen.");
+        signatureStatus = "not_applicable";
+        if (reviewStatus === "accepted" || reviewStatus === "rejected") return automationError(422, "invalid_review_status", "Automatisierte Dokumente müssen zunächst manuell geprüft werden.");
+        reviewStatus = "needs_review";
+    } else if (!signatureStatus || !automationSignatureStatuses.includes(signatureStatus as never)) {
+        return automationError(422, "invalid_signature_status", "Der Unterschriftsstatus ist ungültig.");
+    }
     if (!automationReviewStatuses.includes(reviewStatus as never)) return automationError(422, "invalid_review_status", "Der Prüfstatus ist ungültig.");
     if (originalPageNumbersRaw && !originalPageNumbers) return automationError(422, "invalid_page_numbers", "Originalseiten müssen als eindeutige positive Zahlen, z. B. 1,2, angegeben werden.");
     const receivedAtInput = field(form, "receivedAt");
@@ -123,11 +133,14 @@ export async function POST(request: Request, routeContext: Context) {
     }
 
     const documentStatus = getAutomationReturnDocumentStatus({
+        documentType,
         signatureStatus,
         reviewStatus,
     });
     const documentMetadata = { automationReturn: { uploadId: claim.id, ...metadata, sha256: fileHash,
-        signatureMeaning: "visible_signature_only_no_authenticity_check" } };
+        signatureMeaning: signatureNotApplicable
+            ? "not_applicable_no_signature_assessment"
+            : "visible_signature_only_no_authenticity_check" } };
     const { data: completedRows, error: documentError } = await supabase.rpc("complete_automation_sale_document_upload", {
         p_upload_id: claim.id,
         p_company_id: auth.companyId,

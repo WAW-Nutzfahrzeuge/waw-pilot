@@ -1,6 +1,6 @@
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { VatVerificationRequirementPolicy } from "@/src/modules/documents/domain/policies/vat-verification-requirement-policy";
-import { isRequiredDocumentAvailable } from "@/lib/sales/required-document-availability";
+import { hasAvailableAcceptedDocumentType } from "@/lib/sales/required-document-availability";
 
 export { isRequiredDocumentAvailable } from "@/lib/sales/required-document-availability";
 
@@ -128,12 +128,6 @@ export function evaluateRequiredDocuments({
     requiredDocuments: RequiredDocumentDefinition[];
     documents: SaleDocumentInput[];
 }) {
-    const availableDocumentTypes = new Set(
-        documents
-            .filter(isRequiredDocumentAvailable)
-            .map((document) => document.document_type),
-    );
-
     const missingDocuments = requiredDocuments.filter(
         (requiredDocument) => {
             const acceptedDocumentTypes =
@@ -141,9 +135,7 @@ export function evaluateRequiredDocuments({
                     requiredDocument.documentType,
                 ];
 
-            return !acceptedDocumentTypes.some((documentType) =>
-                availableDocumentTypes.has(documentType),
-            );
+            return !hasAvailableAcceptedDocumentType(acceptedDocumentTypes, documents);
         },
     );
 
