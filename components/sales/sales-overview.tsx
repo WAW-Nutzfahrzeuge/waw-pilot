@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import type { SaleRow } from "@/lib/sales/sale-queries";
+import { buildSaleSearchText, matchesSaleSearchText } from "@/lib/sales/sale-search";
 import {
     getDatevStatusLabel,
     getDatevStatusTone,
@@ -88,7 +89,8 @@ export function SalesOverview({
         for (const sale of sales) {
             index.set(
                 sale.id,
-                [
+                buildSaleSearchText([
+                    sale.sale_identifier,
                     sale.invoice_number,
                     sale.vehicle_name,
                     sale.vin,
@@ -96,10 +98,7 @@ export function SalesOverview({
                     sale.customer_country,
                     getSaleTypeLabel(sale.sale_type),
                     ...sale.missing_required_document_labels,
-                ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase(),
+                ]),
             );
         }
 
@@ -149,8 +148,6 @@ export function SalesOverview({
     }, [monthFilter, sales]);
 
     const filteredSales = useMemo(() => {
-        const normalizedQuery = query.trim().toLowerCase();
-
         return monthSalesData.sales
             .filter((sale) => {
                 const matchesPaymentFilter =
@@ -165,9 +162,7 @@ export function SalesOverview({
 
                 if (!matchesPaymentFilter) return false;
 
-                if (!normalizedQuery) return true;
-
-                return saleSearchIndex.get(sale.id)?.includes(normalizedQuery) ?? false;
+                return matchesSaleSearchText(saleSearchIndex.get(sale.id) ?? "", query);
             })
             .sort((firstSale, secondSale) =>
                 compareNumberedReferences(
@@ -258,7 +253,7 @@ export function SalesOverview({
                                         <Input
                                             value={query}
                                             onChange={(event) => setQuery(event.target.value)}
-                                            placeholder="Verkauf suchen..."
+                                            placeholder="Verkauf, Verkaufskennung, Rechnung oder Fahrzeug suchen..."
                                             className="h-11 rounded-2xl border-slate-200 bg-slate-50 pl-10 font-medium"
                                         />
                                     </div>

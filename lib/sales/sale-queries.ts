@@ -26,6 +26,7 @@ export type DatevStatus = "not_sent" | "sent";
 
 export type SaleRow = {
     id: string;
+    sale_identifier: string;
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
@@ -95,6 +96,7 @@ type SupabaseRelation<T> = T | T[] | null;
 
 type SaleQueryRow = {
     id: string;
+    sale_identifier: string;
     vehicle_id: string;
     buyer_customer_id: string;
     sale_date: string;
@@ -473,6 +475,7 @@ export async function getSales(): Promise<SaleRow[]> {
         .select(
             `
       id,
+      sale_identifier,
       vehicle_id,
       buyer_customer_id,
       sale_date,
@@ -586,6 +589,7 @@ export async function getSales(): Promise<SaleRow[]> {
 
         return {
             id: sale.id,
+            sale_identifier: sale.sale_identifier,
             vehicle_id: sale.vehicle_id,
             buyer_customer_id: sale.buyer_customer_id,
             sale_date: sale.sale_date,
