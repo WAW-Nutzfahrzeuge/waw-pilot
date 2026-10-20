@@ -1,4 +1,7 @@
 import { getFinancialTotalsSummary } from "@/lib/accounting/financial-queries";
+import { getOptionalCurrentUserContext } from "@/lib/auth/current-user";
+import { getCurrentCompanyId } from "@/lib/company";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { getCustomersCount } from "@/lib/customers/customer-queries";
 import { getDocumentDashboardSummary } from "@/lib/documents/document-queries";
 import { getInvoiceDashboardSummary } from "@/lib/invoices/invoice-queries";
@@ -103,6 +106,27 @@ export async function getDashboardData(month?: string | null): Promise<Dashboard
     ]);
 
     const openActions: DashboardData["openActions"] = [];
+
+    const currentUser = await getOptionalCurrentUserContext();
+    let unassignedOwnerIdCount = 0;
+    if (currentUser?.profile.role === "admin" && currentUser.companyId === getCurrentCompanyId()) {
+        const { count, error } = await createAutomationSupabaseClient()
+            .from("automation_owner_id_intakes")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", currentUser.companyId)
+            .eq("status", "open");
+        if (error) console.error("dashboard.owner_id_intakes_count_failed", { code: error.code });
+        unassignedOwnerIdCount = count ?? 0;
+    }
+
+    if (unassignedOwnerIdCount > 0) {
+        openActions.push({
+            label: `${unassignedOwnerIdCount} nicht zugeordnete(s) Ausweisdokument(e)`,
+            description: "Dokumenteneingang prüfen und ausdrücklich einer Verkaufsakte zuordnen oder erledigen.",
+            href: "/dashboard/unassigned-documents",
+            tone: "warning",
+        });
+    }
 
     if (salesSummary.openInvoicesCount > 0) {
         openActions.push({

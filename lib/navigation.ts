@@ -8,6 +8,7 @@ import {
     CreditCard,
     FileArchive,
     FileText,
+    FileQuestion,
     Landmark,
     LayoutDashboard,
     Receipt,
@@ -55,6 +56,11 @@ export const mainNavigation = [
         title: "Dokumente",
         href: "/dashboard/documents",
         icon: FileArchive,
+    },
+    {
+        title: "Nicht zugeordnete Dokumente",
+        href: "/dashboard/unassigned-documents",
+        icon: FileQuestion,
     },
     {
         title: "Kassenbuch",

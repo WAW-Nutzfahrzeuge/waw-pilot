@@ -125,6 +125,12 @@ function getAutomationReviewStatus(metadata: Record<string, unknown> | null): st
     return typeof reviewStatus === "string" ? reviewStatus : null;
 }
 
+function isCountryFallbackOwnerId(metadata: Record<string, unknown> | null): boolean {
+    const automationReturn = metadata?.automationReturn;
+    return Boolean(automationReturn && typeof automationReturn === "object" &&
+        (automationReturn as Record<string, unknown>).assignmentSource === "country_fallback");
+}
+
 function getSaleDocumentDisplayFileName(
     document: SaleDetailType["documents"][number] | null,
     saleNumber: string | null,
@@ -1084,6 +1090,7 @@ export async function SaleDetail({
                                                         canAdminDelete &&
                                                         ["pending", "needs_review"].includes(getAutomationReviewStatus(requiredDocument.document.metadata) ?? "") ? (
                                                             <>
+                                                                {requiredDocument.document.document_type === "owner_id" && isCountryFallbackOwnerId(requiredDocument.document.metadata) ? <p className="mt-2 text-xs font-extrabold text-amber-800">Über Länderabgleich zugeordnet – bitte prüfen</p> : null}
                                                                 <p className="mt-2 text-xs font-bold text-amber-800">Prüfstatus: Prüfung erforderlich · Unterschrift nicht anwendbar</p>
                                                                 <AutomationReturnReviewForm
                                                                     saleId={sale.id}
@@ -1111,6 +1118,7 @@ export async function SaleDetail({
                                                             <p className="mt-1 text-xs font-semibold text-slate-600">
                                                                 {reviewStatus === "accepted" ? "Geprüft und freigegeben" : reviewStatus === "rejected" ? "Abgelehnt" : "Prüfung erforderlich · Unterschrift nicht anwendbar"}
                                                             </p>
+                                                            {isCountryFallbackOwnerId(document.metadata) ? <p className="mt-1 text-xs font-extrabold text-amber-800">Über Länderabgleich zugeordnet – bitte prüfen</p> : null}
                                                             <div className="mt-2 flex flex-wrap gap-2">
                                                                 <Button asChild variant="outline" size="sm" className="rounded-xl font-bold">
                                                                     <Link href={`/api/documents/${document.id}/file`} target="_blank">Öffnen</Link>

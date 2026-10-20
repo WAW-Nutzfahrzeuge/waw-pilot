@@ -711,3 +711,143 @@ Der Runner prüft anhand des Manifests:
 - alle vor dem Test vorhandenen Dokumente weiterhin vorhanden
 - deren aktive Versionen und Storage-Pfade unverändert
 - Test-Rücklauf nicht mehr in `document-requirements` enthalten
+
+## Owner-ID-Zuordnung und interne Klärungsübersicht
+
+### Neuer Ablauf
+
+Die Software prüft und registriert den Owner-ID-Rücklauf gemeinsam über:
+
+```text
+POST /api/automation/document-returns/owner-id/intake
+Authorization: Bearer <AUTOMATION_API_TOKEN>
+Idempotency-Key: <STABILER-SCHLUESSEL-PRO-RUECKLAUF-UND-OWNER-DOKUMENT>
+Content-Type: multipart/form-data
+```
+
+Der Request enthält:
+
+- `analysis`: JSON gemäß Datenvertrag unten, einschließlich der ursprünglichen Anhangszahl, vollständiger Seiten-/Dokumentabdeckung und aller stabilen Originalupload-IDs.
+- `documentFile`: die aus den Originalseiten erzeugte PDF ausschließlich des Owner-ID-Dokuments. Das Feld darf fehlen, wenn die Ableitung technisch scheiterte; in diesem Fall wird ein offener technischer Prüf-/Fehlerfall registriert und das Original bleibt erreichbar.
+- optional `receivedAt`: nur als Kontrollwert. Maßgeblich ist immer `automation_return_uploads.received_at` des gespeicherten Originals. Abweichungen werden abgewiesen. Ein wiederholter Request verschiebt den Zeitraum daher nicht.
+
+Der Endpunkt macht keine von n8n vorgeschlagene `saleId` gültig. Er löst die Verkaufskennung, Rechnungsnummer und VIN aus den analysierten Dokumenten erneut gegen Verkaufsakten derselben Company auf. Eine eindeutige Zuordnung aus anderen Dokumenten derselben Mail gewinnt gegen den Länder-Fallback, sofern die gesamte Mail und alle Seiten vollständig analysiert und widerspruchsfrei sind. Mehrdeutige, widersprüchliche oder unvollständige Merkmale führen nicht zu einer automatischen Länderzuordnung.
+
+Beispiel für `analysis` (Platzhalterwerte):
+
+```json
+{
+  "source": "inbound_email",
+  "sourceEmailId": "<MAIL-ID>",
+  "returnId": "<STABILE-RUECKLAUF-ID>",
+  "analysisStatus": "complete",
+  "attachmentEnumerationComplete": true,
+  "originalAttachmentCount": 1,
+  "conflictStatus": "none",
+  "ownerDocumentId": "doc-owner-1",
+  "attachments": [
+    {
+      "sourceAttachmentId": "<ANHANG-ID>",
+      "originalUploadId": "<UUID-DES-UNVERAENDERTEN-ORIGINALUPLOADS>",
+      "analysisStatus": "complete",
+      "pageCount": 2,
+      "pages": [
+        { "pageNumber": 1, "documentIds": ["doc-owner-1"], "unknownOrUnassigned": false },
+        { "pageNumber": 2, "documentIds": ["doc-owner-1"], "unknownOrUnassigned": false }
+      ],
+      "documents": [
+        {
+          "documentId": "doc-owner-1",
+          "documentType": "owner_id",
+          "pageNumbers": [1, 2],
+          "identifiers": {},
+          "countryEvidence": {
+            "kind": "residence_country",
+            "reliable": true,
+            "value": "DE"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Zulässige Werte:
+
+- `source`: `inbound_email` oder `other`; der Länder-Fallback akzeptiert ausschließlich `inbound_email`.
+- `analysisStatus` und je Anhang `analysisStatus`: `complete`, `incomplete`, `failed`.
+- `conflictStatus`: `none`, `conflict`, `unknown`.
+- `documentType`: tatsächliche Typen als Text, insbesondere `owner_id`, `entry_certificate`, `transport_proof`, `handover_protocol` und `commercial_register`. Unbekannte Seiten/Dokumente müssen mit `unknownOrUnassigned=true` bzw. dem passenden unbekannten Typ erhalten bleiben; sie sperren den Länder-Fallback.
+- `countryEvidence.kind`: `residence_country`, `issuing_country`, `nationality`, `buyer_country` oder `destination_country`. Nur `residence_country` mit `reliable=true` ist für den Länder-Fallback verwendbar. Keine Ausweisnummer, Geburtsdaten, MRZ oder vollständige Adresse mitsenden.
+- `identifiers`: optionale `saleIdentifier`, `invoiceNumber`, `vin`; die API prüft diese Werte selbst. `saleId` ist kein zulässiges Feld und wird durch die strikte Schema-Prüfung abgelehnt.
+- `pages` müssen die tatsächlichen Seiten lückenlos abdecken. Der API-Endpunkt prüft die Seitenzahl erneut an der im privaten Storage liegenden Originaldatei (PDF wird geparst, JPG/PNG ist eine Seite).
+
+Beispiel mit cURL (Datei-/Tokenwerte ersetzen):
+
+```bash
+ANALYSIS_JSON='<VOLLSTAENDIGES_JSON_OBJEKT_AUS_DEM_BEISPIEL>'
+curl -X POST "$WAW_BASE_URL/api/automation/document-returns/owner-id/intake" \
+  -H "Authorization: Bearer $AUTOMATION_API_TOKEN" \
+  -H "Idempotency-Key: <STABILER-RUECKLAUF-OWNER-SCHLUESSEL>" \
+  -F "analysis=$ANALYSIS_JSON" \
+  -F 'documentFile=@<ABGELEITETE-AUSWEIS-PDF>;type=application/pdf'
+```
+
+`ANALYSIS_JSON` ist ein Textfeld im Multipart-Request (kein Datei-Uploadfeld); n8n sendet dort das serialisierte Objekt.
+
+Antworten:
+
+- `201 assigned`: direkte eindeutige Kennung oder bestätigte Zuordnung aus einem anderen Dokument derselben Mail; `assignmentSource` ist `direct_identifier` bzw. `same_email_identifier`.
+- `201 assigned` mit `assignmentSource="country_fallback"`: genau ein Kandidat wurde anhand Wohnsitzland und Zeitraum vorläufig zugeordnet. UI-Hinweis: „Über Länderabgleich zugeordnet – bitte prüfen“.
+- `201 manual_review`: Fall wurde dauerhaft registriert und bleibt ohne Verkauf in der offenen Klärungsübersicht.
+- `202 processing_error`: Original ist erhalten und die technische Verarbeitung ist als offener Fehlerfall sichtbar; `processing_status` ist `error`.
+- derselbe Idempotency-Key und derselbe Inhalt liefert den vorhandenen Vorgang bzw. `202 processing`; derselbe Key mit verändertem Inhalt liefert `409 idempotency_conflict`.
+- Fehler der Verkaufs-/Original-/Kandidatenabfrage liefern `5xx` und werden nicht als fachlich „kein Treffer“ gespeichert.
+
+Wichtige Fehlercodes: `401 unauthorized`, `400 invalid_idempotency_key|invalid_multipart`, `422 invalid_analysis|owner_document_required|received_at_required`, `409 idempotency_conflict|original_provenance_mismatch|received_at_mismatch`, `413 file_too_large`, `415 invalid_file_type`, `500 sale_lookup_failed|candidate_lookup_failed|intake_registration_failed|intake_finalize_failed`, `502 derived_storage_failed`. Technisch nicht lesbare Originale/abgeleitete PDFs werden, soweit ein gültiger Originalupload und eine Owner-ID-Analyse vorliegen, als dauerhafter `processing_error`-Fall registriert statt als „kein Treffer“.
+
+Der API-Code begrenzt `documentFile` auf 10 MB. Das ist nur das Anwendungslimit; ein Hosting- bzw. Proxy-Limit kann kleiner sein. Die tatsächliche Grenze der Live-Vercel-Bereitstellung wurde in diesem Implementierungsschritt nicht geprüft. Daher vor großen n8n-PDFs zunächst mit der konkreten Live-Deployment-Konfiguration verifizieren.
+
+### Regeln und tatsächlich verwendete Felder
+
+- Kauf-/Kundenland: `customers.country`, verknüpft über `sales.buyer_customer_id`. Es wird ausschließlich mit dem vom Parser als zuverlässiges `residence_country` gelieferten Wohnsitzland verglichen. Beide Seiten werden über `getCustomerCountryCode()` auf ISO-3166-1-alpha-2 normalisiert.
+- Verkaufsdatum: `sales.sale_date` (DATE), nicht `created_at` oder `updated_at`. `NULL` wird ausgeschlossen. Der Kandidatenabgleich verlangt dieselbe `company_id` und gleiches normalisiertes Käuferland.
+- Eingangsdatum: `automation_return_uploads.received_at` des unveränderten Originals, gespeichert vor der Analyse. Der Endpunkt vergleicht alle Anhänge auf dasselbe Eingangsdatum und verwendet den vom Client gelieferten Zeitstempel nie als Ersatz.
+- Kandidatenstatus: der Länder-Fallback berücksichtigt nur `sales.status IN ('active', 'completed')`; Entwürfe, stornierte und sonstige Statuswerte gelten nicht als Kandidaten.
+- Geschäftszeitzone: Im bestehenden Repository gab es keine zentrale Zeitzonen-Konfiguration. Für den deutschen WAW-Betrieb wird einheitlich `Europe/Berlin` verwendet. Der Tag des Eingangs ist inklusive; die Untergrenze ist 20 Kalendertage davor. Beispiel: `2026-10-21` ergibt `sale_date` von `2026-10-01` bis einschließlich `2026-10-21` (21 Kalendertage). Fehlendes oder unlesbares Eingangsdatum blockiert die Zuordnung.
+- Kandidaten werden nach unterschiedlichen `sales.id` gezählt. Genau ein Treffer kann vorläufig zugeordnet werden; kein oder mehrere Treffer bleiben manuell.
+- Die ID-/Rechnungs-/VIN-Auflösung nutzt die bestehende `resolveSales()`-Logik und prüft widersprüchliche Merkmale. Weder Absenderadresse noch Kundenname werden für diese Entscheidung verwendet.
+
+Die gebildete Verkaufsakte enthält ein `owner_id`-Dokument mit `signature_status='not_applicable'` und `review_status='needs_review'`. Der vorhandene Admin-Prüfablauf bleibt erforderlich. Die Zuordnung selbst erfüllt keine Ausweisanforderung und löst keine Unterschriften-Rückfrage aus. Unzugeordnete oder technisch fehlerhafte Vorgänge werden in `automation_owner_id_intakes` und `automation_owner_id_intake_events` dauerhaft protokolliert; die Originaldatei bleibt im privaten Bucket `documents` unter ihrer bestehenden Originalupload-ID. Eine abgeleitete PDF verwendet einen separaten company-/intake-sicheren Storage-Pfad und verweist über `parent_original_upload_id` sowie `original_page_numbers` auf das Original.
+
+### Interne Übersicht und manuelle Bearbeitung
+
+- Admins finden `/dashboard/unassigned-documents` sowie den Menüpunkt „Nicht zugeordnete Dokumente“.
+- Die Startseite zeigt die Anzahl der Fälle mit `status='open'`.
+- Die Übersicht zeigt Eingang, Grund, normalisiertes Land, Kandidaten, Original und – wenn verfügbar – die abgeleitete PDF. „Erledigte Fälle anzeigen“ listet zugeordnete und ignorierte Vorgänge weiter nachvollziehbar auf.
+- Für eine manuelle Verkaufszuordnung muss ein Mitarbeiter mit Admin-Rolle eine Verkaufsakte ausdrücklich suchen und auswählen. Die Datenbankfunktion sperrt den Vorgang (`FOR UPDATE`), prüft Company und Zielverkauf, erstellt atomar ein neues `owner_id`-Dokument, lässt den bestehenden Versionierungstrigger die Version erzeugen und protokolliert den Benutzer. Es wird keine bestehende Datei ersetzt.
+- Eine manuelle Zuordnung bleibt `needs_review` / `not_applicable`; die Dokumentprüfung erfolgt separat. „Als irrelevant erledigen“ verlangt eine Begründung und setzt den Status `ignored`.
+- Der private Dateiabruf ist unter `/dashboard/unassigned-documents/{intakeId}/file?kind=document|original` nur für Admins der gleichen Company möglich.
+
+### Spätere n8n-Anpassungen
+
+1. Beim Mail-Eingang vor jeglichem Filter die ursprüngliche Anhangszahl erfassen und `receivedAt`, `sourceEmailId`, `returnId` sowie pro Anhang die stabile `sourceAttachmentId` speichern.
+2. Vor dem Upload jeden unveränderten Originalanhang über `POST /api/automation/document-returns/originals` sichern; dessen `originalUploadId` mitführen und bei diesem Upload das echte ursprüngliche `receivedAt` angeben.
+3. Alle Seiten und Dokumente aller Anhänge analysieren. Pro Seite `documentIds` und `unknownOrUnassigned` liefern; bei nicht vollständiger Analyse `analysisStatus` entsprechend setzen.
+4. Starke Kennungen in passenden Dokumenten extrahieren und durch `POST /api/automation/sales/resolve` verifizieren. Für den neuen Intake werden nur die Kennungswerte und Dokument-/Seitenherkunft mitgesendet, nie eine KI-ausgewählte Verkaufs-ID.
+5. Owner-ID-Seiten mit dem vorhandenen `POST /api/automation/document-returns/extract-pages` zu einer separaten PDF zusammenfassen.
+6. `analysis` und die abgeleitete PDF an `/owner-id/intake` senden. Bei einer Mail mit Ausweis und weiteren Dokumenten müssen alle Anhangs-/Seiteninformationen im selben `analysis` enthalten sein. Der Länder-Fallback bleibt in dieser Konstellation gesperrt; eine bestätigte starke Zuordnung aus den anderen Dokumenten kann dagegen verwendet werden.
+7. `assigned`, `manual_review` und `processing_error` getrennt behandeln. Bei `manual_review` die interne Übersicht bearbeiten lassen. Technische API-Fehler erneut mit stabilem Idempotency-Key versuchen; bei geändertem Payload einen neuen fachlichen Lauf/Schlüssel verwenden.
+
+### Migration und Deployment
+
+Neue Migration: `supabase/migrations/20261021100000_add_owner_id_country_fallback_intakes.sql`.
+
+Empfohlene Reihenfolge:
+
+1. Erst die bereits bestehenden, im Repository nötigen Dokument-/Rücklaufmigrationen anwenden, insbesondere `20261006150000_add_automation_document_returns.sql`, `20261012150000_allow_automation_return_document_source.sql`, `20261019120000_add_fixed_sale_identity_documents.sql` und `20261020100000_unify_sale_commercial_register_type.sql` – soweit sie noch nicht in der Ziel-Datenbank angewendet wurden.
+2. Danach `20261021100000_add_owner_id_country_fallback_intakes.sql` in Supabase anwenden. Diese Migration wurde durch die Implementierung nicht ausgeführt.
+3. Erst anschließend den Next.js-Code deployen. Bis Migration und Deployment vorhanden sind, darf n8n den neuen Endpunkt nicht aufrufen.
+
+Die neue Migration legt nur Queue-/Audit-Tabellen und serverseitige RPCs an. Sie verändert keine Verkaufs-, Rechnungs-, Kunden-, Fahrzeug-, Zahlungs- oder Nummerndaten und erstellt keine Storage-Buckets oder öffentlichen Policies.
