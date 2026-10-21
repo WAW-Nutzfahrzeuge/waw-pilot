@@ -23,6 +23,10 @@ import {
 } from "@/lib/purchases/purchase-helpers";
 import { formatCurrency } from "@/lib/format/currency";
 import { formatDate } from "@/lib/format/date";
+import {
+    getPurchaseMonthOptions,
+    getPurchaseVatForMonth,
+} from "@/lib/purchases/purchase-month-summary";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { CompactStatCard } from "@/components/cards/compact-stat-card";
@@ -56,6 +60,15 @@ export function PurchasesOverview({
     const [query, setQuery] = useState("");
     const [filter, setFilter] = useState<PurchaseFilter>("all");
     const [sortDirection, setSortDirection] = useState<SortDirection>("ascending");
+    const [selectedMonth, setSelectedMonth] = useState("all");
+    const purchaseMonths = useMemo(
+        () => getPurchaseMonthOptions(purchases),
+        [purchases],
+    );
+    const purchaseVatForSelectedMonth = useMemo(
+        () => getPurchaseVatForMonth(purchases, selectedMonth),
+        [purchases, selectedMonth],
+    );
     const purchaseOverviewData = useMemo(() => {
         const index = new Map<string, string>();
         const summary = {
@@ -113,6 +126,11 @@ export function PurchasesOverview({
 
         return purchases
             .filter((purchase) => {
+                const matchesMonth =
+                    selectedMonth === "all" ||
+                    purchase.purchase_date.slice(0, 7) === selectedMonth;
+                if (!matchesMonth) return false;
+
                 const matchesFilter =
                     filter === "all" ||
                     (filter === "open" && purchase.payment_status !== "paid") ||
@@ -134,7 +152,7 @@ export function PurchasesOverview({
                     sortDirection,
                 ),
             );
-    }, [filter, purchases, purchaseSearchIndex, query, sortDirection]);
+    }, [filter, purchases, purchaseSearchIndex, query, selectedMonth, sortDirection]);
 
     return (
         <div className="space-y-6">
@@ -155,7 +173,7 @@ export function PurchasesOverview({
                 }
             />
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <PurchaseStatCard
                     label="Fahrzeugankäufe"
                     value={purchases.length}
@@ -182,6 +200,16 @@ export function PurchasesOverview({
                     icon={FileWarning}
                     danger={purchaseSummary.incompleteDocuments > 0}
                 />
+                <PurchaseStatCard
+                    label="Umsatzsteuer (Einkauf)"
+                    value={formatCurrency(purchaseVatForSelectedMonth)}
+                    description={
+                        selectedMonth === "all"
+                            ? "Erfasste Steuerbeträge · alle Ankaufsmonate"
+                            : `Erfasste Steuerbeträge · ${formatPurchaseMonthLabel(selectedMonth)}`
+                    }
+                    icon={Wallet}
+                />
             </section>
 
             <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
@@ -197,7 +225,7 @@ export function PurchasesOverview({
                                 </p>
                             </div>
 
-                            <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-xl">
+                            <div className="flex w-full flex-col gap-3 sm:flex-row xl:max-w-4xl">
                                 <div className="relative min-w-0 flex-1">
                                     <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                                     <Input
@@ -220,6 +248,25 @@ export function PurchasesOverview({
                                     <SelectContent>
                                         <SelectItem value="ascending">Aufsteigend</SelectItem>
                                         <SelectItem value="descending">Absteigend</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <Select
+                                    value={selectedMonth}
+                                    onValueChange={(value) => setSelectedMonth(value)}
+                                >
+                                    <SelectTrigger
+                                        aria-label="Fahrzeugankäufe nach Monat filtern"
+                                        className="h-11 w-full rounded-2xl border-slate-200 bg-slate-50 font-bold sm:w-52"
+                                    >
+                                        <SelectValue placeholder="Monat auswählen" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Alle Monate</SelectItem>
+                                        {purchaseMonths.map((month) => (
+                                            <SelectItem key={month} value={month}>
+                                                {formatPurchaseMonthLabel(month)}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -498,6 +545,17 @@ function PurchaseFilterButton({
             </span>
         </button>
     );
+}
+
+function formatPurchaseMonthLabel(month: string): string {
+    const [year, monthNumber] = month.split("-").map(Number);
+    if (!year || !monthNumber) return month;
+
+    return new Intl.DateTimeFormat("de-DE", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function PurchaseStatCard({
