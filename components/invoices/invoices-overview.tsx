@@ -60,7 +60,7 @@ type InvoicesOverviewProps = {
     highlightedInvoiceId?: string;
 };
 
-type InvoiceFilter = "all" | "standard" | "proforma" | "past_proforma";
+type InvoiceFilter = "standard" | "proforma" | "past_proforma";
 
 function getInvoiceSaleHref(saleId: string, hash = ""): string {
     return `/dashboard/sales/${saleId}?returnTo=${encodeURIComponent("/dashboard/invoices")}${hash}`;
@@ -211,7 +211,7 @@ export function InvoicesOverview({
 }: InvoicesOverviewProps) {
     const router = useRouter();
     const [query, setQuery] = useState("");
-    const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("all");
+    const [invoiceFilter, setInvoiceFilter] = useState<InvoiceFilter>("standard");
     const [sortDirection, setSortDirection] = useState<SortDirection>("descending");
     const [selectedDatevInvoiceIds, setSelectedDatevInvoiceIds] = useState<
         Set<string>
@@ -298,7 +298,6 @@ export function InvoicesOverview({
         return invoices
             .filter((invoice) => {
                 const matchesFilter =
-                    invoiceFilter === "all" ||
                     (invoiceFilter === "standard" &&
                         invoice.invoice_type === "standard") ||
                     (invoiceFilter === "proforma" &&
@@ -573,13 +572,7 @@ export function InvoicesOverview({
                         </div>
 
                         <div className="mt-5 overflow-x-auto">
-                            <div className="inline-grid min-w-max grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
-                                <InvoiceFilterButton
-                                    active={invoiceFilter === "all"}
-                                    onClick={() => setInvoiceFilter("all")}
-                                    label="Alle"
-                                    count={invoices.length}
-                                />
+                            <div className="inline-grid min-w-max grid-cols-3 gap-1 rounded-2xl bg-slate-100 p-1">
                                 <InvoiceFilterButton
                                     active={invoiceFilter === "standard"}
                                     onClick={() => setInvoiceFilter("standard")}
