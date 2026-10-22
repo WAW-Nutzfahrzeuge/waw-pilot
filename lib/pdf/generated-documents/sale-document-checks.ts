@@ -23,7 +23,10 @@ import {
     DocumentDatePolicy,
     type DocumentDateSuggestion,
 } from "@/src/modules/documents/domain/policies/document-date-policy";
-import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import {
+    canGenerateEndUseDeclaration,
+    isEndUseDeclarationOptional,
+} from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 export type SaleGeneratedDocumentCheck = {
     type: GeneratedDocumentType;
@@ -31,6 +34,7 @@ export type SaleGeneratedDocumentCheck = {
     label: string;
     description: string;
     requiresSignature: boolean;
+    isOptional: boolean;
     generationMode: "automatic" | "external" | "planned" | "not_relevant";
     externalActionLabel: string | null;
     externalActionHref: string | null;
@@ -138,7 +142,7 @@ function getGenerationMode(params: {
     if (
         params.definition.type === "end_use_declaration" &&
         (params.saleType !== "export_third_country" ||
-            !requiresEndUseDeclaration(params.destinationCountry))
+            !canGenerateEndUseDeclaration(params.destinationCountry))
     ) {
         return "not_relevant";
     }
@@ -384,6 +388,10 @@ export async function getSaleGeneratedDocumentChecks(
             saleType,
             destinationCountry: documentData.export?.destinationCountry,
         });
+        const isOptional =
+            generationMode === "automatic" &&
+            definition.type === "end_use_declaration" &&
+            isEndUseDeclarationOptional(documentData.export?.destinationCountry);
         const externalAction = getExternalAction();
         const dateSuggestion =
             isSupportedSaleGeneratedDocumentType(definition.type)
@@ -424,6 +432,7 @@ export async function getSaleGeneratedDocumentChecks(
             label: definition.label,
             description: definition.description,
             requiresSignature: definition.requiresSignature,
+            isOptional,
             generationMode,
             externalActionLabel: externalAction.externalActionLabel,
             externalActionHref: externalAction.externalActionHref,

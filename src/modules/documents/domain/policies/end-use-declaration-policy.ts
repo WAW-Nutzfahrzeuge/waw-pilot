@@ -3,9 +3,16 @@ const supportedCountries: Record<string, string> = {
     RUSSIA: "Russland",
     RUSSIANFEDERATION: "Russland",
     RUSSISCHEFODERATION: "Russland",
+    BY: "Belarus",
+    BELARUS: "Belarus",
+    BELARUSREPUBLIC: "Belarus",
+    GE: "Georgien",
+    GEORGIA: "Georgien",
+    GEORGIEN: "Georgien",
     KZ: "Kasachstan",
     KAZAKHSTAN: "Kasachstan",
     KIRGISISTAN: "Kirgisistan",
+    KIRGISTAN: "Kirgisistan",
     KYRGYZSTAN: "Kirgisistan",
     KYRGYZREPUBLIC: "Kirgisistan",
     KG: "Kirgisistan",
@@ -13,11 +20,16 @@ const supportedCountries: Record<string, string> = {
     TADSCHIKISTAN: "Tadschikistan",
     TAJIKISTAN: "Tadschikistan",
     TJ: "Tadschikistan",
-    SYRIEN: "Syrien",
+    UZ: "Usbekistan",
+    UZBEKISTAN: "Usbekistan",
+    USBEKISTAN: "Usbekistan",
+    SY: "Syrien",
     SYRIA: "Syrien",
     SYRIANARABREPUBLIC: "Syrien",
-    SY: "Syrien",
+    SYRIEN: "Syrien",
 };
+
+const optionalCountries = new Set(["Syrien"]);
 
 function normalizeCountry(value: string): string {
     return value
@@ -39,5 +51,19 @@ export function getEndUseDeclarationDestinationCountry(
 export function requiresEndUseDeclaration(
     country: string | null | undefined,
 ): boolean {
+    const destinationCountry = getEndUseDeclarationDestinationCountry(country);
+    return destinationCountry !== null && !optionalCountries.has(destinationCountry);
+}
+
+export function canGenerateEndUseDeclaration(
+    country: string | null | undefined,
+): boolean {
     return getEndUseDeclarationDestinationCountry(country) !== null;
+}
+
+export function isEndUseDeclarationOptional(
+    country: string | null | undefined,
+): boolean {
+    const destinationCountry = getEndUseDeclarationDestinationCountry(country);
+    return destinationCountry !== null && optionalCountries.has(destinationCountry);
 }

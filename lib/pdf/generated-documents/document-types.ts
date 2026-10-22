@@ -92,7 +92,7 @@ export const generatedDocumentDefinitions: GeneratedDocumentDefinition[] = [
         context: "sale",
         requiresSignature: true,
         description:
-            "Erklärung zum Endverbleib für Verkäufe nach Russland, Kasachstan, Kirgisistan, Tadschikistan oder Syrien.",
+            "Erklärung zum Endverbleib für Verkäufe nach Kirgistan, Tadschikistan, Georgien, Kasachstan, Usbekistan, Russland oder Belarus. Für Syrien optional.",
     },
     {
         type: "license_plate_consent",

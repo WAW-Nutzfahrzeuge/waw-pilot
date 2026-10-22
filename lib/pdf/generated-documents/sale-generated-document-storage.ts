@@ -20,7 +20,7 @@ import {
     type DocumentDateSuggestion,
 } from "@/src/modules/documents/domain/policies/document-date-policy";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
-import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import { canGenerateEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 
 export type GenerateSaleDocumentResult = {
     documentId: string;
@@ -89,10 +89,10 @@ async function generatePdfBytesForSaleDocument(
 
     if (
         documentType === "end_use_declaration" &&
-        !requiresEndUseDeclaration(documentData.export?.destinationCountry)
+        !canGenerateEndUseDeclaration(documentData.export?.destinationCountry)
     ) {
         throw new Error(
-            "Eine Endverbleibserklärung ist nur für Russland, Kasachstan, Kirgisistan, Tadschikistan und Syrien vorgesehen.",
+            "Eine Endverbleibserklärung kann nur für Kirgistan, Tadschikistan, Georgien, Kasachstan, Usbekistan, Russland, Belarus oder Syrien erzeugt werden.",
         );
     }
 

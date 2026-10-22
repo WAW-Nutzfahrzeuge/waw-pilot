@@ -39,7 +39,7 @@ export function SaleGeneratedDocumentsCard({
                                                canReviewAutomationReturns = false,
                                            }: SaleGeneratedDocumentsCardProps) {
     const missingDataCount = documents.filter(
-        (document) => document.status === "missing_data",
+        (document) => document.status === "missing_data" && !document.isOptional,
     ).length;
 
     const signedCount = documents.filter(
@@ -136,9 +136,9 @@ function GeneratedDocumentRow({
     const showMissingFields = document.status === "missing_data";
     const showSignatureStatus =
         document.requiresSignature &&
-        (isAutomaticDocument ||
-            Boolean(document.generatedDocument) ||
-            Boolean(document.signedDocument));
+        (Boolean(document.generatedDocument) ||
+            Boolean(document.signedDocument) ||
+            (isAutomaticDocument && !document.isOptional));
 
     return (
         <div id={`document-${document.documentType}`} className="scroll-mt-28 bg-white p-5">
@@ -152,9 +152,21 @@ function GeneratedDocumentRow({
                             description={document.description}
                             status={
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    <StatusBadge tone={document.statusTone}>
-                                        {document.statusLabel}
+                                    <StatusBadge
+                                        tone={
+                                            document.isOptional && document.status === "missing_data"
+                                                ? "neutral"
+                                                : document.statusTone
+                                        }
+                                    >
+                                        {document.isOptional && document.status === "missing_data"
+                                            ? "Optional · Angaben fehlen"
+                                            : document.statusLabel}
                                     </StatusBadge>
+
+                                    {document.isOptional && document.status !== "missing_data" ? (
+                                        <StatusBadge tone="neutral">Optional</StatusBadge>
+                                    ) : null}
 
                                     {showSignatureStatus && document.status !== "signed_received" ? (
                                         <StatusBadge tone="warning">
@@ -162,7 +174,7 @@ function GeneratedDocumentRow({
                                                 ? "Rücklauf prüfen"
                                                 : "Unterschrift nötig"}
                                         </StatusBadge>
-                                    ) : !showSignatureStatus ? (
+                                    ) : !showSignatureStatus && !document.isOptional ? (
                                         <StatusBadge tone="neutral">
                                             {document.requiresSignature
                                                 ? "Kein Rücklauf hier"
@@ -200,7 +212,9 @@ function GeneratedDocumentRow({
                                 <AlertTriangle className="mt-0.5 size-4 shrink-0 text-red-600" />
                                 <div className="min-w-0 flex-1">
                                     <p className="text-sm font-extrabold text-red-800">
-                                        Dieses Dokument kann noch nicht erzeugt werden.
+                                        {document.isOptional
+                                            ? "Für die optionale Erstellung fehlen noch Daten."
+                                            : "Dieses Dokument kann noch nicht erzeugt werden."}
                                     </p>
 
                                     <ul className="mt-2 space-y-1">

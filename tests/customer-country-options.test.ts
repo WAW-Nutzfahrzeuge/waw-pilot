@@ -28,7 +28,9 @@ test("offers Germany and all end-use-declaration target countries", () => {
         "Kasachstan",
         "Kirgisistan",
         "Tadschikistan",
-        "Syrien",
+        "Georgien",
+        "Usbekistan",
+        "Belarus",
     ]) {
         assert.ok(values.has(country));
     }
