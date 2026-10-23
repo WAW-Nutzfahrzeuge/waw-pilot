@@ -13,6 +13,7 @@ import {
     type CompanySignatureStampAssets,
 } from "@/lib/pdf/company-signature-assets";
 import { drawSaleIdentifierOnEveryPage } from "@/lib/pdf/core/sale-identifier-footer";
+import { getSaleDocumentReference } from "@/lib/pdf/generated-documents/sale-document-reference";
 
 function requireValue(value: string | number | null | undefined): string {
     if (value === null || value === undefined) return "—";
@@ -64,10 +65,6 @@ function getConstructionYearLabel(data: SaleGeneratedDocumentData): string {
     return data.vehicle.constructionYear
         ? String(data.vehicle.constructionYear)
         : "—";
-}
-
-function getSaleReference(data: SaleGeneratedDocumentData): string {
-    return requireValue(data.sale?.saleNumber ?? data.sale?.invoiceNumber);
 }
 
 function getDocumentDate(data: SaleGeneratedDocumentData): string {
@@ -181,7 +178,7 @@ export async function generateHandoverProtocolPdf(
 
     drawText(
         ctx,
-        `Übergabeprotokoll zur Verkaufsnummer: ${getSaleReference(data)}`,
+        `Übergabeprotokoll zur Rechnungsnummer: ${requireValue(getSaleDocumentReference(data))}`,
         ctx.margin,
         y,
         {

@@ -21,6 +21,7 @@ import {
 } from "@/src/modules/documents/domain/policies/document-date-policy";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 import { canGenerateEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
+import { getSaleDocumentReference } from "@/lib/pdf/generated-documents/sale-document-reference";
 
 export type GenerateSaleDocumentResult = {
     documentId: string;
@@ -193,7 +194,7 @@ export async function generateAndStoreSaleGeneratedDocument(params: {
     );
 
     const fileNamePolicy = new ExportFileNamePolicy();
-    const saleReference = documentData.sale?.saleNumber ?? documentData.sale?.invoiceNumber ?? params.saleId;
+    const saleReference = getSaleDocumentReference(documentData) ?? params.saleId;
     const fileName = fileNamePolicy.createDocumentFileName({
         saleReference,
         documentType: params.documentType,

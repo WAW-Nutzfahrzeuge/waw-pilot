@@ -934,7 +934,9 @@ export async function SaleDetail({
                     {generatedDocuments.length > 0 ? (
                         <SaleGeneratedDocumentsCard
                             saleId={sale.id}
-                            saleNumber={sale.sale_number}
+                            documentReference={
+                                sale.invoice?.invoice_number ?? sale.sale_number
+                            }
                             documents={generatedDocuments}
                             generatedDocumentType={generatedDocumentType}
                             canReviewAutomationReturns={canAdminDelete}

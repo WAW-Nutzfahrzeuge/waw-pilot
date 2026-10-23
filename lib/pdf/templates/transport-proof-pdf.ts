@@ -8,6 +8,7 @@ import { createPdfLayout } from "@/lib/pdf/core/pdf-layout";
 import { formatPdfDate } from "@/lib/pdf/core/pdf-format";
 import { drawCompanyDocumentHeader } from "@/lib/pdf/core/company-document-header";
 import { drawSaleIdentifierOnEveryPage } from "@/lib/pdf/core/sale-identifier-footer";
+import { getSaleDocumentReference } from "@/lib/pdf/generated-documents/sale-document-reference";
 import type { SaleGeneratedDocumentData } from "@/lib/pdf/generated-documents/sale-document-data";
 
 function requireValue(value: string | number | null | undefined): string {
@@ -337,6 +338,19 @@ export async function generateTransportProofPdf(
     );
 
     y -= 54;
+
+    page.drawText(
+        `Rechnungsnummer: ${requireValue(getSaleDocumentReference(data))}`,
+        {
+            x: contentX,
+            y,
+            size: 8,
+            font: timesBold,
+            color: rgb(0, 0, 0),
+        },
+    );
+
+    y -= 16;
 
     y = drawValueLine(page, {
         label: "Das Fahrzeug Typ:",

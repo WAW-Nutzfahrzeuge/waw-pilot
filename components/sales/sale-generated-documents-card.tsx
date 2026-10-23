@@ -25,7 +25,7 @@ import { AutomationReturnReviewForm } from "@/components/sales/automation-return
 
 type SaleGeneratedDocumentsCardProps = {
     saleId: string;
-    saleNumber: string | null;
+    documentReference: string | null;
     documents: SaleGeneratedDocumentCheck[];
     generatedDocumentType?: string | null;
     canReviewAutomationReturns?: boolean;
@@ -33,7 +33,7 @@ type SaleGeneratedDocumentsCardProps = {
 
 export function SaleGeneratedDocumentsCard({
                                                saleId,
-                                               saleNumber,
+                                               documentReference,
                                                documents,
                                                generatedDocumentType = null,
                                                canReviewAutomationReturns = false,
@@ -106,7 +106,7 @@ export function SaleGeneratedDocumentsCard({
                         <GeneratedDocumentRow
                             key={document.type}
                             saleId={saleId}
-                            saleNumber={saleNumber}
+                            documentReference={documentReference}
                             document={document}
                             wasJustGenerated={generatedDocumentType === document.type}
                             canReviewAutomationReturns={canReviewAutomationReturns}
@@ -120,13 +120,13 @@ export function SaleGeneratedDocumentsCard({
 
 function GeneratedDocumentRow({
                                   saleId,
-                                  saleNumber,
+                                  documentReference,
                                   document,
                                   wasJustGenerated,
                                   canReviewAutomationReturns,
                               }: {
     saleId: string;
-    saleNumber: string | null;
+    documentReference: string | null;
     document: SaleGeneratedDocumentCheck;
     wasJustGenerated: boolean;
     canReviewAutomationReturns: boolean;
@@ -281,7 +281,7 @@ function GeneratedDocumentRow({
                             displayFileName={
                                 document.generatedDocument
                                     ? new ExportFileNamePolicy().createDocumentFileName({
-                                          saleReference: saleNumber ?? saleId,
+                                          saleReference: documentReference ?? saleId,
                                           documentType: document.documentType,
                                           mimeType: "application/pdf",
                                       })
