@@ -3,6 +3,7 @@ import { Wallet } from "lucide-react";
 import {
     AddPaymentDialog,
     EditPaymentDialog,
+    RetrySalePaymentFinalizationForm,
     VoidPaymentDialog,
 } from "@/components/sales/sale-payment-dialogs";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -18,6 +19,7 @@ import type { PaymentStatus } from "@/lib/sales/sale-queries";
 
 type SalePaymentsCardProps = {
     saleId: string;
+    paymentRequestKey: string;
     totalAmount: number;
     paidAmount: number;
     remainingAmount: number;
@@ -27,6 +29,7 @@ type SalePaymentsCardProps = {
 
 export function SalePaymentsCard({
     saleId,
+    paymentRequestKey,
     totalAmount,
     paidAmount,
     remainingAmount,
@@ -52,6 +55,7 @@ export function SalePaymentsCard({
                 </div>
                 <AddPaymentDialog
                     saleId={saleId}
+                    paymentRequestKey={paymentRequestKey}
                     remainingAmount={remainingAmount}
                 />
             </div>
@@ -145,6 +149,17 @@ function PaymentRow({
                     <p className="mt-1 text-sm font-semibold text-slate-500">
                         {formatDate(payment.payment_date)} · {getPaymentMethodLabel(payment.payment_method)}
                     </p>
+                    {payment.finalization_status !== "completed" ? (
+                        <div className="mt-2">
+                            <StatusBadge
+                                tone={payment.finalization_status === "failed" ? "error" : "warning"}
+                            >
+                                {payment.finalization_status === "failed"
+                                    ? "Buchungsabgleich fehlgeschlagen – erneuter Speicherversuch möglich"
+                                    : "Buchungsabgleich wird abgeschlossen"}
+                            </StatusBadge>
+                        </div>
+                    ) : null}
                     {payment.note ? (
                         <p className="mt-1 text-sm font-medium text-slate-600">
                             {payment.note}
@@ -152,6 +167,7 @@ function PaymentRow({
                     ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
+                    <RetrySalePaymentFinalizationForm saleId={saleId} payment={payment} />
                     <EditPaymentDialog saleId={saleId} payment={payment} />
                     <VoidPaymentDialog saleId={saleId} payment={payment} />
                 </div>

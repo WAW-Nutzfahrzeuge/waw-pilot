@@ -4,10 +4,12 @@ import { Edit3, Plus, Undo2 } from "lucide-react";
 
 import {
     createSalePaymentAction,
+    retrySalePaymentFinalizationAction,
     updateSalePaymentAction,
     voidSalePaymentAction,
 } from "@/app/dashboard/sales/[saleId]/payment-actions";
 import { FormField } from "@/components/forms/form-field";
+import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -28,11 +30,13 @@ import type { SaleDetailPayment } from "@/lib/sales/sale-detail-queries";
 
 type AddPaymentDialogProps = {
     saleId: string;
+    paymentRequestKey: string;
     remainingAmount: number;
 };
 
 export function AddPaymentDialog({
     saleId,
+    paymentRequestKey,
     remainingAmount,
 }: AddPaymentDialogProps) {
     return (
@@ -45,6 +49,11 @@ export function AddPaymentDialog({
             </DialogTrigger>
             <DialogContent className="max-w-2xl rounded-3xl bg-white">
                 <form action={createSalePaymentAction} className="space-y-5">
+                    <input
+                        type="hidden"
+                        name="idempotency_key"
+                        value={paymentRequestKey}
+                    />
                     <DialogHeader>
                         <DialogTitle className="text-xl font-extrabold text-slate-950">
                             Zahlung hinzufügen
@@ -72,9 +81,12 @@ export function AddPaymentDialog({
                                 Abbrechen
                             </Button>
                         </DialogClose>
-                        <Button type="submit" className="bg-cyan-700 font-bold text-white hover:bg-cyan-800">
-                            Zahlung speichern
-                        </Button>
+                        <PendingSubmitButton
+                            label="Zahlung speichern"
+                            pendingLabel="Zahlung wird gespeichert …"
+                            iconName="wallet"
+                            className="bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                        />
                     </DialogFooter>
                 </form>
             </DialogContent>
@@ -173,6 +185,29 @@ export function VoidPaymentDialog({
                 </form>
             </DialogContent>
         </Dialog>
+    );
+}
+
+export function RetrySalePaymentFinalizationForm({
+    saleId,
+    payment,
+}: {
+    saleId: string;
+    payment: SaleDetailPayment;
+}) {
+    if (payment.finalization_status === "completed") return null;
+
+    return (
+        <form action={retrySalePaymentFinalizationAction}>
+            <input type="hidden" name="sale_id" value={saleId} />
+            <input type="hidden" name="payment_id" value={payment.id} />
+            <PendingSubmitButton
+                label="Abgleich wiederholen"
+                pendingLabel="Abgleich läuft …"
+                variant="outline"
+                className="rounded-xl bg-white font-bold"
+            />
+        </form>
     );
 }
 

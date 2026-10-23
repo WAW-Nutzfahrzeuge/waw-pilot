@@ -10,6 +10,7 @@ import {
     Loader2,
     Mail,
     Trash2,
+    WalletCards,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ type PendingSubmitButtonIconName =
     | "file-plus"
     | "file-text"
     | "mail"
+    | "wallet"
     | "trash";
 
 const pendingSubmitButtonIcons: Record<PendingSubmitButtonIconName, LucideIcon> = {
@@ -26,6 +28,7 @@ const pendingSubmitButtonIcons: Record<PendingSubmitButtonIconName, LucideIcon> 
     "file-plus": FilePlus2,
     "file-text": FileText,
     mail: Mail,
+    wallet: WalletCards,
     trash: Trash2,
 };
 

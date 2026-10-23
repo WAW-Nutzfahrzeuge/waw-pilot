@@ -101,6 +101,7 @@ type SalePaymentRelation = {
     voided_at: string | null;
     voided_by: string | null;
     void_reason: string | null;
+    finalization_status: "pending" | "processing" | "failed" | "completed";
 };
 
 type SaleRefundRelation = {
@@ -314,6 +315,7 @@ export type SaleDetailPayment = {
     voided_at: string | null;
     voided_by: string | null;
     void_reason: string | null;
+    finalization_status: "pending" | "processing" | "failed" | "completed";
 };
 
 export type RequiredDocumentStatus = RequiredDocumentDefinition & {
@@ -769,7 +771,8 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         is_voided,
         voided_at,
         voided_by,
-        void_reason
+        void_reason,
+        finalization_status
       ),
       sale_refunds (
         id,
@@ -788,7 +791,8 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         is_voided,
         voided_at,
         voided_by,
-        void_reason
+        void_reason,
+        finalization_status
       )
     `,
         )
@@ -1051,6 +1055,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             voided_at: payment.voided_at,
             voided_by: payment.voided_by,
             void_reason: payment.void_reason,
+            finalization_status: payment.finalization_status,
         }))
         .sort((a, b) => {
             const dateSort = b.payment_date.localeCompare(a.payment_date);

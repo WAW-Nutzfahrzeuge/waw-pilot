@@ -109,6 +109,7 @@ type SaleDetailProps = {
     exportArrivalError?: boolean;
     paymentSaved?: string | null;
     paymentError?: string | null;
+    paymentRequestKey: string;
     invoiceNotesSaved?: boolean;
     cancellationCreated?: string | null;
     refundCreated?: string | null;
@@ -177,6 +178,7 @@ export async function SaleDetail({
                                exportArrivalError = false,
                                paymentSaved = null,
                                paymentError = null,
+                               paymentRequestKey,
                                invoiceNotesSaved = false,
                                cancellationCreated = null,
                                refundCreated = null,
@@ -893,6 +895,7 @@ export async function SaleDetail({
                                 <div className="mt-6 border-t-2 border-slate-900/30 pt-6">
                                     <SalePaymentsCard
                                         saleId={sale.id}
+                                        paymentRequestKey={paymentRequestKey}
                                         totalAmount={sale.gross_amount}
                                         paidAmount={sale.paid_amount}
                                         remainingAmount={sale.remaining_amount}
@@ -1801,6 +1804,7 @@ function getZugferdErrorMessage(errorCode: string): string {
 function getPaymentSavedMessage(value: string): string {
     const messages: Record<string, string> = {
         created: "Zahlung wurde erfasst.",
+        processing: "Zahlung wurde gespeichert; der Buchungsabgleich wird noch abgeschlossen.",
         updated: "Zahlung wurde geändert.",
         voided: "Zahlung wurde storniert.",
     };
@@ -1816,6 +1820,12 @@ function getPaymentErrorMessage(value: string): string {
             "Diese Zahlung überschreitet den Restbetrag. Bitte bestätige die Überzahlung bewusst im Dialog.",
         createFailed:
             "Zahlung konnte nicht angelegt werden. Bitte versuche es erneut.",
+        finalizationFailed:
+            "Die Zahlung wurde gespeichert, aber der Buchungsabgleich ist noch nicht abgeschlossen. Nutze bei der Zahlung den Button „Abgleich wiederholen“; es wird dabei keine zweite Zahlung angelegt.",
+        invalidRequestKey:
+            "Die Zahlungsanfrage ist abgelaufen. Bitte öffne den Dialog erneut.",
+        requestKeyConflict:
+            "Diese Zahlungsanfrage wurde bereits gespeichert. Es wurde keine zweite Zahlung angelegt. Bitte prüfe zuerst die Zahlung in der Liste.",
         updateFailed:
             "Zahlung konnte nicht geändert werden. Bitte versuche es erneut.",
         voidFailed:

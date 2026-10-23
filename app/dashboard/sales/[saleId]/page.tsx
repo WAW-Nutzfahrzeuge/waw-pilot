@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { SaleDetail } from "@/components/sales/sale-detail";
 import { getSaleGeneratedDocumentChecks } from "@/lib/pdf/generated-documents/sale-document-checks";
 import { getSaleDetail } from "@/lib/sales/sale-detail-queries";
@@ -5,6 +7,7 @@ import { getSaleExportDetails } from "@/lib/sales/sale-export-details-queries";
 import { isZugferdServiceConfigured } from "@/lib/zugferd/zugferd-service-client";
 import { getCurrentCompanyId } from "@/lib/company";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
+import { isValidPaymentIdempotencyKey } from "@/lib/payments/sale-payment-idempotency";
 import { createEmailRepository } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 
 type SaleDetailPageProps = {
@@ -36,6 +39,7 @@ type SaleDetailPageProps = {
         exportArrivalError?: string;
         paymentSaved?: string;
         paymentError?: string;
+        paymentRequestKey?: string;
         invoiceNotesSaved?: string;
         cancellationCreated?: string;
         refundCreated?: string;
@@ -106,6 +110,11 @@ export default async function SaleDetailPage({
             exportArrivalError={resolvedSearchParams.exportArrivalError === "1"}
             paymentSaved={resolvedSearchParams.paymentSaved ?? null}
             paymentError={resolvedSearchParams.paymentError ?? null}
+            paymentRequestKey={
+                isValidPaymentIdempotencyKey(resolvedSearchParams.paymentRequestKey ?? null)
+                    ? resolvedSearchParams.paymentRequestKey!
+                    : randomUUID()
+            }
             invoiceNotesSaved={resolvedSearchParams.invoiceNotesSaved === "1"}
             cancellationCreated={resolvedSearchParams.cancellationCreated ?? null}
             refundCreated={resolvedSearchParams.refundCreated ?? null}
