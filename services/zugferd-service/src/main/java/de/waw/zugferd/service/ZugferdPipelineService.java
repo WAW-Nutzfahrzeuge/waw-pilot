@@ -95,10 +95,25 @@ public class ZugferdPipelineService {
             Files.write(inputPdf, visiblePdf);
             convertToPdfA3b(inputPdf, pdfaPdf, workDir);
 
+            List<ValidationIssue> issues = new ArrayList<>();
+            if (!isBlank(request.invoice().buyer().vatId()) &&
+                    !isValidVatIdForCountry(
+                            request.invoice().buyer().vatId(),
+                            request.invoice().buyer().countryCode()
+                    )) {
+                issues.add(new ValidationIssue(
+                        "EN16931",
+                        "warning",
+                        "BUYER_VAT_ID_OMITTED",
+                        "Die ungültig formatierte optionale USt-IdNr. des Käufers wurde nicht in die E-Rechnung übernommen.",
+                        null,
+                        false
+                ));
+            }
+
             byte[] xmlBytes = generateXml(request.invoice());
             Files.write(xml, xmlBytes);
 
-            List<ValidationIssue> issues = new ArrayList<>();
             // The final embedded ZUGFeRD PDF is validated below. Validating
             // this intermediate PDF/A file as well doubles the expensive
             // veraPDF work without increasing the validity guarantee of the
@@ -194,18 +209,6 @@ public class ZugferdPipelineService {
                     "error",
                     "BR-CO-09",
                     "Die USt-IdNr. des Verkäufers ist ungültig. Erwartetes Format: DE123456789.",
-                    null,
-                    true
-            ));
-        }
-
-        if (!isBlank(invoice.buyer().vatId()) &&
-                !isValidVatIdForCountry(invoice.buyer().vatId(), invoice.buyer().countryCode())) {
-            issues.add(new ValidationIssue(
-                    "EN16931",
-                    "error",
-                    "BR-CO-09",
-                    "Die USt-IdNr. des Käufers ist ungültig. Bitte hinterlege sie mit ISO-Ländercode, z. B. DE123456789.",
                     null,
                     true
             ));
@@ -307,7 +310,9 @@ public class ZugferdPipelineService {
                 party.countryCode()
         );
 
-        if (party.vatId() != null && !party.vatId().isBlank()) {
+        if (party.vatId() != null &&
+                !party.vatId().isBlank() &&
+                (seller || isValidVatIdForCountry(party.vatId(), party.countryCode()))) {
             tradeParty.addVATID(party.vatId());
         }
 

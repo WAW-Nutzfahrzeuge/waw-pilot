@@ -277,11 +277,6 @@ export function buildCanonicalInvoiceData(
     if (!isPresent(data.customer.country)) missingFields.push("Kunden-Land fehlt");
     if (!buyerCountryCode) missingFields.push("Kunden-Land muss als ISO-Ländercode abbildbar sein");
     const buyerVatId = normalizeVatId(data.customer.vatId, buyerCountryCode);
-    if (buyerVatId && !isValidVatIdForCountry(buyerVatId, buyerCountryCode)) {
-        missingFields.push(
-            "Die USt-IdNr. des Käufers ist ungültig. Bitte hinterlege sie mit ISO-Ländercode, z. B. DE123456789.",
-        );
-    }
 
     if (!isPresent(data.invoiceNumber)) missingFields.push("Rechnungsnummer fehlt");
     if (!isPresent(data.invoiceDate)) missingFields.push("Rechnungsdatum fehlt");
