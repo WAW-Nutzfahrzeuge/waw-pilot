@@ -1752,6 +1752,10 @@ function getZugferdErrorTitle(errorCode: string): string {
         return "ZUGFeRD-Erzeugung läuft bereits.";
     }
 
+    if (errorCode === "claimFailed") {
+        return "ZUGFeRD-Erzeugung konnte nicht gestartet werden.";
+    }
+
     if (errorCode === "missingData") {
         return "ZUGFeRD konnte nicht erstellt werden.";
     }
@@ -1789,6 +1793,8 @@ function getZugferdErrorMessage(errorCode: string): string {
             "Der ZUGFeRD-Service konnte die Rechnung nicht verarbeiten. Bitte versuche es erneut.",
         generationInProgress:
             "Für diese Rechnung läuft bereits eine ZUGFeRD-Erzeugung. Bitte warte kurz und versuche es danach erneut.",
+        claimFailed:
+            "Es wurde kein aktiver Auftrag gefunden, aber die Rechnung konnte nicht zur Erzeugung reserviert werden. Bitte lade die Verkaufsakte neu. Falls der Fehler bleibt, kontaktiere den Support mit der Rechnungsnummer.",
         validationFailed: "ZUGFeRD konnte nicht validiert werden.",
         mailNotConfigured:
             "E-Mail-Versand ist noch nicht eingerichtet. Bitte RESEND_API_KEY und die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",

@@ -1543,6 +1543,75 @@ export async function createZugferdInvoiceAction(formData: FormData) {
     return queueZugferdInvoiceGeneration(formData);
 }
 
+type ZugferdGenerationClaimInput = {
+    supabase: ReturnType<typeof createServerSupabaseClient>;
+    invoiceId: string;
+    companyId: string;
+    generationStartedAt: string;
+    staleGenerationBefore: string;
+};
+
+async function claimZugferdGeneration({
+    supabase,
+    invoiceId,
+    companyId,
+    generationStartedAt,
+    staleGenerationBefore,
+}: ZugferdGenerationClaimInput) {
+    const updateClaim = () =>
+        supabase
+            .from("invoices")
+            .update({
+                zugferd_validation_status: "pending",
+                zugferd_generation_started_at: generationStartedAt,
+                zugferd_validation_summary: null,
+            })
+            .eq("id", invoiceId)
+            .eq("company_id", companyId);
+
+    // Keep each eligible case explicit. A single PostgREST OR-filter can
+    // return no row for NULL status values, which used to be misreported as
+    // an already-running job even though no generation lock existed.
+    const claimAttempts = [
+        updateClaim().is("zugferd_generation_started_at", null),
+        updateClaim().is("zugferd_validation_status", null),
+        updateClaim()
+            .neq("zugferd_validation_status", "pending")
+            .not("zugferd_generation_started_at", "is", null),
+        updateClaim()
+            .eq("zugferd_validation_status", "pending")
+            .lt("zugferd_generation_started_at", staleGenerationBefore),
+    ];
+
+    for (const attempt of claimAttempts) {
+        const { data, error } = await attempt.select("id").maybeSingle();
+        if (error || data) return { data, error };
+    }
+
+    return { data: null, error: null };
+}
+
+async function isZugferdGenerationCurrentlyLocked({
+    supabase,
+    invoiceId,
+    companyId,
+    staleGenerationBefore,
+}: Pick<ZugferdGenerationClaimInput, "supabase" | "invoiceId" | "companyId" | "staleGenerationBefore">) {
+    const { data, error } = await supabase
+        .from("invoices")
+        .select("zugferd_validation_status, zugferd_generation_started_at")
+        .eq("id", invoiceId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+    if (error || !data || data.zugferd_validation_status !== "pending") return false;
+    if (!data.zugferd_generation_started_at) return false;
+
+    const startedAt = Date.parse(data.zugferd_generation_started_at);
+    const staleBefore = Date.parse(staleGenerationBefore);
+    return Number.isFinite(startedAt) && Number.isFinite(staleBefore) && startedAt >= staleBefore;
+}
+
 async function queueZugferdInvoiceGeneration(formData: FormData) {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -1571,25 +1640,34 @@ async function queueZugferdInvoiceGeneration(formData: FormData) {
 
     const generationStartedAt = new Date().toISOString();
     const staleGenerationBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const { data: claimedInvoice, error: claimError } = await supabase
-        .from("invoices")
-        .update({
-            zugferd_validation_status: "pending",
-            zugferd_generation_started_at: generationStartedAt,
-            zugferd_validation_summary: null,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId)
-        .or(`zugferd_validation_status.neq.pending,zugferd_generation_started_at.is.null,zugferd_generation_started_at.lt.${staleGenerationBefore}`)
-        .select("id")
-        .maybeSingle();
+    const { data: claimedInvoice, error: claimError } = await claimZugferdGeneration({
+        supabase,
+        invoiceId,
+        companyId,
+        generationStartedAt,
+        staleGenerationBefore,
+    });
 
     if (claimError) {
         console.error("[zugferd] generation claim failed", claimError);
         redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
     }
     if (!claimedInvoice) {
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
+        const locked = await isZugferdGenerationCurrentlyLocked({
+            supabase,
+            invoiceId,
+            companyId,
+            staleGenerationBefore,
+        });
+        if (locked) {
+            redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
+        }
+
+        console.error("[zugferd] generation claim returned no row without an active lock", {
+            invoiceId,
+            companyId,
+        });
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "claimFailed"));
     }
 
     let queued = false;
@@ -1694,20 +1772,13 @@ async function createZugferdInvoiceSynchronously(formData: FormData) {
     const staleGenerationBefore = new Date(
         Date.now() - 15 * 60 * 1000,
     ).toISOString();
-    const { data: claimedInvoice, error: claimError } = await supabase
-        .from("invoices")
-        .update({
-            zugferd_validation_status: "pending",
-            zugferd_generation_started_at: generationStartedAt,
-            zugferd_validation_summary: null,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId)
-        .or(
-            `zugferd_validation_status.neq.pending,zugferd_generation_started_at.is.null,zugferd_generation_started_at.lt.${staleGenerationBefore}`,
-        )
-        .select("id")
-        .maybeSingle();
+    const { data: claimedInvoice, error: claimError } = await claimZugferdGeneration({
+        supabase,
+        invoiceId,
+        companyId,
+        generationStartedAt,
+        staleGenerationBefore,
+    });
 
     if (claimError) {
         console.error("[zugferd] generation claim failed", claimError);
@@ -1715,7 +1786,21 @@ async function createZugferdInvoiceSynchronously(formData: FormData) {
     }
 
     if (!claimedInvoice) {
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
+        const locked = await isZugferdGenerationCurrentlyLocked({
+            supabase,
+            invoiceId,
+            companyId,
+            staleGenerationBefore,
+        });
+        if (locked) {
+            redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
+        }
+
+        console.error("[zugferd] generation claim returned no row without an active lock", {
+            invoiceId,
+            companyId,
+        });
+        redirect(getZugferdErrorRedirect(saleId, invoiceId, "claimFailed"));
     }
 
     let uploadedZugferdPath: string | null = null;
