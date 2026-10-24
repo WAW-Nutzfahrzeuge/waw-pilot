@@ -142,12 +142,12 @@ export function SaleInvoiceTypeActions({
                         Unterschrift & Stempel einfügen
                     </span>
                     <span className="mt-1 block text-sm font-medium leading-6 text-slate-600">
-                        Fügt die hinterlegte digitale Unterschrift und den Firmenstempel
+                        Fügt die gemeinsame Datei mit Unterschrift und Firmenstempel
                         in die Rechnung ein.
                     </span>
                     {!hasSignatureStampAssets ? (
                         <span className="mt-1 block text-xs font-bold leading-5 text-amber-700">
-                            Bitte hinterlege zuerst Unterschrift und Firmenstempel in den Einstellungen.
+                            Bitte hinterlege zuerst die gemeinsame Unterschrift- und Stempeldatei in den Einstellungen.
                         </span>
                     ) : null}
                 </span>

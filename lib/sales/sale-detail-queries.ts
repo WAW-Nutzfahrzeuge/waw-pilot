@@ -209,7 +209,6 @@ type LegacySaleDetailQueryRow = Omit<
     SaleDetailQueryRow,
     | "invoice_notes"
     | "include_damage_notes_on_invoice"
-    | "companies"
     | "invoices"
     | "sale_refunds"
 > & {
@@ -628,7 +627,6 @@ function mapLegacySaleDetailRow(row: LegacySaleDetailQueryRow): SaleDetailQueryR
         ...row,
         invoice_notes: null,
         include_damage_notes_on_invoice: false,
-        companies: null,
         invoices: getManyRelation(row.invoices).map(mapLegacyInvoice),
         sale_refunds: [],
     };
@@ -821,6 +819,10 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
       datev_status,
       notes,
       created_at,
+      companies (
+        signature_image_path,
+        stamp_image_path
+      ),
       vehicles (
         internal_number,
         manufacturer,
