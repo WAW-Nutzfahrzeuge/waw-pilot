@@ -607,7 +607,7 @@ public class ZugferdPipelineService {
             String invoiceDate = firstText(xpath, document,
                     "//*[local-name()='ExchangedDocument']/*[local-name()='IssueDateTime']//*[local-name()='DateTimeString'][1]");
             String deliveryDate = firstText(xpath, document,
-                    "//*[local-name()='SpecifiedLineTradeDeliveryEvent']//*[local-name()='OccurrenceDateTime']//*[local-name()='DateTimeString'][1]");
+                    "//*[local-name()='ApplicableHeaderTradeDelivery']/*[local-name()='ActualDeliverySupplyChainEvent']/*[local-name()='OccurrenceDateTime']/*[local-name()='DateTimeString'][1]");
             String dueDate = firstText(xpath, document,
                     "//*[local-name()='SpecifiedTradePaymentTerms']//*[local-name()='DueDateDateTime']//*[local-name()='DateTimeString'][1]");
             String netTotal = firstText(xpath, document,
