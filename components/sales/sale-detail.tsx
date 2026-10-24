@@ -1663,16 +1663,32 @@ function InvoiceCard({
                         />
 
                         {hasValidatedZugferd ? (
-                            <Button
-                                asChild
-                                variant="outline"
-                                className="rounded-2xl bg-white font-bold"
-                            >
-                                <Link href={`/api/invoices/${invoice.id}/zugferd`}>
-                                    <Download className="mr-2 size-4" />
-                                    ZUGFeRD herunterladen
-                                </Link>
-                            </Button>
+                            <>
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    className="rounded-2xl bg-white font-bold"
+                                >
+                                    <Link
+                                        href={`/api/invoices/${invoice.id}/zugferd?view=inline`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                    >
+                                        <ExternalLink className="mr-2 size-4" />
+                                        ZUGFeRD öffnen
+                                    </Link>
+                                </Button>
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    className="rounded-2xl bg-white font-bold"
+                                >
+                                    <Link href={`/api/invoices/${invoice.id}/zugferd`}>
+                                        <Download className="mr-2 size-4" />
+                                        ZUGFeRD herunterladen
+                                    </Link>
+                                </Button>
+                            </>
                         ) : null}
                     </div>
 

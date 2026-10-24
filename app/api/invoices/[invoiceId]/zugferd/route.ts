@@ -18,7 +18,7 @@ type InvoiceZugferdQueryResult = {
     zugferd_validation_status: string | null;
 };
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
     const { invoiceId } = await context.params;
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
@@ -67,10 +67,14 @@ export async function GET(_request: Request, context: RouteContext) {
         );
     }
 
+    const disposition = new URL(request.url).searchParams.get("view") === "inline"
+        ? "inline"
+        : "attachment";
+
     return new NextResponse(Buffer.from(await fileData.arrayBuffer()), {
         headers: {
             "Content-Type": "application/pdf",
-            "Content-Disposition": `attachment; filename="${new ExportFileNamePolicy().createDocumentFileName({
+            "Content-Disposition": `${disposition}; filename="${new ExportFileNamePolicy().createDocumentFileName({
                 saleReference: invoice.invoice_number,
                 documentType: "zugferd_invoice",
                 mimeType: "application/pdf",
