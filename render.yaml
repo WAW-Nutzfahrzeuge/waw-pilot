@@ -11,6 +11,12 @@ services:
     envVars:
       - key: ZUGFERD_SERVICE_API_KEY
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ZUGFERD_QUEUE_POLL_MS
+        value: "1500"
       - key: MAX_UPLOAD_MB
         value: "20"
       - key: GHOSTSCRIPT_COMMAND

@@ -44,6 +44,12 @@ public class ZugferdController {
         return pipelineService.health();
     }
 
+    @PostMapping("/wake")
+    public ResponseEntity<Void> wakeDurableWorker() {
+        LOGGER.info("Durable ZUGFeRD worker wake requested");
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/generate")
     public GenerateResponse generate(@Valid @RequestBody GenerateRequest request) throws Exception {
         return pipelineService.generate(request);

@@ -42,7 +42,6 @@ import {
 } from "@/lib/zugferd/canonical-invoice";
 import {
     generateValidatedZugferdPdf,
-    startZugferdGenerationJob,
     ZugferdServiceRequestError,
     ZugferdServiceConfigurationError,
     ZugferdServiceValidationError,
@@ -1639,7 +1638,9 @@ async function queueZugferdInvoiceGeneration(formData: FormData) {
     }
 
     const generationStartedAt = new Date().toISOString();
-    const staleGenerationBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    // Durable job IDs make retries idempotent, so we no longer need the old
+    // 15-minute UI lock to prevent duplicate generation requests.
+    const staleGenerationBefore = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     const { data: claimedInvoice, error: claimError } = await claimZugferdGeneration({
         supabase,
         invoiceId,
@@ -1673,31 +1674,10 @@ async function queueZugferdInvoiceGeneration(formData: FormData) {
     let queued = false;
 
     try {
-        const pdfData = await getInvoicePdfData(invoiceId);
-        const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
-        const canonicalInvoice = buildCanonicalInvoiceData(pdfData);
-        const invoicePdfBytes = await generateInvoicePdf({ ...pdfData, termsAttached: Boolean(termsPdf) });
-        const visiblePdfBytes = await buildFinalInvoicePdf({
-            invoicePdf: invoicePdfBytes,
-            termsPdf: termsPdf?.bytes ?? null,
-        });
-        const { jobId } = await startZugferdGenerationJob({
-            invoice: canonicalInvoice,
-            visiblePdfBase64: Buffer.from(visiblePdfBytes).toString("base64"),
-        });
-        const { error: jobUpdateError } = await supabase
-            .from("invoices")
-            .update({
-                zugferd_validation_summary: {
-                    status: "pending",
-                    renderJobId: jobId,
-                    submittedAt: new Date().toISOString(),
-                },
-            })
-            .eq("id", invoiceId)
-            .eq("company_id", companyId);
-
-        if (jobUpdateError) throw new Error(`ZUGFeRD-Hintergrundauftrag konnte nicht gespeichert werden: ${jobUpdateError.message}`);
+        const storedPdf = await generateAndStoreInvoicePdf(invoiceId);
+        if (!storedPdf.zugferdJobId) {
+            throw new Error("Der dauerhafte ZUGFeRD-Auftrag konnte nicht eingereiht werden.");
+        }
 
         queued = true;
     } catch (error) {

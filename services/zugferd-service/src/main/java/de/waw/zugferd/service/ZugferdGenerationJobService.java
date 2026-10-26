@@ -48,6 +48,7 @@ public class ZugferdGenerationJobService {
         jobs.put(jobId, job);
 
         executor.submit(() -> run(job, request));
+        LOGGER.info("Accepted ZUGFeRD generation job {}", jobId);
 
         return new GenerationJobAccepted(jobId, "pending");
     }
@@ -71,7 +72,7 @@ public class ZugferdGenerationJobService {
     private void run(Job job, GenerateRequest request) {
         try {
             LOGGER.info("Starting ZUGFeRD generation job {}", job.id);
-            job.complete(pipelineService.generate(request));
+            job.complete(pipelineService.generate(request, job.id));
             LOGGER.info("Finished ZUGFeRD generation job {}", job.id);
         } catch (ZugferdPipelineService.ValidationFailedException exception) {
             job.fail(exception.issues(), "Die ZUGFeRD-Rechnung konnte nicht validiert werden.");

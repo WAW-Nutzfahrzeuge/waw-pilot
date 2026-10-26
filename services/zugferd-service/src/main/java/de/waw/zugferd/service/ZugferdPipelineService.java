@@ -23,6 +23,12 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -54,6 +60,9 @@ public class ZugferdPipelineService {
     private static final String VERAPDF_VERSION = "1.30.2";
     private static final String STANDARD_VERSION = "ZUGFeRD 2.5 / Factur-X 1.09";
     private static final String PROFILE = "EN16931";
+    private static final Duration MUSTANG_VALIDATION_TIMEOUT = Duration.ofMinutes(3);
+    private static final ExecutorService MUSTANG_VALIDATOR_EXECUTOR =
+            Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("mustang-validation-", 0).factory());
 
     private final ProcessRunner processRunner;
     private final String ghostscriptCommand;
@@ -80,12 +89,19 @@ public class ZugferdPipelineService {
     }
 
     public GenerateResponse generate(GenerateRequest request) throws Exception {
+        return generate(request, "synchronous");
+    }
+
+    public GenerateResponse generate(GenerateRequest request, String jobId) throws Exception {
         Path workDir = Files.createTempDirectory("waw-zugferd-");
 
         try {
+            long stageStartedAt = startStage(jobId, "request-validation");
             validateRequest(request);
             InvoiceProfile invoiceProfile = getInvoiceProfile(request);
+            finishStage(jobId, "request-validation", stageStartedAt);
 
+            stageStartedAt = startStage(jobId, "pdfa-conversion");
             byte[] visiblePdf = decodePdf(request.visiblePdfBase64());
             Path inputPdf = workDir.resolve("visible.pdf");
             Path pdfaPdf = workDir.resolve("visible-pdfa3b.pdf");
@@ -94,6 +110,7 @@ public class ZugferdPipelineService {
 
             Files.write(inputPdf, visiblePdf);
             convertToPdfA3b(inputPdf, pdfaPdf, workDir);
+            finishStage(jobId, "pdfa-conversion", stageStartedAt);
 
             List<ValidationIssue> issues = new ArrayList<>();
             if (!isBlank(request.invoice().buyer().vatId()) &&
@@ -111,19 +128,31 @@ public class ZugferdPipelineService {
                 ));
             }
 
+            stageStartedAt = startStage(jobId, "xml-generation");
             byte[] xmlBytes = generateXml(request.invoice());
             Files.write(xml, xmlBytes);
+            finishStage(jobId, "xml-generation", stageStartedAt);
 
             // The final embedded ZUGFeRD PDF is validated below. Validating
             // this intermediate PDF/A file as well doubles the expensive
             // veraPDF work without increasing the validity guarantee of the
             // stored result.
 
+            stageStartedAt = startStage(jobId, "xml-embedding");
             embedXmlWithMustang(pdfaPdf, xmlBytes, outputPdf);
+            finishStage(jobId, "xml-embedding", stageStartedAt);
 
-            boolean mustangValid = validateWithMustang(outputPdf, issues, "mustang", invoiceProfile);
+            stageStartedAt = startStage(jobId, "mustang-validation");
+            boolean mustangValid = validateWithMustang(outputPdf, issues, "mustang", invoiceProfile, jobId);
+            finishStage(jobId, "mustang-validation", stageStartedAt);
+
+            stageStartedAt = startStage(jobId, "verapdf-validation");
             boolean pdfAValid = validateWithVeraPdf(outputPdf, issues, "VERAPDF_FINAL_PDFA3B");
+            finishStage(jobId, "verapdf-validation", stageStartedAt);
+
+            stageStartedAt = startStage(jobId, "data-consistency");
             boolean consistencyValid = validateConsistency(xml, request.invoice(), issues);
+            finishStage(jobId, "data-consistency", stageStartedAt);
 
             if (!mustangValid || !pdfAValid || !consistencyValid) {
                 throw new ValidationFailedException(issues);
@@ -466,18 +495,90 @@ public class ZugferdPipelineService {
         }
     }
 
-    private boolean validateWithMustang(Path file, List<ValidationIssue> issues, String phase, InvoiceProfile invoiceProfile) {
-        ZUGFeRDValidator validator = new ZUGFeRDValidator();
-        String result = validator.validate(file.toString());
+    private boolean validateWithMustang(
+            Path file,
+            List<ValidationIssue> issues,
+            String phase,
+            InvoiceProfile invoiceProfile,
+            String jobId
+    ) {
+        Future<MustangValidationResult> validation = MUSTANG_VALIDATOR_EXECUTOR.submit(() -> {
+            ZUGFeRDValidator validator = new ZUGFeRDValidator();
+            String report = validator.validate(file.toString());
+            return new MustangValidationResult(report, validator.wasCompletelyValid());
+        });
 
-        if (validator.wasCompletelyValid()) {
+        MustangValidationResult result;
+        try {
+            result = validation.get(MUSTANG_VALIDATION_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (TimeoutException error) {
+            validation.cancel(true);
+            LOGGER.error(
+                    "ZUGFeRD job {} timed out during Mustang validation after {} seconds",
+                    jobId,
+                    MUSTANG_VALIDATION_TIMEOUT.toSeconds()
+            );
+            issues.add(new ValidationIssue(
+                    "FACTUR_X",
+                    "error",
+                    "MUSTANG_TIMEOUT",
+                    "Die ZUGFeRD-Prüfung hat länger als drei Minuten gedauert und wurde abgebrochen. Bitte versuche es erneut.",
+                    null,
+                    true
+            ));
+            return false;
+        } catch (InterruptedException error) {
+            validation.cancel(true);
+            Thread.currentThread().interrupt();
+            LOGGER.error("ZUGFeRD job {} was interrupted during Mustang validation", jobId);
+            issues.add(new ValidationIssue(
+                    "FACTUR_X",
+                    "error",
+                    "MUSTANG_INTERRUPTED",
+                    "Die ZUGFeRD-Prüfung wurde unterbrochen. Bitte versuche es erneut.",
+                    null,
+                    true
+            ));
+            return false;
+        } catch (ExecutionException error) {
+            Throwable cause = error.getCause();
+            LOGGER.error(
+                    "ZUGFeRD job {} failed during Mustang validation ({})",
+                    jobId,
+                    cause == null ? "unknown" : cause.getClass().getSimpleName()
+            );
+            issues.add(new ValidationIssue(
+                    "FACTUR_X",
+                    "error",
+                    "MUSTANG_VALIDATION_FAILED",
+                    "Die ZUGFeRD-Prüfung konnte nicht abgeschlossen werden.",
+                    null,
+                    true
+            ));
+            return false;
+        }
+
+        if (result.completelyValid()) {
             return true;
         }
 
-        List<ValidationIssue> reportIssues = classifyMustangReport(result, phase, invoiceProfile);
+        List<ValidationIssue> reportIssues = classifyMustangReport(result.report(), phase, invoiceProfile);
         issues.addAll(reportIssues);
 
         return reportIssues.stream().noneMatch(ValidationIssue::blocking);
+    }
+
+    private static long startStage(String jobId, String stage) {
+        LOGGER.info("ZUGFeRD job {} stage {} started", jobId, stage);
+        return System.nanoTime();
+    }
+
+    private static void finishStage(String jobId, String stage, long startedAtNanos) {
+        long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAtNanos);
+        LOGGER.info("ZUGFeRD job {} stage {} finished in {} ms", jobId, stage, durationMs);
+    }
+
+    private record MustangValidationResult(String report, boolean completelyValid) {
     }
 
     private boolean validateWithVeraPdf(Path file, List<ValidationIssue> issues, String ruleId) throws IOException, InterruptedException {

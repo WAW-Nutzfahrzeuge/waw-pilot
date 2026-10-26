@@ -13,3 +13,6 @@ zugferd:
   ghostscript-command: ${GHOSTSCRIPT_COMMAND:gs}
   verapdf-command: ${VERAPDF_COMMAND:verapdf}
   icc-profile-path: ${ICC_PROFILE_PATH:/usr/share/color/icc/ghostscript/srgb.icc}
+  supabase-url: ${SUPABASE_URL:}
+  supabase-service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+  queue-poll-ms: ${ZUGFERD_QUEUE_POLL_MS:1500}

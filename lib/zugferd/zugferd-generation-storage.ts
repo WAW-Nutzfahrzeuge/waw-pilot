@@ -39,13 +39,15 @@ export async function markZugferdInvalid({
     invoiceId,
     companyId,
     issues,
+    expectedJobId,
 }: {
     invoiceId: string;
     companyId: string;
     issues: ZugferdValidationIssue[];
+    expectedJobId?: string;
 }) {
     const supabase = createServerSupabaseClient();
-    const { error } = await supabase
+    let updateQuery = supabase
         .from("invoices")
         .update({
             zugferd_validation_status: "invalid",
@@ -54,18 +56,25 @@ export async function markZugferdInvalid({
         })
         .eq("id", invoiceId)
         .eq("company_id", companyId);
+    if (expectedJobId) {
+        updateQuery = updateQuery.contains("zugferd_validation_summary", { renderJobId: expectedJobId });
+    }
+    const { data: updated, error } = await updateQuery.select("id").maybeSingle();
 
     if (error) console.error("[zugferd] invalid status update failed", error);
+    return Boolean(updated);
 }
 
 export async function storeValidatedZugferdInvoice({
     companyId,
     invoice,
     result,
+    expectedJobId,
 }: {
     companyId: string;
     invoice: InvoiceReference;
     result: ZugferdServiceResult;
+    expectedJobId?: string;
 }): Promise<void> {
     const supabase = createServerSupabaseClient();
     const fileName = new ExportFileNamePolicy().createDocumentFileName({
@@ -88,7 +97,7 @@ export async function storeValidatedZugferdInvoice({
         uploaded = true;
 
         const generatedAt = new Date().toISOString();
-        const { error: invoiceUpdateError } = await supabase
+        let invoiceUpdateQuery = supabase
             .from("invoices")
             .update({
                 zugferd_file_path: filePath,
@@ -98,14 +107,24 @@ export async function storeValidatedZugferdInvoice({
                 zugferd_validation_status: "valid",
                 zugferd_generation_started_at: null,
                 zugferd_validated_at: generatedAt,
-                zugferd_validation_summary: getZugferdValidationSummaryForStorage(result.validation),
+                zugferd_validation_summary: {
+                    ...getZugferdValidationSummaryForStorage(result.validation),
+                    ...(expectedJobId ? { renderJobId: expectedJobId } : {}),
+                },
                 zugferd_sha256: result.sha256,
             })
             .eq("id", invoice.id)
             .eq("company_id", companyId);
+        if (expectedJobId) {
+            invoiceUpdateQuery = invoiceUpdateQuery.contains("zugferd_validation_summary", { renderJobId: expectedJobId });
+        }
+        const { data: updatedInvoice, error: invoiceUpdateError } = await invoiceUpdateQuery.select("id").maybeSingle();
 
         if (invoiceUpdateError) {
             throw new Error(`Die E-Rechnung konnte nicht mit der Rechnung verknüpft werden: ${invoiceUpdateError.message}`);
+        }
+        if (!updatedInvoice) {
+            throw new Error("Die E-Rechnung wurde inzwischen durch einen neueren Auftrag ersetzt.");
         }
 
         const { data: existingDocument, error: documentLookupError } = await supabase
@@ -164,6 +183,7 @@ export async function storeValidatedZugferdInvoice({
         await markZugferdInvalid({
             invoiceId: invoice.id,
             companyId,
+            expectedJobId,
             issues: [{
                 severity: "error",
                 message: error instanceof Error

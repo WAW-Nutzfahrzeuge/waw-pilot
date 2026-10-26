@@ -1,12 +1,12 @@
 # WAW ZUGFeRD Service
 
-Zustandsloser HTTP-Service fuer die technische Erzeugung und Validierung von
-ZUGFeRD-/Factur-X-Rechnungen im Profil EN16931.
+HTTP-Service und dauerhafter Worker fuer die technische Erzeugung und Validierung
+von ZUGFeRD-/Factur-X-Rechnungen im Profil EN16931.
 
 Der Service ist bewusst von der Next.js-App getrennt. WAW Pilot bleibt die
 Quelle fuer Kunden-, Fahrzeug-, Verkaufs-, VAT-, Nummernkreis-, Mandanten- und
-Dokumentmetadaten. Dieser Dienst verarbeitet nur den bereits vorbereiteten
-kanonischen Rechnungsdatensatz und die sichtbare Rechnungs-PDF.
+Dokumentmetadaten. Dieser Dienst verarbeitet den vorbereiteten kanonischen
+Rechnungsdatensatz und eine sichtbare Rechnungs-PDF aus dem privaten Supabase-Storage.
 
 ## Unterstuetzte Formate
 
@@ -71,23 +71,36 @@ Antwort bei Erfolg:
 
 Fuehrt dieselbe Pipeline aus und liefert ein Validierungsergebnis zurueck.
 
+### `POST /wake`
+
+Authentifizierter, inhaltsfreier Aufruf. Er bestaetigt den Wake-up-Request. Der
+Scheduler prueft die dauerhafte Supabase-Warteschlange regelmaessig und kann
+Auftraege nach einem Service-Neustart weiterverarbeiten.
+
 ## Pipeline
 
-1. Request validieren.
-2. Sichtbare PDF aus Base64 dekodieren.
+1. Dauerhaften Auftrag atomar aus Supabase beanspruchen.
+2. Rechnungsdaten und sichtbare PDF aus der privaten Warteschlange laden.
 3. PDF temporaer unter einem request-eigenen Verzeichnis speichern.
 4. Ghostscript konvertiert die PDF nach PDF/A-3b.
-5. Mustangproject erzeugt `factur-x.xml` aus den kanonischen Rechnungsdaten.
-6. Mustangproject validiert XML/EN16931.
-7. Mustangproject bettet XML in die PDF/A-Datei ein.
-8. Mustangproject validiert die fertige hybride Datei.
-9. VeraPDF prueft PDF/A-3b.
-10. Der Service prueft Konsistenz zwischen XML und Ausgangsdaten.
-11. Nur bei vollstaendigem Erfolg wird die fertige PDF base64-kodiert
-    zurueckgegeben.
+5. Ghostscript wandelt die sichtbare PDF in PDF/A-3b um.
+6. Mustangproject erzeugt `factur-x.xml` aus den kanonischen Rechnungsdaten.
+7. Mustangproject bettet XML ein und validiert die fertige hybride PDF.
+8. VeraPDF prueft PDF/A-3b.
+9. Der Service prueft Konsistenz zwischen XML und Ausgangsdaten.
+10. Die fertige PDF wird privat gespeichert und der Job dauerhaft als
+    abgeschlossen markiert. WAW Pilot uebernimmt sie anschliessend in den
+    Rechnungsdokumentenbereich.
 
-Temporaere Dateien werden in einem `finally`-Block geloescht. Der Container
-benoetigt keinen persistenten Datentraeger.
+Auftraege liegen in `public.zugferd_generation_jobs`. Der atomare Claim nutzt
+`FOR UPDATE SKIP LOCKED`; ein Lease ermoeglicht die Wiederaufnahme nach einem
+Neustart. Eingangs- und Ergebnis-PDF liegen waehrend der Verarbeitung privat im
+`documents`-Bucket. Nach der Finalisierung durch WAW Pilot werden temporaere
+Dateien geloescht. Job-Metadaten bleiben zur Nachvollziehbarkeit gespeichert.
+
+Mustang hat ein Drei-Minuten-Limit; Ghostscript und veraPDF haben jeweils ein
+60-Sekunden-Limit. Logs enthalten Job-ID, Verarbeitungsschritt und Dauer, aber
+keine Rechnungs- oder Kundendaten.
 
 ## Environment Variables
 
@@ -95,6 +108,8 @@ Pflicht:
 
 ```env
 ZUGFERD_SERVICE_API_KEY=
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
 Der Service startet nicht mit leerem oder offensichtlich unsicherem API-Key.
@@ -115,8 +130,9 @@ ICC_PROFILE_PATH=/usr/share/color/icc/ghostscript/srgb.icc
 Sehr grosse JSON-Requests werden zusaetzlich ueber den `Content-Length`-Header
 fruehzeitig mit HTTP 413 abgelehnt.
 
-Supabase-Variablen werden nicht benoetigt. Der Service speichert keine Dateien
-selbst. WAW Pilot speichert die Rueckgabe in Supabase Storage.
+`SUPABASE_SERVICE_ROLE_KEY` gehoert ausschliesslich als Secret nach Render. Sie
+wird fuer Queue-RPCs und private Storage-Dateien benoetigt und darf nie an den
+Browser oder ins Repository gelangen.
 
 ## Lokaler Docker-Build
 
@@ -132,6 +148,8 @@ docker build -t waw-zugferd-service ./services/zugferd-service
 docker run --rm \
   -p 8087:8080 \
   -e ZUGFERD_SERVICE_API_KEY=replace-with-a-local-development-secret \
+  -e SUPABASE_URL=https://your-project.supabase.co \
+  -e SUPABASE_SERVICE_ROLE_KEY=replace-with-a-local-development-secret \
   -e MAX_UPLOAD_MB=20 \
   waw-zugferd-service
 ```
@@ -221,15 +239,40 @@ Blueprint-Konfiguration:
 - `dockerfilePath`: `./Dockerfile`
 - `dockerContext`: `.`
 - `healthCheckPath`: `/health`
-- `plan`: `free` fuer Entwicklung und Tests
-- kein Persistent Disk
-- keine Datenbank
-- keine Supabase-Variablen
+- `plan`: derzeit `free` im Blueprint
+- Supabase wird als dauerhafter Job- und Dateispeicher verwendet
 
 `ZUGFERD_SERVICE_API_KEY` wird in Render als Secret-Variable gesetzt und steht
 nicht im Repository. Anschliessend wird in WAW Pilot nur
 `ZUGFERD_SERVICE_URL` und derselbe serverseitige `ZUGFERD_SERVICE_API_KEY`
 konfiguriert. Keine `NEXT_PUBLIC_`-Variable fuer das Secret verwenden.
+
+Fuer kurze Reaktionszeiten muss der Web-Service dauerhaft aktiv sein. Render
+Free kann nach Inaktivitaet schlafen; ein Kaltstart kann deutlich laenger als
+die eigentliche Verarbeitung dauern. Eine bezahlte Compute-Stufe muss im
+Render-Dashboard gewaehlt werden; ein Repository-Deployment aendert den Tarif
+nicht. Das Blueprint setzt den Tarif absichtlich nicht automatisch um.
+
+## Voraberzeugung und Status
+
+Sobald WAW Pilot eine Standardrechnung als PDF speichert, reiht die App im
+Hintergrund einen dauerhaften ZUGFeRD-Auftrag ein. Pro inhaltlich identischer
+Rechnung verhindert ein SHA-256-Schluessel doppelte Jobs. Aendern sich sichtbare
+PDF oder kanonische Rechnungsdaten, entsteht ein neuer Auftrag; ein noch nicht
+gestarteter alter Auftrag wird als `superseded` markiert.
+
+Der Scheduler beansprucht Auftraege atomar. Nach einem Prozessneustart kann er
+abgelaufene Verarbeitungsleases wieder aufnehmen. Die App pollt den Status und
+uebernimmt ein erfolgreiches Ergebnis in die Verkaufsakte. Ein Mustang-Timeout
+nach drei Minuten loest einen Interrupt aus; Java-Bibliothekscode kann einen
+Interrupt ignorieren, daher ist dies kein harter Prozessabbruch. Ghostscript
+und veraPDF haben jeweils ein 60-Sekunden-Limit.
+
+Vor dem Deployment muss die neue Supabase-Migration
+`20261027120000_add_durable_zugferd_generation_jobs.sql` ausgefuehrt sein.
+Vercel und Render benoetigen Zugriff auf dieselbe Supabase-Instanz. Der
+Service-Role-Key ist nur als Secret in beiden Serverumgebungen einzutragen;
+niemals in den Browser oder ins Repository.
 
 ## Sicherheit
 
