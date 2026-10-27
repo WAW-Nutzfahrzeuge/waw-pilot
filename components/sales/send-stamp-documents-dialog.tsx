@@ -24,6 +24,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 type SendStampDocumentsDialogProps = {
     saleId: string;
@@ -169,29 +176,31 @@ export function SendStampDocumentsDialog({
                 Dokumente zum Stempeln senden
             </Button>
 
-            {open ? (
-                <div className="fixed inset-0 z-50 flex items-end bg-slate-950/40 p-3 sm:items-center sm:justify-center">
-                    <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] bg-white p-5 shadow-2xl">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-xl font-extrabold text-slate-950">
-                                    Dokumente zum Stempeln senden
-                                </h2>
-                                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
-                                    Prüfe Empfänger, Sprache, Text und Anhänge vor dem Versand.
-                                </p>
-                            </div>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="size-10 rounded-2xl"
-                                onClick={() => setOpen(false)}
-                                aria-label="Dialog schließen"
-                            >
-                                <X className="size-4" />
-                            </Button>
-                        </div>
+            <Dialog open={open} onOpenChange={setOpen}>
+                <DialogContent
+                    showCloseButton={false}
+                    className="max-h-[92dvh] w-full max-w-3xl overflow-y-auto rounded-[1.75rem] bg-white p-5 shadow-2xl sm:max-w-3xl"
+                >
+                    <div className="flex items-start justify-between gap-4 pr-10">
+                        <DialogHeader className="gap-0">
+                            <DialogTitle className="text-xl font-extrabold text-slate-950">
+                                Dokumente zum Stempeln senden
+                            </DialogTitle>
+                            <DialogDescription className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                                Prüfe Empfänger, Sprache, Text und Anhänge vor dem Versand.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="absolute top-4 right-4 size-10 rounded-2xl"
+                            onClick={() => setOpen(false)}
+                            aria-label="Dialog schließen"
+                        >
+                            <X className="size-4" />
+                        </Button>
+                    </div>
 
                         {state.message ? (
                             <div
@@ -362,9 +371,8 @@ export function SendStampDocumentsDialog({
                                 </Button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            ) : null}
+                </DialogContent>
+            </Dialog>
         </>
     );
 }
