@@ -40,6 +40,14 @@ function throttle<T extends (...args: never[]) => void>(func: T, limit: number) 
     };
 }
 
+function prefersReducedMotion(): boolean {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+        return false;
+    }
+
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 function hexToRgb(hex: string) {
     const match = hex.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
 
@@ -139,6 +147,9 @@ export function DotGrid({
     useEffect(() => {
         let rafId = 0;
         const proximitySquared = proximity * proximity;
+        // Dekoratives Hintergrund-Grid: bei reduzierter Bewegung nur einmal
+        // statisch zeichnen statt endlos per requestAnimationFrame zu laufen.
+        const reduceMotion = prefersReducedMotion();
 
         const draw = () => {
             const canvas = canvasRef.current;
@@ -181,7 +192,9 @@ export function DotGrid({
                 context.fill();
             }
 
-            rafId = requestAnimationFrame(draw);
+            if (!reduceMotion) {
+                rafId = requestAnimationFrame(draw);
+            }
         };
 
         draw();
@@ -219,6 +232,13 @@ export function DotGrid({
     }, [buildGrid]);
 
     useEffect(() => {
+        // Die Push-/Shock-Animationen beim Bewegen/Klicken sind rein
+        // dekorativ und werden bei reduzierter Bewegung gar nicht erst
+        // registriert (die statische Punktegrafik bleibt sichtbar).
+        if (prefersReducedMotion()) {
+            return;
+        }
+
         const pushDot = (dot: Dot, pushX: number, pushY: number) => {
             dot.isAnimating = true;
             gsap.killTweensOf(dot);

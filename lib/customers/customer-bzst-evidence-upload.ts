@@ -78,6 +78,76 @@ export function validateCustomerBzstEvidenceFiles(formData: FormData): string | 
     return null;
 }
 
+type BzstEvidenceUploadResult =
+    | { success: true; documentId: string; filePath: string }
+    | { success: false; message: string; filePath?: string };
+
+async function uploadSingleCustomerBzstEvidenceDocument({
+    supabase,
+    companyId,
+    customerId,
+    documentType,
+    label,
+    file,
+}: {
+    supabase: SupabaseClient;
+    companyId: string;
+    customerId: string;
+    documentType: EvidenceSlot["documentType"];
+    label: string;
+    file: File;
+}): Promise<BzstEvidenceUploadResult> {
+    const fallbackExtension = file.type === "application/pdf" ? "pdf" : "png";
+    const originalFileName =
+        sanitizeFileName(file.name) || `${label}.${fallbackExtension}`;
+    const filePath = `customers/${customerId}/${documentType}-${Date.now()}${getFileExtension(originalFileName)}`;
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+
+    const { error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, fileBuffer, {
+            contentType: file.type || "application/octet-stream",
+            upsert: false,
+        });
+
+    if (uploadError) {
+        return {
+            success: false,
+            message: `${label}: ${getDocumentUploadFailedMessage(uploadError)}`,
+        };
+    }
+
+    const { data: document, error: documentError } = await supabase
+        .from("documents")
+        .insert({
+            company_id: companyId,
+            document_type: documentType,
+            source: "uploaded",
+            status: "available",
+            file_name: originalFileName,
+            file_path: filePath,
+            mime_type: file.type || null,
+            file_size: file.size,
+            customer_id: customerId,
+            vehicle_id: null,
+            sale_id: null,
+            invoice_id: null,
+            generated_by_system: false,
+        })
+        .select("id")
+        .single();
+
+    if (documentError || !document) {
+        return {
+            success: false,
+            message: `${label} konnte nicht beim Kunden gespeichert werden.`,
+            filePath,
+        };
+    }
+
+    return { success: true, documentId: document.id as string, filePath };
+}
+
 export async function uploadCustomerBzstEvidenceDocuments({
     supabase,
     companyId,
@@ -85,10 +155,46 @@ export async function uploadCustomerBzstEvidenceDocuments({
     formData,
 }: UploadCustomerBzstEvidenceParams): Promise<{ success: true } | { success: false; message: string }> {
     const submittedFiles = getSubmittedEvidenceFiles(formData);
-    const uploadedFilePaths: string[] = [];
-    const createdDocumentIds: string[] = [];
 
-    async function cleanupUploadedEvidence() {
+    if (submittedFiles.length === 0) {
+        return { success: true };
+    }
+
+    // Die beiden Beweisbild-Slots sind fachlich unabhängig voneinander
+    // (jeweils eigener Upload + eigener documents-Insert), daher parallel
+    // statt nacheinander ausführen (gleiches Muster wie beim Ankauf-Flow).
+    const uploadResults = await Promise.all(
+        submittedFiles.map(({ file, documentType, label }) =>
+            uploadSingleCustomerBzstEvidenceDocument({
+                supabase,
+                companyId,
+                customerId,
+                documentType,
+                label,
+                file,
+            }),
+        ),
+    );
+
+    const failedResult = uploadResults.find(
+        (result): result is { success: false; message: string; filePath?: string } =>
+            !result.success,
+    );
+
+    if (failedResult) {
+        const successfulResults = uploadResults.filter(
+            (result): result is { success: true; documentId: string; filePath: string } =>
+                result.success,
+        );
+        const createdDocumentIds = successfulResults.map((result) => result.documentId);
+        const uploadedFilePaths = successfulResults.map((result) => result.filePath);
+
+        // Der fehlgeschlagene Slot kann ebenfalls bereits eine Storage-Datei
+        // angelegt haben (z. B. wenn nur der documents-Insert fehlschlug).
+        if (failedResult.filePath) {
+            uploadedFilePaths.push(failedResult.filePath);
+        }
+
         if (createdDocumentIds.length > 0) {
             await supabase
                 .from("documents")
@@ -100,63 +206,8 @@ export async function uploadCustomerBzstEvidenceDocuments({
         if (uploadedFilePaths.length > 0) {
             await supabase.storage.from("documents").remove(uploadedFilePaths);
         }
-    }
 
-    for (const { file, documentType, label } of submittedFiles) {
-        const fallbackExtension = file.type === "application/pdf" ? "pdf" : "png";
-        const originalFileName =
-            sanitizeFileName(file.name) || `${label}.${fallbackExtension}`;
-        const filePath = `customers/${customerId}/${documentType}-${Date.now()}${getFileExtension(originalFileName)}`;
-        const fileBuffer = Buffer.from(await file.arrayBuffer());
-
-        const { error: uploadError } = await supabase.storage
-            .from("documents")
-            .upload(filePath, fileBuffer, {
-                contentType: file.type || "application/octet-stream",
-                upsert: false,
-            });
-
-        if (uploadError) {
-            await cleanupUploadedEvidence();
-
-            return {
-                success: false,
-                message: `${label}: ${getDocumentUploadFailedMessage(uploadError)}`,
-            };
-        }
-
-        uploadedFilePaths.push(filePath);
-
-        const { data: document, error: documentError } = await supabase
-            .from("documents")
-            .insert({
-                company_id: companyId,
-                document_type: documentType,
-                source: "uploaded",
-                status: "available",
-                file_name: originalFileName,
-                file_path: filePath,
-                mime_type: file.type || null,
-                file_size: file.size,
-                customer_id: customerId,
-                vehicle_id: null,
-                sale_id: null,
-                invoice_id: null,
-                generated_by_system: false,
-            })
-            .select("id")
-            .single();
-
-        if (documentError || !document) {
-            await cleanupUploadedEvidence();
-
-            return {
-                success: false,
-                message: `${label} konnte nicht beim Kunden gespeichert werden.`,
-            };
-        }
-
-        createdDocumentIds.push(document.id as string);
+        return { success: false, message: failedResult.message };
     }
 
     return { success: true };

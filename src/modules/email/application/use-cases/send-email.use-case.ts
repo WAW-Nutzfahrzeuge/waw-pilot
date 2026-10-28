@@ -57,17 +57,23 @@ export class SendEmailUseCase {
             })),
         ]);
 
-        const resolvedAttachments: ResolvedEmailAttachment[] = [];
-        for (const attachment of command.documentAttachments ?? []) {
-            resolvedAttachments.push(
-                await this.attachmentReader.readDocumentAttachment({
+        // Jeder Dokument-Anhang wird unabhängig per DB-Lookup + Storage-Download
+        // geladen. Da diese Anhänge keine Abhängigkeiten untereinander haben,
+        // werden sie parallel statt nacheinander geladen (reduziert die Latenz
+        // bei E-Mails mit mehreren Anhängen, z. B. Dokumente zum Stempeln).
+        const resolvedDocumentAttachments = await Promise.all(
+            (command.documentAttachments ?? []).map((attachment) =>
+                this.attachmentReader.readDocumentAttachment({
                     companyId: command.companyId,
                     documentId: attachment.documentId,
                     documentVersionId: attachment.documentVersionId,
                     attachmentType: attachment.attachmentType ?? "document",
                 }),
-            );
-        }
+            ),
+        );
+        const resolvedAttachments: ResolvedEmailAttachment[] = [
+            ...resolvedDocumentAttachments,
+        ];
         for (const attachment of command.resolvedAttachments ?? []) {
             resolvedAttachments.push({
                 documentId: "",

@@ -25,15 +25,26 @@ test("getSaleDetail merges customer-scoped BZSt evidence into the required docum
     assert.equal(querySource.includes('"bzst_vat_verification_secondary"'), true);
 
     // Both the primary and the legacy fallback sale query path must call the
-    // patch step, otherwise older sales would keep showing a false "missing".
-    const attachCallCount = (
-        querySource.match(/attachCustomerScopedRequiredDocuments\(\{/g) ?? []
+    // patch step (now via the shared attachSaleDetailSideData wrapper, which
+    // runs the vehicle-registration and customer-scoped-document lookups in
+    // parallel since they are independent), otherwise older sales would keep
+    // showing a false "missing".
+    const wrapperCallCount = (
+        querySource.match(/attachSaleDetailSideData\(\{/g) ?? []
     ).length;
     // 1 function definition + 2 call sites (primary query path + legacy fallback path)
     assert.equal(
-        attachCallCount,
+        wrapperCallCount,
         3,
         "both sale detail query paths must attach customer-scoped required documents",
+    );
+
+    // The wrapper itself must still invoke the customer-scoped attach step.
+    assert.equal(
+        (querySource.match(/attachCustomerScopedRequiredDocuments\(\{/g) ?? [])
+            .length,
+        2,
+        "attachSaleDetailSideData must still call attachCustomerScopedRequiredDocuments",
     );
 });
 

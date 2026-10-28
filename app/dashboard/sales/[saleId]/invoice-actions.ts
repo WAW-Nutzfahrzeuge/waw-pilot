@@ -2127,10 +2127,14 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
     let deliveryErrorCode: string | null = null;
 
     try {
-        const fileBytes = Buffer.from(await fileData.arrayBuffer());
-        const sender = await getInvoiceMailSender(companyId);
-        const actorId = await getOptionalCurrentAuthUserId();
-        const sendEmail = await createSendEmailUseCase();
+        // These four steps are independent of each other (no shared input),
+        // so they can run in parallel instead of awaiting one at a time.
+        const [fileBytes, sender, actorId, sendEmail] = await Promise.all([
+            fileData.arrayBuffer().then((buffer) => Buffer.from(buffer)),
+            getInvoiceMailSender(companyId),
+            getOptionalCurrentAuthUserId(),
+            createSendEmailUseCase(),
+        ]);
 
         await sendEmail.execute({
             companyId,
@@ -2184,27 +2188,30 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
         redirect(getZugferdErrorRedirect(saleId, invoiceId, deliveryErrorCode));
     }
 
-    const { error: updateError } = await supabase
-        .from("invoices")
-        .update({
-            zugferd_email_sent_at: new Date().toISOString(),
-            zugferd_email_sent_to: customer.email,
-            zugferd_email_sent_language: language,
-            zugferd_email_send_count: (invoice.zugferd_email_send_count ?? 0) + 1,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId);
+    // The status update and the activity log entry are independent writes,
+    // so they can run in parallel instead of one after the other.
+    const [{ error: updateError }] = await Promise.all([
+        supabase
+            .from("invoices")
+            .update({
+                zugferd_email_sent_at: new Date().toISOString(),
+                zugferd_email_sent_to: customer.email,
+                zugferd_email_sent_language: language,
+                zugferd_email_send_count: (invoice.zugferd_email_send_count ?? 0) + 1,
+            })
+            .eq("id", invoiceId)
+            .eq("company_id", companyId),
+        logActivity({
+            action: `ZUGFeRD-Rechnung ${invoice.invoice_number} per E-Mail an ${customer.email} gesendet`,
+            entityType: "invoice",
+            entityId: invoiceId,
+        }),
+    ]);
 
     if (updateError) {
         console.error("[zugferd-email] status update failed", updateError);
         redirect(getZugferdErrorRedirect(saleId, invoiceId, "zugferdSendFailed"));
     }
-
-    await logActivity({
-        action: `ZUGFeRD-Rechnung ${invoice.invoice_number} per E-Mail an ${customer.email} gesendet`,
-        entityType: "invoice",
-        entityId: invoiceId,
-    });
 
     revalidatePaths([
         `/dashboard/sales/${saleId}`,

@@ -7,6 +7,8 @@ import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/f
 
 export const runtime = "nodejs";
 
+const FILE_DOWNLOAD_TIMEOUT_MS = 30_000;
+
 const invoiceDocumentTypes = new Set([
     "invoice",
     "invoice_pdf",
@@ -151,7 +153,24 @@ export async function GET(request: Request, context: RouteContext) {
         return NextResponse.redirect(invoiceUrl);
     }
 
-    const response = await fetch(file.signedUrl, { cache: "no-store" });
+    let response: Response;
+    try {
+        // Explicit timeout, matching the fetch() convention used elsewhere
+        // (Resend, ZUGFeRD, DATEV) to avoid an indefinitely hanging request
+        // if Storage becomes unresponsive.
+        response = await fetch(file.signedUrl, {
+            cache: "no-store",
+            signal: AbortSignal.timeout(FILE_DOWNLOAD_TIMEOUT_MS),
+        });
+    } catch (error) {
+        console.error("[documents-file] storage fetch failed", error);
+        return NextResponse.json(
+            {
+                message: "Datei konnte nicht aus Storage geladen werden.",
+            },
+            { status: 404 },
+        );
+    }
 
     if (!response.ok) {
         return NextResponse.json(

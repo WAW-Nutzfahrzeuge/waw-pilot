@@ -462,6 +462,28 @@ const CUSTOMER_SCOPED_REQUIRED_DOCUMENT_TYPES = [
     "bzst_vat_verification_secondary",
 ] as const;
 
+// attachVehicleRegistrationDocument liest/schreibt nur vehicle_registration_document,
+// attachCustomerScopedRequiredDocuments liest/schreibt nur die required_documents-Felder.
+// Beide Abfragen sind voneinander unabhängig und werden daher parallel statt
+// nacheinander ausgeführt.
+async function attachSaleDetailSideData({
+    sale,
+    companyId,
+}: {
+    sale: SaleDetail;
+    companyId: string;
+}): Promise<SaleDetail> {
+    const [saleWithVehicleDocument, saleWithCustomerScopedDocuments] = await Promise.all([
+        attachVehicleRegistrationDocument({ sale, companyId }),
+        attachCustomerScopedRequiredDocuments({ sale, companyId }),
+    ]);
+
+    return {
+        ...saleWithCustomerScopedDocuments,
+        vehicle_registration_document: saleWithVehicleDocument.vehicle_registration_document,
+    };
+}
+
 async function attachCustomerScopedRequiredDocuments({
     sale,
     companyId,
@@ -912,26 +934,16 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
             notFound();
         }
 
-        const saleWithVehicleDocument = await attachVehicleRegistrationDocument({
+        return attachSaleDetailSideData({
             sale: buildSaleDetail(
                 mapLegacySaleDetailRow(fallbackData as unknown as LegacySaleDetailQueryRow),
             ),
             companyId,
         });
-
-        return attachCustomerScopedRequiredDocuments({
-            sale: saleWithVehicleDocument,
-            companyId,
-        });
     }
 
-    const saleWithVehicleDocument = await attachVehicleRegistrationDocument({
+    return attachSaleDetailSideData({
         sale: buildSaleDetail(data as unknown as SaleDetailQueryRow),
-        companyId,
-    });
-
-    return attachCustomerScopedRequiredDocuments({
-        sale: saleWithVehicleDocument,
         companyId,
     });
 }
