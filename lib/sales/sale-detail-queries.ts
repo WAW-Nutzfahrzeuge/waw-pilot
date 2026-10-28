@@ -36,6 +36,7 @@ type InvoiceRelation = {
     gross_amount: number | string;
     status: string;
     payment_status: PaymentStatus;
+    datev_status: DatevStatus;
     correction_of_invoice_id: string | null;
     root_invoice_id: string | null;
     source_proforma_invoice_id: string | null;
@@ -203,6 +204,7 @@ type LegacyInvoiceRelation = {
     gross_amount: number | string;
     status: string;
     payment_status: PaymentStatus;
+    datev_status: DatevStatus;
     created_at: string;
 };
 
@@ -243,6 +245,7 @@ export type SaleDetailInvoice = {
     gross_amount: number;
     status: string;
     payment_status: PaymentStatus;
+    datev_status: DatevStatus;
     correction_of_invoice_id: string | null;
     root_invoice_id: string | null;
     source_proforma_invoice_id: string | null;
@@ -612,6 +615,7 @@ function mapLegacyInvoice(invoice: LegacyInvoiceRelation): InvoiceRelation {
         gross_amount: invoice.gross_amount,
         status: invoice.status,
         payment_status: invoice.payment_status,
+        datev_status: invoice.datev_status,
         correction_of_invoice_id: null,
         root_invoice_id: null,
         source_proforma_invoice_id: null,
@@ -731,6 +735,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         gross_amount,
         status,
         payment_status,
+        datev_status,
         correction_of_invoice_id,
         root_invoice_id,
         source_proforma_invoice_id,
@@ -893,6 +898,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
         gross_amount,
         status,
         payment_status,
+        datev_status,
         created_at
       ),
       documents (
@@ -968,6 +974,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
             gross_amount: Number(invoice.gross_amount),
             status: invoice.status,
             payment_status: invoice.payment_status,
+            datev_status: invoice.datev_status,
             correction_of_invoice_id: invoice.correction_of_invoice_id,
             root_invoice_id: invoice.root_invoice_id,
             source_proforma_invoice_id: invoice.source_proforma_invoice_id,

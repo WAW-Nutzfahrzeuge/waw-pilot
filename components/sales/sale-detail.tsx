@@ -883,7 +883,6 @@ export async function SaleDetail({
                                                 <InvoiceCard
                                                     saleId={sale.id}
                                                     invoice={invoice}
-                                                    datevStatus={sale.datev_status}
                                                     highlighted={highlightInvoiceId === invoice.id}
                                                     isZugferdServiceConfigured={
                                                         isZugferdServiceConfigured
@@ -1522,13 +1521,11 @@ export async function SaleDetail({
 function InvoiceCard({
                          saleId,
                          invoice,
-                         datevStatus,
                          highlighted,
                          isZugferdServiceConfigured,
                      }: {
     saleId: string;
     invoice: SaleDetailInvoice;
-    datevStatus: SaleDetailType["datev_status"];
     highlighted?: boolean;
     isZugferdServiceConfigured: boolean;
 }) {
@@ -1556,8 +1553,8 @@ function InvoiceCard({
                         {getPaymentStatusLabel(invoice.payment_status)}
                     </StatusBadge>
 
-                    <StatusBadge tone={getDatevStatusTone(datevStatus)}>
-                        {`DATEV: ${getDatevStatusLabel(datevStatus)}`}
+                    <StatusBadge tone={getDatevStatusTone(invoice.datev_status)}>
+                        {`DATEV: ${getDatevStatusLabel(invoice.datev_status)}`}
                     </StatusBadge>
                 </div>
             </div>
@@ -1597,7 +1594,9 @@ function InvoiceCard({
 
                 <SendInvoiceEmailForm saleId={saleId} invoiceId={invoice.id} />
 
-                {invoice.invoice_type === "standard" ? (
+                {invoice.invoice_type === "standard" &&
+                invoice.status !== "cancelled" &&
+                invoice.datev_status === "not_sent" ? (
                     <SendInvoiceDatevEmailForm
                         saleId={saleId}
                         invoiceId={invoice.id}
@@ -1777,6 +1776,10 @@ function getDatevInvoiceErrorMessage(errorCode: string): string {
             "Für diese Rechnung wurde noch kein PDF erzeugt. Bitte generiere zuerst das PDF.",
         standardOnly:
             "Der separate DATEV-Versand ist nur für normale Rechnungen verfügbar.",
+        cancelled:
+            "Eine stornierte Rechnung kann nicht an DATEV gesendet werden.",
+        alreadySent:
+            "Diese Rechnung wurde bereits an DATEV gesendet.",
         mailNotConfigured:
             "E-Mail-Versand ist noch nicht eingerichtet. Bitte die Rechnungs-Absender-E-Mail in den Einstellungen konfigurieren.",
         sendFailed:

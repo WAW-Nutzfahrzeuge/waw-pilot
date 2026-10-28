@@ -1518,8 +1518,16 @@ export async function sendInvoiceToDatevAction(formData: FormData) {
         redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
     }
 
+    if (invoice.status === "cancelled") {
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "cancelled"));
+    }
+
+    if (invoice.datev_status === "sent") {
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "alreadySent"));
+    }
+
     if (!isDatevInvoiceSendable(invoice)) {
-        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "standardOnly"));
+        redirect(getDatevInvoiceErrorRedirect(saleId, invoiceId, "sendFailed"));
     }
 
     const delivery = await sendDatevInvoice(companyId, invoice);
