@@ -132,15 +132,35 @@ function isCountryFallbackOwnerId(metadata: Record<string, unknown> | null): boo
         (automationReturn as Record<string, unknown>).assignmentSource === "country_fallback");
 }
 
+const invoiceDocumentTypes = new Set([
+    "invoice",
+    "invoice_pdf",
+    "proforma_invoice",
+    "down_payment_invoice",
+    "cancellation_invoice",
+    "credit_note",
+    "zugferd_invoice",
+]);
+
 function getSaleDocumentDisplayFileName(
     document: SaleDetailType["documents"][number] | null,
     saleNumber: string | null,
+    invoices: SaleDetailType["invoices"],
 ): string | null {
     if (!document) return null;
     if (document.source !== "generated") return document.file_name;
 
+    const linkedInvoice = document.invoice_id
+        ? invoices.find((invoice) => invoice.id === document.invoice_id)
+        : null;
+    if (invoiceDocumentTypes.has(document.document_type) && !linkedInvoice) {
+        // The invoice-specific number is unavailable. Keep the stored name
+        // rather than inventing one from sales.sale_number.
+        return document.file_name;
+    }
+
     return new ExportFileNamePolicy().createDocumentFileName({
-        saleReference: saleNumber ?? "ohne-nummer",
+        saleReference: linkedInvoice?.invoice_number ?? saleNumber ?? "ohne-nummer",
         documentType: document.document_type,
         mimeType: document.mime_type,
     });
@@ -1050,6 +1070,7 @@ export async function SaleDetail({
                                                             {getSaleDocumentDisplayFileName(
                                                                 requiredDocument.document,
                                                                 sale.sale_number,
+                                                                sale.invoices,
                                                             )}
                                                         </p>
 
@@ -1229,6 +1250,7 @@ export async function SaleDetail({
                                                                     ? getSaleDocumentDisplayFileName(
                                                                           requiredDocument.document,
                                                                           sale.sale_number,
+                                                                          sale.invoices,
                                                                       )
                                                                     : null
                                                             }
@@ -1250,6 +1272,7 @@ export async function SaleDetail({
                                                     existingFileName={getSaleDocumentDisplayFileName(
                                                         requiredDocument.document,
                                                         sale.sale_number,
+                                                        sale.invoices,
                                                     )}
                                                 />
                                             </div>
@@ -1433,7 +1456,7 @@ export async function SaleDetail({
                                         >
                                             <div>
                                                 <p className="font-extrabold text-slate-950">
-                                                    {getSaleDocumentDisplayFileName(document, sale.sale_number)}
+                                                    {getSaleDocumentDisplayFileName(document, sale.sale_number, sale.invoices)}
                                                 </p>
                                                 <p className="mt-1 text-sm font-medium text-slate-500">
                                                     {getDocumentTypeLabel(document.document_type)} · {document.status}

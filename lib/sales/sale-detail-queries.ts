@@ -72,6 +72,7 @@ type InvoiceRelation = {
 type DocumentRelation = {
     id: string;
     document_type: string;
+    invoice_id: string | null;
     title: string | null;
     source: string;
     status: "available" | "missing" | "needs_review";
@@ -218,6 +219,7 @@ type LegacySaleDetailQueryRow = Omit<
 export type SaleDetailDocument = {
     id: string;
     document_type: string;
+    invoice_id: string | null;
     title: string | null;
     source: string;
     status: "available" | "missing" | "needs_review";
@@ -764,6 +766,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
       documents (
         id,
         document_type,
+        invoice_id,
         title,
         source,
         status,
@@ -895,6 +898,7 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
       documents (
         id,
         document_type,
+        invoice_id,
         title,
         source,
         status,
@@ -1038,6 +1042,7 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         .map((document) => ({
         id: document.id,
         document_type: document.document_type,
+        invoice_id: document.invoice_id,
         title: document.title,
         source: document.source,
         status: document.status,
