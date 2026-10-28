@@ -12,7 +12,7 @@ function Card({
       data-slot="card"
       data-size={size}
       className={cn(
-        "group/card relative flex flex-col gap-4 overflow-hidden rounded-xl border border-white/70 bg-card/92 py-4 text-sm text-card-foreground shadow-sm shadow-slate-200/70 ring-1 ring-slate-900/[0.04] backdrop-blur-sm has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-cyan-300/45 before:to-transparent",
+        "group/card relative flex flex-col gap-4 overflow-hidden rounded-[1.75rem] border border-white/70 bg-card/92 py-4 text-sm text-card-foreground shadow-sm shadow-slate-200/70 ring-1 ring-slate-900/[0.04] backdrop-blur-sm has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:gap-3 data-[size=sm]:py-3 data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-[1.75rem] *:[img:last-child]:rounded-b-[1.75rem] before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-cyan-300/45 before:to-transparent",
         className
       )}
       {...props}
