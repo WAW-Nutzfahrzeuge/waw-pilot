@@ -131,7 +131,7 @@ export function CashbookEntryForm() {
                     />
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Wallet}
@@ -157,7 +157,7 @@ export function CashbookEntryForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Coins}
@@ -183,7 +183,7 @@ export function CashbookEntryForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Banknote}
@@ -230,7 +230,7 @@ export function CashbookEntryForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={FileText}
@@ -253,7 +253,7 @@ export function CashbookEntryForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={FileUp}

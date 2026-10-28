@@ -69,7 +69,7 @@ export function TemporaryHighlight({
     return (
         <div
             className={cn(
-                "rounded-[1.85rem] transition-all duration-500",
+                "rounded-3xl transition-all duration-500",
                 visible ? "bg-emerald-50/70 p-1 ring-2 ring-emerald-300 shadow-lg shadow-emerald-900/10" : "p-0",
                 className,
             )}

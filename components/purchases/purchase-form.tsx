@@ -281,7 +281,7 @@ export function PurchaseForm({
                     <ProgressBar />
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
@@ -314,7 +314,7 @@ export function PurchaseForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={UserRound}
@@ -364,7 +364,7 @@ export function PurchaseForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={CalendarDays}
@@ -442,7 +442,7 @@ export function PurchaseForm({
                 </Card>
 
                 {mode === "create" ? (
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="space-y-5 p-5">
                             <SectionTitle
                                 icon={FileText}
@@ -469,7 +469,7 @@ export function PurchaseForm({
                     </Card>
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={ClipboardList}
@@ -579,7 +579,7 @@ function SellerCreateFields({
     onPreferredLanguageChange: (value: EmailLanguage) => void;
 }) {
     return (
-        <div className="space-y-5 rounded-[1.75rem] border border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
+        <div className="space-y-5 rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4 md:p-5">
             <div>
                 <h3 className="text-lg font-extrabold text-emerald-950">
                     Neuen Verkäufer direkt anlegen
@@ -595,7 +595,7 @@ function SellerCreateFields({
                 inputName="new_seller_type_choice"
             />
             <input type="hidden" name="new_seller_type" value={sellerType} />
-            <div className="rounded-[1.5rem] border border-emerald-100 bg-white/90 p-4">
+            <div className="rounded-2xl border border-emerald-100 bg-white/90 p-4">
                 <div className="grid gap-4 md:grid-cols-2">
                 {sellerType === "company" ? (
                     <>
@@ -673,7 +673,7 @@ function ProgressBar() {
     const steps = ["Fahrzeug", "Verkäufer", "Ankauf", "Dokumente", "Speichern"];
 
     return (
-        <div className="grid gap-2 rounded-[1.75rem] border border-cyan-100 bg-cyan-50 p-3 text-xs font-extrabold text-cyan-800 md:grid-cols-5">
+        <div className="grid gap-2 rounded-3xl border border-cyan-100 bg-cyan-50 p-3 text-xs font-extrabold text-cyan-800 md:grid-cols-5">
             {steps.map((step, index) => (
                 <div key={step} className="rounded-2xl bg-white px-3 py-2">
                     {index + 1}. {step}

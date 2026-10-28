@@ -126,7 +126,7 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
             </section>
 
             <section className="grid gap-6 xl:grid-cols-[1fr_0.8fr]">
-                <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="p-0">
                         <div className="border-b border-slate-200 p-5">
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -181,7 +181,7 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-slate-950 text-white shadow-xl shadow-slate-300/40">
+                <Card className="rounded-3xl border-slate-200 bg-slate-950 text-white shadow-xl shadow-slate-300/40">
                     <CardContent className="p-6">
                         <p className="text-xs font-extrabold uppercase tracking-[0.32em] text-cyan-200">
                             Finanzüberblick
@@ -215,7 +215,7 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
             </section>
 
             <section className="grid gap-6 xl:grid-cols-3">
-                <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="p-0">
                         <div className="border-b border-slate-200 p-5">
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -260,7 +260,7 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
                     </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="p-0">
                         <div className="border-b border-slate-200 p-5">
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -303,7 +303,7 @@ export function DashboardOverview({ data, monthFilter = null }: DashboardOvervie
                     </CardContent>
                 </Card>
 
-                <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="p-0">
                         <div className="border-b border-slate-200 p-5">
                             <h2 className="text-xl font-extrabold text-slate-950">

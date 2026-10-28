@@ -354,7 +354,7 @@ export function SaleForm({
                     />
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
@@ -417,7 +417,7 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={UserRound}
@@ -676,7 +676,7 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Globe2}
@@ -751,7 +751,7 @@ export function SaleForm({
                 </Card>
 
                 {saleType === "export_third_country" ? null : (
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Globe2}
@@ -920,7 +920,7 @@ export function SaleForm({
                 </Card>
                 )}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Receipt}
@@ -1124,7 +1124,7 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={CalendarDays}

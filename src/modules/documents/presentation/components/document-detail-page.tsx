@@ -38,7 +38,7 @@ export function DocumentDetailPage({ document }: { document: DocumentDetailDto }
             />
 
             <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white shadow-sm">
                     <CardContent className="space-y-5 p-6">
                         <div className="flex items-start gap-4">
                             <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">
@@ -74,7 +74,7 @@ export function DocumentDetailPage({ document }: { document: DocumentDetailDto }
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white shadow-sm">
                     <CardContent className="space-y-4 p-6">
                         <h2 className="text-lg font-extrabold text-slate-950">Verknüpfungen</h2>
                         {viewModel.relations.length > 0 ? (
@@ -107,7 +107,7 @@ export function DocumentDetailPage({ document }: { document: DocumentDetailDto }
                 </Card>
             </div>
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white shadow-sm">
+            <Card className="rounded-3xl border-slate-200 bg-white shadow-sm">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-100 p-6">
                         <h2 className="text-lg font-extrabold text-slate-950">Versionen</h2>

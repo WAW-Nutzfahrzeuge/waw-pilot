@@ -32,7 +32,7 @@ export function SaleExportDetailsForm({ details }: SaleExportDetailsFormProps) {
     return (
         <Card
             id="export-details"
-            className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+            className="scroll-mt-24 rounded-3xl border-slate-200 bg-white/90 shadow-sm"
         >
             <CardContent className="p-5">
                 <div className="flex items-start gap-3">

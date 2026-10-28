@@ -114,7 +114,7 @@ export function TravelExpenseForm({
                 ) : null}
 
                 {hasSaleContext ? (
-                    <div className="flex items-start gap-3 rounded-[1.5rem] border border-cyan-100 bg-cyan-50/80 p-4 text-cyan-900">
+                    <div className="flex items-start gap-3 rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4 text-cyan-900">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white text-cyan-700 shadow-sm">
                             <Route className="size-5" />
                         </div>
@@ -129,7 +129,7 @@ export function TravelExpenseForm({
                     </div>
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={UserRound}
@@ -156,7 +156,7 @@ export function TravelExpenseForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
@@ -200,7 +200,7 @@ export function TravelExpenseForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={CalendarDays}

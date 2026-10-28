@@ -147,7 +147,7 @@ export function FinancialBackfillPanel({
     );
 
     return (
-        <Card className="rounded-[1.75rem] border-dashed border-amber-300 bg-amber-50/60 print:hidden">
+        <Card className="rounded-3xl border-dashed border-amber-300 bg-amber-50/60 print:hidden">
             <CardContent className="space-y-4 p-5">
                 <div className="flex items-center gap-2">
                     <History className="size-5 text-amber-700" />

@@ -330,7 +330,7 @@ export async function SaleDetail({
             ) : null}
 
             {invoiceActionError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -362,7 +362,7 @@ export async function SaleDetail({
             ) : null}
 
             {invoiceEmailError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -394,7 +394,7 @@ export async function SaleDetail({
             ) : null}
 
             {datevInvoiceError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -453,7 +453,7 @@ export async function SaleDetail({
             ) : null}
 
             {zugferdError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -510,7 +510,7 @@ export async function SaleDetail({
             ) : null}
 
             {exportDataError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -529,7 +529,7 @@ export async function SaleDetail({
             ) : null}
 
             {exportArrivalError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <div className="flex items-start gap-3">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-red-100 text-red-700">
                             <FileWarning className="size-5" />
@@ -570,7 +570,7 @@ export async function SaleDetail({
             ) : null}
 
             {recordError ? (
-                <div className="rounded-[1.5rem] border border-red-200 bg-red-50 p-4 shadow-sm">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 shadow-sm">
                     <p className="font-extrabold text-red-950">
                         Stammdaten konnten nicht gespeichert werden.
                     </p>
@@ -618,7 +618,7 @@ export async function SaleDetail({
             <section className="min-w-0 space-y-6">
                 <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                     <div className="min-w-0 space-y-6">
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                 <SectionTitle
@@ -666,7 +666,7 @@ export async function SaleDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                                 <SectionTitle
@@ -764,7 +764,7 @@ export async function SaleDetail({
 
                     <Card
                         id="required-documents"
-                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        className="scroll-mt-24 overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm"
                     >
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -810,7 +810,7 @@ export async function SaleDetail({
                     <div className="min-w-0 space-y-6">
                         <Card
                             id="invoice-payments"
-                            className="scroll-mt-24 rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm"
+                            className="scroll-mt-24 rounded-3xl border border-slate-900/20 bg-white/90 shadow-sm"
                         >
                             <CardContent className="p-5">
                                 <SectionTitle
@@ -943,7 +943,7 @@ export async function SaleDetail({
                         />
                     ) : null}
 
-                    <Card className="overflow-hidden rounded-[1.75rem] border border-slate-900/20 bg-white/90 shadow-sm">
+                    <Card className="overflow-hidden rounded-3xl border border-slate-900/20 bg-white/90 shadow-sm">
                         <CardContent className="p-0">
                             <div className="border-b-2 border-slate-900 p-5">
                                 <SectionTitle
@@ -1260,7 +1260,7 @@ export async function SaleDetail({
                         </CardContent>
                     </Card>
 
-                    {!hasCommercialRegisterRequirement ? <Card className="overflow-hidden rounded-[1.75rem] border border-cyan-200 bg-white/90 shadow-sm">
+                    {!hasCommercialRegisterRequirement ? <Card className="overflow-hidden rounded-3xl border border-cyan-200 bg-white/90 shadow-sm">
                         <CardContent className="p-0">
                             <div className="border-b border-cyan-100 p-5">
                                 <SectionTitle
@@ -1326,7 +1326,7 @@ export async function SaleDetail({
 
                     <Card
                         id="custom-documents"
-                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        className="scroll-mt-24 overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm"
                     >
                         <CardContent className="p-0">
                             <div className="border-b border-slate-200 p-5">
@@ -1412,7 +1412,7 @@ export async function SaleDetail({
 
                     <Card
                         id="documents"
-                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        className="scroll-mt-24 overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm"
                     >
                         <CardContent className="p-0">
                             <div className="border-b border-slate-200 p-5">

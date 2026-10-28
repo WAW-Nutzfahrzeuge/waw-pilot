@@ -121,7 +121,7 @@ export function IntegrationsOverview() {
                         href={integration.href}
                         className="group block"
                     >
-                        <Card className="h-full rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/80">
+                        <Card className="h-full rounded-3xl border-slate-200 bg-white/90 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/80">
                             <CardContent className="p-5">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex size-12 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">

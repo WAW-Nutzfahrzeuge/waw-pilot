@@ -84,7 +84,7 @@ export function VehicleForm() {
                     />
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
@@ -105,7 +105,7 @@ export function VehicleForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={CalendarDays}
@@ -139,7 +139,7 @@ export function VehicleForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={FileText}
@@ -159,7 +159,7 @@ export function VehicleForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -184,7 +184,7 @@ export function VehicleForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">

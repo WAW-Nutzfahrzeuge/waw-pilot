@@ -60,7 +60,7 @@ export function StatusLegend({
     return (
         <div
             className={cn(
-                "rounded-[1.25rem] border border-slate-200 bg-white/90 p-4 shadow-sm",
+                "rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm",
                 className,
             )}
         >

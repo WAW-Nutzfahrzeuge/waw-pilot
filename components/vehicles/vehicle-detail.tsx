@@ -245,7 +245,7 @@ export function VehicleDetail({
 
             <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="space-y-6">
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                 <SectionTitle
@@ -299,7 +299,7 @@ export function VehicleDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex items-start justify-between gap-3">
                                 <SectionTitle
@@ -326,7 +326,7 @@ export function VehicleDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex items-start justify-between gap-3">
                                 <SectionTitle
@@ -363,7 +363,7 @@ export function VehicleDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <SectionTitle
                                 icon={UserRound}
@@ -394,7 +394,7 @@ export function VehicleDetail({
                 </div>
 
                 <div className="space-y-6">
-                    <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-0">
                             <div className="border-b border-slate-200 p-5">
                                 <SectionTitle
@@ -459,7 +459,7 @@ export function VehicleDetail({
 
                     <Card
                         id="documents"
-                        className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        className="scroll-mt-24 overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm"
                     >
                         <CardContent className="p-0">
                             <div className="border-b border-slate-200 p-5">
@@ -604,7 +604,7 @@ export function VehicleDetail({
                     </Card>
 
                     {vehicle.notes ? (
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
                                 <SectionTitle
                                     icon={CalendarDays}

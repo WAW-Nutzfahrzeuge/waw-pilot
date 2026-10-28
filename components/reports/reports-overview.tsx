@@ -92,7 +92,7 @@ export function ReportsOverview({ data }: ReportsOverviewProps) {
                 }
             />
 
-            <Card className="rounded-[1.5rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="rounded-2xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="p-4">
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div className="min-w-0">
@@ -495,7 +495,7 @@ function ReportListCard({
         : Boolean(children);
 
     return (
-        <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+        <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
             <CardContent className="p-0">
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
                     <div>

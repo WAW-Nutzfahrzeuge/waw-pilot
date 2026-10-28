@@ -58,7 +58,7 @@ export function SaleGeneratedDocumentsCard({
     return (
         <Card
             id="automatic-documents"
-            className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-slate-900/25 bg-white/90 shadow-sm"
+            className="scroll-mt-24 overflow-hidden rounded-3xl border border-slate-900/25 bg-white/90 shadow-sm"
         >
             <CardContent className="p-0">
                 <div className="border-b-2 border-slate-900 bg-white px-5 py-5 sm:px-6">
@@ -663,7 +663,7 @@ function SummaryStat({
 
     return (
         <div
-            className={`flex min-h-[78px] min-w-0 flex-col items-center justify-center rounded-[1.35rem] border px-3 py-3 text-center shadow-sm ${classes.wrapper}`}
+            className={`flex min-h-[78px] min-w-0 flex-col items-center justify-center rounded-xl border px-3 py-3 text-center shadow-sm ${classes.wrapper}`}
         >
             <p className={`text-2xl font-black leading-none ${classes.value}`}>
                 {value}

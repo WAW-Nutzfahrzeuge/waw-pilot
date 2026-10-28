@@ -176,7 +176,7 @@ export function PurchaseDetail({
 
             <section className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="space-y-6">
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <SectionTitle
@@ -218,7 +218,7 @@ export function PurchaseDetail({
                         </CardContent>
                     </Card>
 
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <SectionTitle
@@ -281,7 +281,7 @@ export function PurchaseDetail({
                 </div>
 
                 <div className="space-y-6">
-                    <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                    <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                         <CardContent className="p-5">
                             <SectionTitle
                                 icon={Wallet}
@@ -320,7 +320,7 @@ export function PurchaseDetail({
 
                     <Card
                         id="documents"
-                        className="scroll-mt-24 rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+                        className="scroll-mt-24 rounded-3xl border-slate-200 bg-white/90 shadow-sm"
                     >
                         <CardContent className="p-5">
                             <SectionTitle

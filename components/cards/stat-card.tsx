@@ -21,7 +21,7 @@ export function StatCard({
 
     if (!FallbackIcon) {
         return (
-            <div className="rounded-[1.25rem] border border-slate-200 bg-white/90 p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 bg-white/90 p-4 shadow-sm">
                 <p className="truncate text-xs font-bold text-slate-500">{label}</p>
                 <p className="mt-2 break-words text-lg font-extrabold tracking-tight text-slate-950 xl:text-xl">
                     {value}

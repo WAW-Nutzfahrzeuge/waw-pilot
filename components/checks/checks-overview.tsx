@@ -92,7 +92,7 @@ export function ChecksOverview({ data }: ChecksOverviewProps) {
             </section>
 
             {totalRequiredChecks === 0 ? (
-                <Card className="rounded-[1.75rem] border-emerald-100 bg-emerald-50 shadow-sm">
+                <Card className="rounded-3xl border-emerald-100 bg-emerald-50 shadow-sm">
                     <CardContent className="flex min-h-56 flex-col items-center justify-center p-8 text-center">
                         <div className="flex size-16 items-center justify-center rounded-3xl bg-white text-emerald-700 shadow-sm">
                             <CheckCircle2 className="size-8" />
@@ -336,7 +336,7 @@ function CheckListCard({
     return (
         <Card
             id={id}
-            className="scroll-mt-24 overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm"
+            className="scroll-mt-24 overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm"
         >
             <CardContent className="p-0">
                 <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">

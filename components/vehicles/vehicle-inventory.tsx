@@ -213,7 +213,7 @@ export function VehicleInventory({
                 />
             </section>
 
-            <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-200 bg-white p-5">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -349,7 +349,7 @@ function VehicleTable({
                             onClick={() => {
                                 router.push(`/dashboard/vehicles/${vehicle.id}`);
                             }}
-                            className={`cursor-pointer rounded-[1.5rem] border p-4 shadow-sm transition-all duration-300 active:scale-[0.99] ${
+                            className={`cursor-pointer rounded-2xl border p-4 shadow-sm transition-all duration-300 active:scale-[0.99] ${
                                 isHighlighted
                                     ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-200"
                                     : "border-slate-200 bg-white"

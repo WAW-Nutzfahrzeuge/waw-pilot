@@ -148,7 +148,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
 
                 <section className="grid gap-6 xl:grid-cols-[1fr_0.85fr]">
                     <div className="space-y-6">
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
                                 <SectionTitle
                                     icon={Truck}
@@ -276,7 +276,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
                                 <SectionTitle
                                     icon={Wallet}
@@ -307,7 +307,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="space-y-5 p-5">
                                 <SectionTitle
                                     icon={FileText}
@@ -391,7 +391,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                     </div>
 
                     <div className="space-y-6">
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
                                 <SectionTitle
                                     icon={Truck}
@@ -441,7 +441,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                             <CardContent className="p-5">
                                 <h2 className="text-lg font-extrabold text-slate-950">
                                     Speichern

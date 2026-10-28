@@ -38,7 +38,7 @@ export const ActionMessage = forwardRef<HTMLDivElement, ActionMessageProps>(
                 ref={ref}
                 role={tone === "danger" ? "alert" : "status"}
                 tabIndex={-1}
-                className={`scroll-mt-6 rounded-[1.5rem] border p-4 shadow-sm outline-none focus:ring-4 ${styles.container} ${styles.focus}`}
+                className={`scroll-mt-6 rounded-2xl border p-4 shadow-sm outline-none focus:ring-4 ${styles.container} ${styles.focus}`}
             >
                 <div className="flex items-start gap-3">
                     <div

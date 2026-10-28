@@ -212,7 +212,7 @@ export function PurchasesOverview({
                 />
             </section>
 
-            <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-200 bg-white p-5">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -449,7 +449,7 @@ function PurchaseMobileCard({ purchase }: { purchase: PurchaseCaseRow }) {
             onClick={() => {
                 router.push(`/dashboard/ankauf/${purchase.id}`);
             }}
-            className="cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]"
+            className="cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]"
         >
             <div className="flex items-start justify-between gap-3">
                 <div>

@@ -166,7 +166,7 @@ export function VehicleStockSnapshotList({ rows }: VehicleStockSnapshotListProps
                 />
             </div>
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white/95 shadow-sm print:rounded-none print:border-0 print:shadow-none">
+            <Card className="rounded-3xl border-slate-200 bg-white/95 shadow-sm print:rounded-none print:border-0 print:shadow-none">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-200 p-5 print:hidden">
                         <div className="max-w-xs space-y-2">

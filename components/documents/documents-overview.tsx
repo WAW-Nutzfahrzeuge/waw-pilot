@@ -469,7 +469,7 @@ export function DocumentsOverview({
                 />
             </section>
 
-            <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-200 bg-white p-5">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -772,7 +772,7 @@ function DocumentMobileCard({
         </>
     );
 
-    const className = "rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]";
+    const className = "rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 active:scale-[0.99]";
 
     if (reviewHref) {
         return (
@@ -887,8 +887,8 @@ function DocumentStatCard({
             href={href}
             className={
                 active
-                    ? "block rounded-[1.25rem] ring-2 ring-amber-300 ring-offset-2"
-                    : "block rounded-[1.25rem] transition hover:-translate-y-0.5 hover:shadow-md"
+                    ? "block rounded-xl ring-2 ring-amber-300 ring-offset-2"
+                    : "block rounded-xl transition hover:-translate-y-0.5 hover:shadow-md"
             }
         >
             {card}

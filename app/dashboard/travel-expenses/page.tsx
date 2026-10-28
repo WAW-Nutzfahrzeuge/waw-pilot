@@ -25,7 +25,7 @@ export default function TravelExpensesPage() {
                 }
             />
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="p-6">
                     <div className="flex items-start gap-4">
                         <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">

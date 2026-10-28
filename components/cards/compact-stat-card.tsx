@@ -37,7 +37,7 @@ export function CompactStatCard({
     const card = (
         <Card
             className={cn(
-                "group h-full rounded-[1.25rem] border-slate-200 bg-white/90 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/80",
+                "group h-full rounded-xl border-slate-200 bg-white/90 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-slate-200/80",
                 className,
             )}
         >

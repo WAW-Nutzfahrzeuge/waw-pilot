@@ -46,7 +46,7 @@ export function AuthShell({
                         edgeSensitivity={24}
                         glowColor="190 90 70"
                         backgroundColor="#111827"
-                        borderRadius={28}
+                        borderRadius={12}
                         glowRadius={44}
                         glowIntensity={1}
                         coneSpread={25}
@@ -54,7 +54,7 @@ export function AuthShell({
                         colors={["#22d3ee", "#a78bfa", "#f472b6"]}
                         fillOpacity={0.35}
                     >
-                        <section className="rounded-[28px] border border-white/15 bg-slate-900/82 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                        <section className="rounded-3xl border border-white/15 bg-slate-900/82 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <div className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-extrabold text-cyan-200">

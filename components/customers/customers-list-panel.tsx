@@ -106,7 +106,7 @@ export function CustomersListPanel({
     }, [query, customerItems]);
 
     return (
-        <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+        <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm">
             <CardContent className="p-0">
                 <div className="border-b border-slate-200 bg-white p-5">
                     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -140,7 +140,7 @@ export function CustomersListPanel({
                                     router.push(`/dashboard/customers/${customer.id}`);
                                 }}
                                 className={cn(
-                                    "cursor-pointer rounded-[1.5rem] border border-slate-200 bg-white p-4 shadow-sm transition-all duration-500 active:scale-[0.99]",
+                                    "cursor-pointer rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-500 active:scale-[0.99]",
                                     activeHighlightId === customer.id
                                         ? "border-emerald-300 bg-emerald-50 ring-2 ring-emerald-300 shadow-lg shadow-emerald-900/10"
                                         : "hover:border-cyan-200 hover:bg-cyan-50/30",
@@ -412,7 +412,7 @@ export function CustomersListPanel({
 
 function CustomersEmptyState() {
     return (
-        <div className="flex min-h-72 flex-col items-center justify-center rounded-[1.5rem] border border-slate-200 bg-white p-8 text-center">
+        <div className="flex min-h-72 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center">
             <CustomersEmptyStateContent />
         </div>
     );

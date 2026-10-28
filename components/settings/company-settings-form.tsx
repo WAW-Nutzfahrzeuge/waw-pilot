@@ -154,7 +154,7 @@ export function CompanySettingsForm({
                 description="Stammdaten für Rechnungen, Dokumente, Exporte und interne Prozesse verwalten."
             />
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="space-y-5 p-5">
                     <SectionTitle
                         icon={KeyRound}
@@ -227,7 +227,7 @@ export function CompanySettingsForm({
                     ref={statusMessageRef}
                     role="status"
                     tabIndex={-1}
-                    className="scroll-mt-4 rounded-[1.5rem] border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 shadow-sm outline-none"
+                    className="scroll-mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700 shadow-sm outline-none"
                 >
                     <CheckCircle2 className="mr-2 inline size-4" />
                     Firmendaten wurden erfolgreich gespeichert.
@@ -255,7 +255,7 @@ export function CompanySettingsForm({
                     ref={companySaved ? undefined : statusMessageRef}
                     role="alert"
                     tabIndex={-1}
-                    className="scroll-mt-4 rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
+                    className="scroll-mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
                 >
                     {getAssetUploadErrorMessage(assetUploadError)}
                 </div>
@@ -266,7 +266,7 @@ export function CompanySettingsForm({
                     ref={assetUploadError || companySaved ? undefined : statusMessageRef}
                     role="alert"
                     tabIndex={-1}
-                    className="scroll-mt-4 rounded-[1.5rem] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
+                    className="scroll-mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700 shadow-sm outline-none"
                 >
                     {getTermsUploadErrorMessage(termsUploadError)}
                 </div>
@@ -291,7 +291,7 @@ export function CompanySettingsForm({
                     </div>
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Building2}
@@ -316,7 +316,7 @@ export function CompanySettingsForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={MapPin}
@@ -349,7 +349,7 @@ export function CompanySettingsForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Mail}
@@ -406,7 +406,7 @@ export function CompanySettingsForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={ShieldCheck}
@@ -436,7 +436,7 @@ export function CompanySettingsForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Landmark}
@@ -494,7 +494,7 @@ export function CompanySettingsForm({
                 </div>
             </form>
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="space-y-5 p-5">
                     <SectionTitle
                         icon={FileSignature}
@@ -506,7 +506,7 @@ export function CompanySettingsForm({
                 </CardContent>
             </Card>
 
-            <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+            <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="space-y-5 p-5">
                     <SectionTitle
                         icon={FileSignature}

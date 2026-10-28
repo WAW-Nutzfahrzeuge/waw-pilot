@@ -264,7 +264,7 @@ export function FinancialOverview({
                 />
             </div>
 
-            <div className="grid gap-3 rounded-[1.75rem] border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-2 print:hidden">
+            <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-sm md:grid-cols-2 print:hidden">
                 <TabLink active={activeTab === "cash"} href="/dashboard/cashbook?tab=cash">
                     <Coins className="size-4" />
                     Barseite
@@ -352,12 +352,12 @@ export function FinancialOverview({
                 )}
             </section>
 
-            <Card className="overflow-hidden rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm print:rounded-none print:border-0 print:shadow-none">
+            <Card className="overflow-hidden rounded-3xl border-slate-200 bg-white/90 shadow-sm print:rounded-none print:border-0 print:shadow-none">
                 <CardContent className="p-0">
                     <div className="border-b border-slate-200 bg-white p-5 print:hidden">
                         <form
                             action="/dashboard/cashbook"
-                            className="mb-5 grid gap-3 rounded-[1.25rem] border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end"
+                            className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[1fr_1fr_auto_auto] lg:items-end"
                         >
                             <input type="hidden" name="tab" value={activeTab} />
                             <DateInput id="cashbook-date-from" name="from" label="Von" defaultValue={dateFrom ?? ""} />

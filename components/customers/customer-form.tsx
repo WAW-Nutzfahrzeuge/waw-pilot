@@ -101,7 +101,7 @@ export function CustomerForm() {
                     />
                 ) : null}
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -123,7 +123,7 @@ export function CustomerForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -170,7 +170,7 @@ export function CustomerForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
@@ -199,7 +199,7 @@ export function CustomerForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-[1.75rem] border-slate-200 bg-white/90 shadow-sm">
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <div>
                             <h2 className="text-xl font-extrabold text-slate-950">
