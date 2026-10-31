@@ -23,6 +23,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,10 +62,14 @@ public class ZugferdPipelineService {
     private static final String STANDARD_VERSION = "ZUGFeRD 2.5 / Factur-X 1.09";
     private static final String PROFILE = "EN16931";
     private static final Duration MUSTANG_VALIDATION_TIMEOUT = Duration.ofMinutes(3);
+    private static final Duration HEALTH_CHECK_TIMEOUT = Duration.ofSeconds(5);
     private static final ExecutorService MUSTANG_VALIDATOR_EXECUTOR =
             Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("mustang-validation-", 0).factory());
+    private static final ExecutorService HEALTH_CHECK_EXECUTOR =
+            Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("zugferd-health-check-", 0).factory());
 
     private final ProcessRunner processRunner;
+    private final SupabaseZugferdJobRepository jobRepository;
     private final String ghostscriptCommand;
     private final String veraPdfCommand;
     private final String iccProfilePath;
@@ -72,20 +77,59 @@ public class ZugferdPipelineService {
 
     public ZugferdPipelineService(
             ProcessRunner processRunner,
+            SupabaseZugferdJobRepository jobRepository,
             @Value("${zugferd.ghostscript-command}") String ghostscriptCommand,
             @Value("${zugferd.verapdf-command}") String veraPdfCommand,
             @Value("${zugferd.icc-profile-path}") String iccProfilePath,
             @Value("${zugferd.max-upload-mb}") int maxUploadMb
     ) {
         this.processRunner = processRunner;
+        this.jobRepository = jobRepository;
         this.ghostscriptCommand = ghostscriptCommand;
         this.veraPdfCommand = veraPdfCommand;
         this.iccProfilePath = iccProfilePath;
         this.maxUploadMb = maxUploadMb;
     }
 
+    /**
+     * Reports service health plus best-effort dependency diagnostics. Render
+     * uses this endpoint's HTTP status as its container health check, so it
+     * must always return 200/"ok" regardless of sub-check outcomes; a failed
+     * Ghostscript/VeraPDF/Supabase check is surfaced only via the boolean
+     * fields, never as a non-2xx response that could trigger a restart loop.
+     */
     public HealthResponse health() {
-        return new HealthResponse("ok");
+        CompletableFuture<Boolean> ghostscriptCheck = CompletableFuture.supplyAsync(
+                () -> isCommandAvailable(ghostscriptCommand), HEALTH_CHECK_EXECUTOR);
+        CompletableFuture<Boolean> veraPdfCheck = CompletableFuture.supplyAsync(
+                () -> isCommandAvailable(veraPdfCommand), HEALTH_CHECK_EXECUTOR);
+        CompletableFuture<Boolean> supabaseCheck = CompletableFuture.supplyAsync(
+                jobRepository::isReachable, HEALTH_CHECK_EXECUTOR);
+
+        return new HealthResponse(
+                "ok",
+                awaitHealthCheck(ghostscriptCheck),
+                awaitHealthCheck(veraPdfCheck),
+                awaitHealthCheck(supabaseCheck)
+        );
+    }
+
+    private boolean isCommandAvailable(String command) {
+        try {
+            ProcessRunner.ProcessResult result = processRunner.run(List.of(command, "--version"), HEALTH_CHECK_TIMEOUT);
+            return result.exitCode() == 0;
+        } catch (Exception error) {
+            LOGGER.warn("Health check command failed: {} ({})", command, error.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    private boolean awaitHealthCheck(CompletableFuture<Boolean> future) {
+        try {
+            return future.get(HEALTH_CHECK_TIMEOUT.toSeconds() + 2, TimeUnit.SECONDS);
+        } catch (Exception error) {
+            return false;
+        }
     }
 
     public GenerateResponse generate(GenerateRequest request) throws Exception {

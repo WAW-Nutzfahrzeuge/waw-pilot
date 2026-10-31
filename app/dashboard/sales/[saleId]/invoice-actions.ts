@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { randomUUID } from "node:crypto";
 
 import { revalidatePaths } from "@/lib/actions/revalidation";
 import { getCurrentCompanyId } from "@/lib/company";
@@ -22,9 +21,6 @@ import { getSuggestedEmailLanguage } from "@/lib/customers/email-languages";
 import { EmailConfigurationError } from "@/lib/email/resend";
 import { calculateInvoiceDueDate } from "@/lib/invoices/payment-terms";
 import { assertCompanySignatureStampConfigured } from "@/lib/pdf/company-signature-assets";
-import { buildFinalInvoicePdf, getCompanyTermsPdf } from "@/lib/pdf/company-terms";
-import { generateInvoicePdf } from "@/lib/pdf/invoice-pdf";
-import { getInvoicePdfData } from "@/lib/pdf/invoice-pdf-data";
 import {
     generateAndStoreInvoicePdf,
     renderInvoicePdfBytes,
@@ -36,16 +32,12 @@ import {
     type SaleBuyerType,
 } from "@/utils/sale-tax-rules";
 import {
-    buildCanonicalInvoiceData,
     ZugferdDataValidationError,
     type ZugferdValidationIssue,
 } from "@/lib/zugferd/canonical-invoice";
 import {
-    generateValidatedZugferdPdf,
     ZugferdServiceRequestError,
     ZugferdServiceConfigurationError,
-    ZugferdServiceValidationError,
-    type ZugferdServiceValidationSummary,
 } from "@/lib/zugferd/zugferd-service-client";
 import { createSendEmailUseCase } from "@/src/modules/email/infrastructure/factories/email-use-case.factory";
 import {
@@ -321,33 +313,6 @@ function getZugferdSuccessRedirect(
     }
 
     return `/dashboard/sales/${saleId}?${params.toString()}`;
-}
-
-function getZugferdIssueMessages(issues: ZugferdValidationIssue[]): string[] {
-    const messages = issues
-        .filter((issue) => issue.severity === "error")
-        .filter((issue) => !issue.ruleId?.endsWith("_REPORT"))
-        .map((issue) => issue.message)
-        .filter((message) => message.trim().length > 0);
-
-    return Array.from(new Set(messages));
-}
-
-function getZugferdValidationSummaryForStorage(
-    validation: ZugferdServiceValidationSummary,
-): Record<string, unknown> {
-    return {
-        status: validation.status,
-        mustangVersion: validation.mustangVersion ?? null,
-        veraPdfVersion: validation.veraPdfVersion ?? null,
-        xmlValid: validation.xmlValid,
-        pdfAValid: validation.pdfAValid,
-        consistencyValid: validation.consistencyValid,
-        issues: validation.issues,
-        blockingErrors: validation.blockingErrors ?? [],
-        warnings: validation.warnings ?? [],
-        profileNotices: validation.profileNotices ?? [],
-    };
 }
 
 async function markZugferdInvalid(
@@ -1721,337 +1686,6 @@ async function queueZugferdInvoiceGeneration(formData: FormData) {
         revalidatePaths([`/dashboard/sales/${saleId}`]);
         redirect(getZugferdSuccessRedirect(saleId, invoiceId, "queued"));
     }
-}
-
-// Retained temporarily as the proven synchronous implementation for reference
-// while the asynchronous job flow is rolled out.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function createZugferdInvoiceSynchronously(formData: FormData) {
-    const supabase = createServerSupabaseClient();
-    const companyId = getCurrentCompanyId();
-
-    const saleId = getStringValue(formData, "sale_id");
-    const invoiceId = getStringValue(formData, "invoice_id");
-
-    if (!saleId) {
-        throw new Error("Verkauf fehlt.");
-    }
-
-    if (!invoiceId) {
-        throw new Error("Rechnung fehlt.");
-    }
-
-    const { data: invoiceData, error: invoiceError } = await supabase
-        .from("invoices")
-        .select(
-            "id, invoice_type, invoice_number, customer_id, vehicle_id, zugferd_validation_status, zugferd_generation_started_at",
-        )
-        .eq("id", invoiceId)
-        .eq("sale_id", saleId)
-        .eq("company_id", companyId)
-        .single();
-
-    if (invoiceError || !invoiceData) {
-        console.error("[zugferd] invoice lookup failed", invoiceError);
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    const generationStartedAt = new Date().toISOString();
-    const staleGenerationBefore = new Date(
-        Date.now() - 15 * 60 * 1000,
-    ).toISOString();
-    const { data: claimedInvoice, error: claimError } = await claimZugferdGeneration({
-        supabase,
-        invoiceId,
-        companyId,
-        generationStartedAt,
-        staleGenerationBefore,
-    });
-
-    if (claimError) {
-        console.error("[zugferd] generation claim failed", claimError);
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    if (!claimedInvoice) {
-        const locked = await isZugferdGenerationCurrentlyLocked({
-            supabase,
-            invoiceId,
-            companyId,
-            staleGenerationBefore,
-        });
-        if (locked) {
-            redirect(getZugferdErrorRedirect(saleId, invoiceId, "generationInProgress"));
-        }
-
-        console.error("[zugferd] generation claim returned no row without an active lock", {
-            invoiceId,
-            companyId,
-        });
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "claimFailed"));
-    }
-
-    let uploadedZugferdPath: string | null = null;
-    let storedZugferd: {
-        fileName: string;
-        filePath: string;
-        fileSize: number;
-        generatedAt: string;
-        profile: "EN16931";
-        standardVersion: string;
-        validation: ZugferdServiceValidationSummary;
-        sha256: string;
-    } | null = null;
-
-    try {
-        const pdfData = await getInvoicePdfData(invoiceId);
-        const termsPdf = pdfData.termsAttached ? await getCompanyTermsPdf() : null;
-        const canonicalInvoice = buildCanonicalInvoiceData(pdfData);
-        const invoicePdfBytes = await generateInvoicePdf({
-            ...pdfData,
-            termsAttached: Boolean(termsPdf),
-        });
-        const visiblePdfBytes = await buildFinalInvoicePdf({
-            invoicePdf: invoicePdfBytes,
-            termsPdf: termsPdf?.bytes ?? null,
-        });
-        const serviceResult = await generateValidatedZugferdPdf({
-            invoice: canonicalInvoice,
-            visiblePdfBase64: Buffer.from(visiblePdfBytes).toString("base64"),
-        });
-        const pdfBytes = Buffer.from(serviceResult.pdfBase64, "base64");
-        const fileName = new ExportFileNamePolicy().createDocumentFileName({
-            saleReference: pdfData.invoiceNumber,
-            documentType: "zugferd_invoice",
-            mimeType: "application/pdf",
-        });
-        const filePath = `companies/${companyId}/invoices/${invoiceId}/zugferd/${randomUUID()}/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from("documents")
-            .upload(filePath, pdfBytes, {
-                contentType: "application/pdf",
-                upsert: false,
-            });
-
-        if (uploadError) {
-            throw new Error(
-                `ZUGFeRD-Rechnung konnte nicht gespeichert werden: ${uploadError.message}`,
-            );
-        }
-
-        uploadedZugferdPath = filePath;
-
-        storedZugferd = {
-            fileName,
-            filePath,
-            fileSize: pdfBytes.byteLength,
-            generatedAt: new Date().toISOString(),
-            profile: serviceResult.profile,
-            standardVersion: serviceResult.standardVersion,
-            validation: serviceResult.validation,
-            sha256: serviceResult.sha256,
-        };
-    } catch (error) {
-        if (uploadedZugferdPath) {
-            const { error: cleanupError } = await supabase.storage
-                .from("documents")
-                .remove([uploadedZugferdPath]);
-
-            if (cleanupError) {
-                console.error("[zugferd] storage cleanup failed", cleanupError);
-            }
-        }
-
-        if (error instanceof ZugferdDataValidationError) {
-            await markZugferdInvalid(invoiceId, companyId, error.issues);
-            redirect(
-                getZugferdErrorRedirect(
-                    saleId,
-                    invoiceId,
-                    "missingData",
-                    error.missingFields,
-                ),
-            );
-        }
-
-        if (error instanceof ZugferdServiceConfigurationError) {
-            await markZugferdInvalid(invoiceId, companyId, [
-                { severity: "error", message: error.message },
-            ]);
-            redirect(
-                getZugferdErrorRedirect(
-                    saleId,
-                    invoiceId,
-                    "serviceNotConfigured",
-                ),
-            );
-        }
-
-        if (error instanceof ZugferdServiceValidationError) {
-            await markZugferdInvalid(invoiceId, companyId, error.issues);
-            redirect(
-                getZugferdErrorRedirect(
-                    saleId,
-                    invoiceId,
-                    "validationFailed",
-                    getZugferdIssueMessages(error.issues),
-                ),
-            );
-        }
-
-        if (error instanceof ZugferdServiceRequestError) {
-            await markZugferdInvalid(invoiceId, companyId, [
-                { severity: "error", message: error.message },
-            ]);
-
-            const errorCodeByServiceCode: Record<string, string> = {
-                UNAUTHORIZED: "serviceUnauthorized",
-                PAYLOAD_TOO_LARGE: "payloadTooLarge",
-                TIMEOUT: "serviceTimeout",
-                SERVICE_UNAVAILABLE: "serviceUnavailable",
-                SERVICE_ERROR: "serviceError",
-            };
-
-            redirect(
-                getZugferdErrorRedirect(
-                    saleId,
-                    invoiceId,
-                    errorCodeByServiceCode[error.code] ?? "serviceError",
-                ),
-            );
-        }
-
-        await markZugferdInvalid(invoiceId, companyId, [
-            {
-                severity: "error",
-                message: "ZUGFeRD-Rechnung konnte nicht erstellt werden.",
-            },
-        ]);
-        console.error("[zugferd] generation failed", error);
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    if (!storedZugferd) {
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    const { error: invoiceUpdateError } = await supabase
-        .from("invoices")
-        .update({
-            zugferd_file_path: storedZugferd.filePath,
-            zugferd_generated_at: storedZugferd.generatedAt,
-            zugferd_profile: storedZugferd.profile,
-            zugferd_standard_version: storedZugferd.standardVersion,
-            zugferd_validation_status: "valid",
-            zugferd_generation_started_at: null,
-            zugferd_validated_at: storedZugferd.generatedAt,
-            zugferd_validation_summary: getZugferdValidationSummaryForStorage(
-                storedZugferd.validation,
-            ),
-            zugferd_sha256: storedZugferd.sha256,
-        })
-        .eq("id", invoiceId)
-        .eq("company_id", companyId);
-
-    if (invoiceUpdateError) {
-        console.error("[zugferd] invoice update failed", invoiceUpdateError);
-        const { error: cleanupError } = await supabase.storage
-            .from("documents")
-            .remove([storedZugferd.filePath]);
-        if (cleanupError) {
-            console.error("[zugferd] storage cleanup failed", cleanupError);
-        }
-        await markZugferdInvalid(invoiceId, companyId, [
-            { severity: "error", message: "Die E-Rechnung konnte nicht mit der Rechnung verknüpft werden." },
-        ]);
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    try {
-        const { data: existingDocument, error: existingDocumentError } = await supabase
-            .from("documents")
-            .select("id")
-            .eq("company_id", companyId)
-            .eq("invoice_id", invoiceId)
-            .eq("document_type", "zugferd_invoice")
-            .maybeSingle();
-
-        if (existingDocumentError) {
-            throw new Error(`ZUGFeRD-Dokument konnte nicht geprüft werden: ${existingDocumentError.message}`);
-        }
-
-        if (existingDocument?.id) {
-            const { error: documentUpdateError } = await supabase
-                .from("documents")
-                .update({
-                    source: "generated",
-                    status: "available",
-                    file_name: storedZugferd.fileName,
-                    file_path: storedZugferd.filePath,
-                    mime_type: "application/pdf",
-                    file_size: storedZugferd.fileSize,
-                    generated_by_system: true,
-                })
-                .eq("id", existingDocument.id)
-                .eq("company_id", companyId);
-
-            if (documentUpdateError) {
-                throw new Error(`ZUGFeRD-Dokument konnte nicht aktualisiert werden: ${documentUpdateError.message}`);
-            }
-        } else {
-            const { error: documentInsertError } = await supabase
-                .from("documents")
-                .insert({
-                    company_id: companyId,
-                    document_type: "zugferd_invoice",
-                    source: "generated",
-                    status: "available",
-                    file_name: storedZugferd.fileName,
-                    file_path: storedZugferd.filePath,
-                    mime_type: "application/pdf",
-                    file_size: storedZugferd.fileSize,
-                    customer_id: invoiceData.customer_id,
-                    vehicle_id: invoiceData.vehicle_id,
-                    sale_id: saleId,
-                    invoice_id: invoiceId,
-                    generated_by_system: true,
-                });
-
-            if (documentInsertError) {
-                throw new Error(`ZUGFeRD-Dokument konnte nicht angelegt werden: ${documentInsertError.message}`);
-            }
-        }
-    } catch (error) {
-        const { error: cleanupError } = await supabase.storage
-            .from("documents")
-            .remove([storedZugferd.filePath]);
-        if (cleanupError) {
-            console.error("[zugferd] storage cleanup failed", cleanupError);
-        }
-        await markZugferdInvalid(invoiceId, companyId, [
-            {
-                severity: "error",
-                message: "Die ZUGFeRD-Datei konnte nicht vollständig mit den Dokumentdaten verknüpft werden.",
-            },
-        ]);
-        console.error("[zugferd] document finalization failed", error);
-        redirect(getZugferdErrorRedirect(saleId, invoiceId, "createFailed"));
-    }
-
-    await logActivity({
-        action: `ZUGFeRD-Rechnung ${invoiceData.invoice_number} erstellt und validiert`,
-        entityType: "invoice",
-        entityId: invoiceId,
-    });
-
-    revalidatePaths([
-        `/dashboard/sales/${saleId}`,
-        "/dashboard/documents",
-        "/dashboard/activities",
-    ]);
-
-    redirect(getZugferdSuccessRedirect(saleId, invoiceId, "created"));
 }
 
 export async function sendZugferdInvoiceEmailAction(formData: FormData) {

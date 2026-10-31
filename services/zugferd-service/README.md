@@ -29,43 +29,22 @@ Rechnungsdatensatz und eine sichtbare Rechnungs-PDF aus dem privaten Supabase-St
 
 ### `GET /health`
 
-Ohne Authentifizierung. Antwortet bewusst knapp:
+Ohne Authentifizierung. Antwortet immer mit HTTP 200, unabhaengig vom Zustand
+der Abhaengigkeiten (Render verwendet diesen Pfad als Container-Health-Check;
+ein nicht-2xx-Status wuerde einen Neustart ausloesen). Diagnosefelder sind rein
+informativ:
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "ghostscriptAvailable": true,
+  "veraPdfAvailable": true,
+  "supabaseReachable": true
 }
 ```
 
 Der Health Check erzeugt keine Rechnung und gibt keine Secrets, Pfade oder
 Systemdetails aus.
-
-### `POST /generate`
-
-Erzeugt eine validierte ZUGFeRD-/Factur-X-PDF.
-
-```text
-Authorization: Bearer <ZUGFERD_SERVICE_API_KEY>
-Content-Type: application/json
-```
-
-Antwort bei Erfolg:
-
-```json
-{
-  "pdfBase64": "...",
-  "fileName": "rechnung-026-001-zugferd.pdf",
-  "sha256": "...",
-  "standardVersion": "ZUGFeRD 2.5 / Factur-X 1.09",
-  "profile": "EN16931",
-  "validation": {
-    "status": "valid",
-    "xmlValid": true,
-    "pdfAValid": true,
-    "consistencyValid": true
-  }
-}
-```
 
 ### `POST /validate`
 
@@ -179,7 +158,7 @@ curl -fsS http://localhost:8087/health
 Ohne Token:
 
 ```bash
-curl -i -X POST http://localhost:8087/generate \
+curl -i -X POST http://localhost:8087/validate \
   -H "Content-Type: application/json" \
   -d '{}'
 ```
@@ -187,7 +166,7 @@ curl -i -X POST http://localhost:8087/generate \
 Mit falschem Token:
 
 ```bash
-curl -i -X POST http://localhost:8087/generate \
+curl -i -X POST http://localhost:8087/validate \
   -H "Authorization: Bearer wrong-token" \
   -H "Content-Type: application/json" \
   -d '{}'
@@ -277,7 +256,7 @@ niemals in den Browser oder ins Repository.
 ## Sicherheit
 
 - `/health` ist oeffentlich.
-- `/generate` und `/validate` verlangen `Authorization: Bearer ...`.
+- `/validate` verlangt `Authorization: Bearer ...`.
 - Der API-Key wird nicht geloggt.
 - Rechnungsinhalte werden nicht vollstaendig geloggt.
 - Client-Dateipfade werden nicht akzeptiert.

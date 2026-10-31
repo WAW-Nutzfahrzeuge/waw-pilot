@@ -8,7 +8,7 @@ import {
     buildCanonicalInvoiceData,
     ZugferdDataValidationError,
 } from "@/lib/zugferd/canonical-invoice";
-import { markZugferdInvalid } from "@/lib/zugferd/zugferd-generation-storage";
+import { markZugferdInvalid, archiveStaleZugferdDocument } from "@/lib/zugferd/zugferd-generation-storage";
 
 type QueuedJobRow = { job_id: string; job_status: string };
 
@@ -27,13 +27,15 @@ function normalizeRpcRow(value: unknown): QueuedJobRow | null {
         : null;
 }
 
-async function wakeWorker(jobId: string): Promise<void> {
+export async function wakeWorker(jobId: string): Promise<void> {
     const url = process.env.ZUGFERD_SERVICE_URL?.trim().replace(/\/+$/, "");
     const apiKey = process.env.ZUGFERD_SERVICE_API_KEY?.trim();
     if (!url || !apiKey) return;
 
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2_500);
+    const timer = setTimeout(() => controller.abort(), 4_000);
     try {
         const response = await fetch(`${url}/wake`, {
             method: "POST",
@@ -46,12 +48,23 @@ async function wakeWorker(jobId: string): Promise<void> {
                 status: response.status,
             });
         }
+        return;
     } catch {
-        // The durable row remains queued. A warm worker or the next wake can
-        // claim it; do not fail standard invoice creation on a wake timeout.
-        console.warn("[zugferd] worker wake request did not complete", { jobId });
+        const timedOut = controller.signal.aborted;
+        if (timedOut || attempt >= maxAttempts) {
+            // The durable row remains queued. A warm worker or the next wake can
+            // claim it; do not fail standard invoice creation on a wake timeout.
+            console.warn("[zugferd] worker wake request did not complete", {
+                jobId,
+                attempt,
+                timedOut,
+            });
+            return;
+        }
+        console.warn("[zugferd] worker wake request failed, retrying", { jobId, attempt });
     } finally {
         clearTimeout(timer);
+    }
     }
 }
 
@@ -124,7 +137,12 @@ export async function enqueueDurableZugferdGeneration({
             }
 
             const jobId = String(existing.id);
-            if (existing.status === "pending") await wakeWorker(jobId);
+            if (existing.status === "pending") {
+                await Promise.allSettled([
+                    wakeWorker(jobId),
+                    archiveStaleZugferdDocument({ companyId, invoiceId }),
+                ]);
+            }
             return { jobId, status: String(existing.status) };
         }
 
@@ -133,7 +151,12 @@ export async function enqueueDurableZugferdGeneration({
             throw new Error("Die Auftragswarteschlange hat keine gültige Job-ID zurückgegeben.");
         }
 
-        if (queued.job_status === "pending") await wakeWorker(queued.job_id);
+        if (queued.job_status === "pending") {
+            await Promise.allSettled([
+                wakeWorker(queued.job_id),
+                archiveStaleZugferdDocument({ companyId, invoiceId }),
+            ]);
+        }
         return { jobId: queued.job_id, status: queued.job_status };
     } catch (error) {
         const message = error instanceof Error

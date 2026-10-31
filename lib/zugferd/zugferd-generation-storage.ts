@@ -8,6 +8,7 @@ import type {
     ZugferdServiceResult,
     ZugferdServiceValidationSummary,
 } from "@/lib/zugferd/zugferd-service-client";
+import { createDocumentUseCases } from "@/src/modules/documents/infrastructure/factories/document-use-case.factory";
 import { ExportFileNamePolicy } from "@/src/modules/documents/domain/policies/export-file-name-policy";
 
 type InvoiceReference = {
@@ -63,6 +64,52 @@ export async function markZugferdInvalid({
 
     if (error) console.error("[zugferd] invalid status update failed", error);
     return Boolean(updated);
+}
+
+/**
+ * Archives the currently active zugferd_invoice document for an invoice, if any.
+ *
+ * Called right after a new durable generation job is enqueued: once a job is
+ * queued, any already-stored ZUGFeRD PDF necessarily belongs to a superseded
+ * job, so it should not keep showing up as "available" while the new job is
+ * in flight. storeValidatedZugferdInvoice() restores archive_status to
+ * ACTIVE once the new job completes successfully. Best-effort and non-fatal:
+ * failures are logged but never block invoice generation.
+ */
+export async function archiveStaleZugferdDocument({
+    companyId,
+    invoiceId,
+}: {
+    companyId: string;
+    invoiceId: string;
+}): Promise<void> {
+    try {
+        const supabase = createServerSupabaseClient();
+        const { data: existingDocument, error } = await supabase
+            .from("documents")
+            .select("id, archive_status")
+            .eq("company_id", companyId)
+            .eq("invoice_id", invoiceId)
+            .eq("document_type", "zugferd_invoice")
+            .maybeSingle();
+
+        if (error) {
+            console.warn("[zugferd] stale document lookup failed", { invoiceId, error });
+            return;
+        }
+        if (!existingDocument || existingDocument.archive_status === "ARCHIVED") {
+            return;
+        }
+
+        await createDocumentUseCases().archiveDocument.execute({
+            companyId,
+            documentId: existingDocument.id,
+            archivedBy: null,
+            reason: "Durch einen neuen ZUGFeRD-Erzeugungsauftrag ersetzt.",
+        });
+    } catch (error) {
+        console.warn("[zugferd] stale document archiving failed", { invoiceId, error });
+    }
 }
 
 export async function storeValidatedZugferdInvoice({
@@ -147,6 +194,14 @@ export async function storeValidatedZugferdInvoice({
             mime_type: "application/pdf",
             file_size: pdfBytes.byteLength,
             generated_by_system: true,
+            metadata: { renderJobId: expectedJobId ?? null },
+            // A prior regeneration attempt may have archived this document
+            // (see archiveStaleZugferdDocument). This job just produced a
+            // valid replacement, so make sure it is active again.
+            archive_status: "ACTIVE",
+            archived_at: null,
+            archived_by: null,
+            archive_reason: null,
         };
         const documentError = existingDocument?.id
             ? (await supabase.from("documents").update(documentValues).eq("id", existingDocument.id).eq("company_id", companyId)).error

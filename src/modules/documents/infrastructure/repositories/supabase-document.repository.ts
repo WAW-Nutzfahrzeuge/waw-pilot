@@ -388,7 +388,6 @@ export class SupabaseDocumentRepository implements DocumentRepository {
             .from("documents")
             .update({
                 archive_status: "ARCHIVED",
-                status: "archived",
                 archived_at: new Date().toISOString(),
                 archived_by: command.archivedBy,
                 archive_reason: command.reason,

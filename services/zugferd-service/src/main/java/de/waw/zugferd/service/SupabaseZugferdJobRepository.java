@@ -133,6 +133,28 @@ public class SupabaseZugferdJobRepository {
         return response.body();
     }
 
+    /**
+     * Lightweight reachability probe used by /health. Any HTTP response (even
+     * an auth or not-found error) proves the Supabase REST endpoint answers,
+     * which is all this diagnostic claims. Never throws: callers only need a
+     * boolean, and /health must stay resilient to a down dependency.
+     */
+    public boolean isReachable() {
+        try {
+            HttpRequest request = authorizedRequest(URI.create(supabaseUrl + "/rest/v1/"))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET()
+                    .build();
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            return response.statusCode() > 0;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception error) {
+            return false;
+        }
+    }
+
     public record DurableJob(
             String id,
             String company_id,
