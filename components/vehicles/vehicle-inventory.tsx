@@ -184,13 +184,7 @@ export function VehicleInventory({
                 <FlashMessage message="Fahrzeug wurde angelegt." />
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <InventoryStatCard
-                    label="Fahrzeuge gesamt"
-                    value={vehicles.length}
-                    description="alle erfassten Fahrzeuge"
-                    icon={Truck}
-                />
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <InventoryStatCard
                     label="Aktueller Bestand"
                     value={visibleVehicleGroups.currentVehicles.length}
