@@ -26,7 +26,7 @@ export type VehicleFolderResponse = {
     drive_id: string;
     folder_id: string;
     folder_url: string;
-    registration_folder_id: string;
+    registration_folder_id?: string | null;
     images_folder_id: string;
 };
 
@@ -92,6 +92,11 @@ export function validateVehicleFolderResponse(
 ): VehicleFolderResponse | null {
     if (!value || typeof value !== "object" || Array.isArray(value)) return null;
     const response = value as Record<string, unknown>;
+    const registrationFolderId = response.registration_folder_id;
+    const validOptionalRegistrationFolderId =
+        registrationFolderId === undefined ||
+        registrationFolderId === null ||
+        nonEmptyString(registrationFolderId);
 
     if (
         response.status !== "ready" ||
@@ -101,7 +106,7 @@ export function validateVehicleFolderResponse(
         response.folder_name !== expected.folder_name ||
         response.drive_id !== expected.drive_id ||
         !nonEmptyString(response.folder_id) ||
-        !nonEmptyString(response.registration_folder_id) ||
+        !validOptionalRegistrationFolderId ||
         !nonEmptyString(response.images_folder_id) ||
         !isValidOneDriveFolderUrl(response.folder_url)
     ) {

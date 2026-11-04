@@ -64,6 +64,19 @@ test("vehicle folder fallback uses the full internal id when the purchase number
 
 test("n8n folder response is accepted only when all identity values match", () => {
     assert.equal(validateVehicleFolderResponse(validResponse(), request)?.status, "ready");
+    const newWorkflowResponse: Record<string, unknown> = { ...validResponse() };
+    delete newWorkflowResponse.registration_folder_id;
+    assert.equal(
+        validateVehicleFolderResponse(newWorkflowResponse, request)?.images_folder_id,
+        "images-id",
+    );
+    assert.equal(
+        validateVehicleFolderResponse(
+            { ...newWorkflowResponse, registration_folder_id: null },
+            request,
+        )?.status,
+        "ready",
+    );
 
     for (const mutation of [
         { ...validResponse(), event_id: "another-job" },
@@ -72,11 +85,38 @@ test("n8n folder response is accepted only when all identity values match", () =
         { ...validResponse(), folder_name: "different-name" },
         { ...validResponse(), drive_id: "different-drive" },
         { ...validResponse(), registration_folder_id: "" },
+        { ...validResponse(), registration_folder_id: 42 },
         { ...validResponse(), folder_url: "http://tenant.sharepoint.com/folder" },
         { ...validResponse(), folder_url: "https://evil.example/folder" },
     ]) {
         assert.equal(validateVehicleFolderResponse(mutation, request), null);
     }
+});
+
+test("purchase folder migration makes the old registration mapping optional without clearing saved values", () => {
+    const migration = readFileSync(
+        resolve("supabase/migrations/20261104130000_make_purchase_registration_folder_optional.sql"),
+        "utf8",
+    );
+
+    assert.match(migration, /alter column registration_folder_id drop not null/i);
+    assert.match(migration, /registration_folder_id\s*=\s*coalesce\(\s*nullif\(btrim\(p_registration_folder_id\), ''\),\s*j\.registration_folder_id\s*\)/i);
+    assert.match(migration, /registration_folder_id is not null/i);
+    assert.doesNotMatch(migration.match(/add constraint purchase_vehicle_folder_jobs_ready_fields_check[\s\S]*?;/i)?.[0] ?? "", /registration_folder_id is not null/i);
+});
+
+test("purchase registration upload is optional and stored through the existing private documents bucket", () => {
+    const purchaseAction = readFileSync(resolve("app/dashboard/ankauf/new/actions.ts"), "utf8");
+    const purchaseDetailAction = readFileSync(
+        resolve("app/dashboard/ankauf/[purchaseId]/document-actions.ts"),
+        "utf8",
+    );
+
+    assert.match(purchaseAction, /getFileValues\(formData, "vehicle_registration_file"\)/);
+    assert.match(purchaseAction, /\.from\("documents"\)[\s\S]*?\.upload\(filePath, file/);
+    assert.match(purchaseAction, /document_type: documentType[\s\S]*?vehicle_id: vehicleId[\s\S]*?purchase_case_id: purchaseCaseId/);
+    assert.match(purchaseDetailAction, /document_type: documentType[\s\S]*?purchase_case_id: purchaseId/);
+    assert.doesNotMatch(purchaseAction, /if\s*\(\s*!.*vehicle_registration_file/);
 });
 
 test("durable folder jobs enforce unique purchase identity, private access, and atomic leased claims", () => {
@@ -97,10 +137,12 @@ test("durable folder jobs enforce unique purchase identity, private access, and 
 test("mocked n8n success persists the complete validated folder mapping", async () => {
     const stored = new Map<string, unknown>();
     const failures: string[] = [];
+    const newWorkflowResponse: Record<string, unknown> = { ...validResponse() };
+    delete newWorkflowResponse.registration_folder_id;
     const result = await dispatchVehicleFolderWebhook({
         request,
         leaseToken: "lease-1",
-        post: async () => ({ statusCode: 200, body: validResponse() }),
+        post: async () => ({ statusCode: 200, body: newWorkflowResponse }),
         complete: async (response, token) => {
             assert.equal(token, "lease-1");
             stored.set(response.event_id, response);
@@ -111,6 +153,10 @@ test("mocked n8n success persists the complete validated folder mapping", async 
 
     assert.equal(result.status, "ready");
     assert.equal(stored.get(request.event_id), (result as { status: "ready"; response: unknown }).response);
+    assert.equal(
+        (stored.get(request.event_id) as { registration_folder_id?: string }).registration_folder_id,
+        undefined,
+    );
     assert.equal(failures.length, 0);
 });
 

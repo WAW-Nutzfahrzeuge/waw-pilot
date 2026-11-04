@@ -300,7 +300,7 @@ async function runJob(
                     p_drive_id: result.drive_id,
                     p_folder_id: result.folder_id,
                     p_folder_url: result.folder_url,
-                    p_registration_folder_id: result.registration_folder_id,
+                    p_registration_folder_id: result.registration_folder_id ?? null,
                     p_images_folder_id: result.images_folder_id,
                 },
             );
@@ -328,7 +328,8 @@ async function runJob(
         status: "ready",
         folder_url: dispatch.response.folder_url,
         folder_id: dispatch.response.folder_id,
-        registration_folder_id: dispatch.response.registration_folder_id,
+        registration_folder_id:
+            dispatch.response.registration_folder_id ?? claimed.registration_folder_id,
         images_folder_id: dispatch.response.images_folder_id,
         last_error: null,
     };

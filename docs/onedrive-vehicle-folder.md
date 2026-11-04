@@ -6,6 +6,8 @@ Nach dem erfolgreichen Speichern des Ankaufs legt WAW Pilot einen Datensatz in `
 
 Das aktuelle Datenmodell verbindet einen `purchase_cases`-Datensatz mit genau einem `vehicles`-Datensatz über `purchase_cases.vehicle_id`. Es gibt bereits eine firmenweit eindeutige `purchase_number` im Format `AK-JJJJ-NNNNNN` (`next_purchase_number` und Unique Index in den bestehenden Migrationen). Der menschenlesbare Name wird einmal beim ersten Auftrag gespeichert, z. B. `AK-2026-000421_Mercedes-Benz-Actros-3241_Betonmischer`. Bei fehlender Einkaufsnummer wird die vollständige interne UUID des Einkaufs verwendet. Der gespeicherte Name, die ursprüngliche Fahrzeug-ID und die Ziel-IDs werden bei Wiederholungen wiederverwendet.
 
+Der Fahrzeugschein ist beim Einkauf optional. Wenn hochgeladen, wird er wie bisher im privaten Supabase-Bucket `documents` unter `purchases/{purchaseCaseId}/{uuidFilename}` gespeichert. Der Datensatz in `public.documents` enthält `document_type = 'vehicle_registration'`, `purchase_case_id`, `vehicle_id`, `company_id` und den `file_path`. Die Einkaufsakte zeigt diese bestehende Datei an; sie wird weder in OneDrive kopiert noch von der Ordneranlage vorausgesetzt. Der bestehende geschützte Download `/api/documents/{documentId}/file` prüft die Company und erstellt serverseitig eine 60 Sekunden gültige Storage-URL, über die die Datei von der App geladen wird.
+
 Die Jobzeile ist über `(company_id, purchase_case_id)` eindeutig. RLS verweigert Browserrollen den Zugriff; nur der serverseitige Service-Role-Client kann lesen und schreiben. Ein atomarer Claim mit Lease-Token verhindert parallele Aufrufe. Der Claim läuft nach 120 Sekunden aus, während ein einzelner HTTP-Aufruf spätestens nach 25 Sekunden abbricht. Eine verspätete Antwort kann einen inzwischen neu übernommenen Auftrag wegen des Lease-Tokens nicht überschreiben.
 
 ## Server-Konfiguration
@@ -52,7 +54,7 @@ Beispielbody (nur synthetische Beispielwerte):
 
 ### Vorhandene Graph-Schritte erhalten
 
-Die bestehenden Schritte zur Fahrzeugordneranlage sowie zu `Fahrzeugschein` und `Fahrzeugbilder` bleiben bestehen. Der Zielordner wird innerhalb der übermittelten `drive_id` unter `root_folder_id` angelegt. Für den Ordner und beide Unterordner bleibt `conflictBehavior: fail`; ein Namenskonflikt wird gezielt behandelt, anschließend wird der bestehende Ordner gelesen. Andere Graph-Fehler dürfen nicht als Erfolg weiterlaufen. Bei Teilfehlern dürfen bereits erstellte Ordner bestehen bleiben: ein Wiederholungsrequest verwendet dieselbe Event-ID, denselben Namen und dieselben Ziel-IDs und liest bestehende Ordner nach Namenskonflikt wieder ein.
+Der Zielordner wird innerhalb der übermittelten `drive_id` unter `root_folder_id` angelegt. Darunter wird künftig nur noch der Unterordner `Fahrzeugbilder` angelegt oder wiederverwendet. Für den Fahrzeughauptordner und `Fahrzeugbilder` bleibt `conflictBehavior: fail`; ein Namenskonflikt wird gezielt behandelt, anschließend wird der bestehende Ordner gelesen. Andere Graph-Fehler dürfen nicht als Erfolg weiterlaufen. Bei Teilfehlern dürfen bereits erstellte Ordner bestehen bleiben: ein Wiederholungsrequest verwendet dieselbe Event-ID, denselben Namen und dieselben Ziel-IDs und liest bestehende Ordner nach Namenskonflikt wieder ein. Bestehende OneDrive-Unterordner `Fahrzeugschein` und deren Dateien werden nicht automatisch gelöscht.
 
 Die bisherigen Testdaten aus dem `Testdaten`-Node dürfen nicht mehr Produktionsdaten überschreiben. Im produktiven Pfad die Requestdaten aus dem Webhook verwenden. Ein Webhook-Test kann weiterhin synthetische Requestdaten verwenden.
 
@@ -91,11 +93,11 @@ return { json: {
 } };
 ```
 
-In den bestehenden Microsoft-Graph-Nodes die Eingaben auf `{{$json.drive_id}}`, `{{$json.root_folder_id}}`, `{{$json.folder_name}}` und die aus den vorherigen Nodes gelesenen tatsächlichen Ordner-IDs umstellen. Keine neue ID aus dem Ordnernamen ableiten. Die finale Antwort muss die obigen Werte aus diesem validierten Item unverändert zurückgeben.
+Im bestehenden Microsoft-Graph-Ablauf den Schritt für die Anlage/Wiederverwendung des Unterordners `Fahrzeugschein` entfernen. Nur `Fahrzeugbilder` anlegen oder wiederverwenden. Die Eingaben auf `{{$json.drive_id}}`, `{{$json.root_folder_id}}`, `{{$json.folder_name}}` und die aus den vorherigen Nodes gelesenen tatsächlichen Ordner-IDs umstellen. Keine neue ID aus dem Ordnernamen ableiten. Die finale Antwort muss die obigen Identitätswerte aus diesem validierten Item unverändert zurückgeben.
 
 ### Erfolgsantwort
 
-Nur nach erfolgreicher Validierung aller drei Ordner mit HTTP 200 antworten. Das JSON muss direkt dieses Objekt sein:
+Nur nach erfolgreicher Validierung des Fahrzeughauptordners und des Bilder-Unterordners mit HTTP 200 antworten. Das JSON muss direkt dieses Objekt sein:
 
 ```json
 {
@@ -107,12 +109,17 @@ Nur nach erfolgreicher Validierung aller drei Ordner mit HTTP 200 antworten. Das
   "drive_id": "<unverändert aus Request>",
   "folder_id": "<Graph-ID Fahrzeugordner>",
   "folder_url": "https://<Microsoft-OneDrive- oder SharePoint-Link>",
-  "registration_folder_id": "<Graph-ID Unterordner Fahrzeugschein>",
   "images_folder_id": "<Graph-ID Unterordner Fahrzeugbilder>"
 }
 ```
 
-IDs und Identitätsfelder müssen genau aus dem Auftrag stammen. `folder_url` muss ein HTTPS-OneDrive-/SharePoint-Link sein. Ein HTTP 200 mit fehlenden Feldern oder abweichender ID wird von WAW Pilot als Fehler behandelt. Bei Fehlern einen passenden HTTP-Fehlerstatus (4xx/5xx) und ein strukturiertes, nicht personenbezogenes Objekt zurückgeben, z. B. `{"status":"error","error_code":"GRAPH_FOLDER_CREATE_FAILED"}`. WAW Pilot protokolliert keine Secret-Header und keine vollständige n8n-Antwort.
+`registration_folder_id` ist für neue Antworten nicht mehr erforderlich. Eine ältere Workflow-Antwort, die dieses Feld weiterhin mit einer gültigen Graph-ID enthält, wird aus Kompatibilitätsgründen akzeptiert. Ein fehlendes oder `null`-Feld ist ebenfalls gültig. Ist es vorhanden und nicht leer, wird der Wert gespeichert. Vorhandene Datenbankzuordnungen bleiben erhalten, wenn eine neue Antwort das Feld auslässt. Alle übrigen Identitätswerte, IDs und `folder_url` müssen weiterhin vollständig passen; `folder_url` muss ein HTTPS-OneDrive-/SharePoint-Link sein. Bei Fehlern einen passenden HTTP-Fehlerstatus (4xx/5xx) und ein strukturiertes, nicht personenbezogenes Objekt zurückgeben, z. B. `{"status":"error","error_code":"GRAPH_FOLDER_CREATE_FAILED"}`. WAW Pilot protokolliert keine Secret-Header und keine vollständige n8n-Antwort.
+
+### Spätere Vorbereitung eines Inserats
+
+Der spätere Schritt **Inserat vorbereiten** soll voraussetzen, dass ein vorhandener Fahrzeugschein-Datensatz (`vehicle_registration`) in der zugehörigen Supabase-Einkaufs-/Fahrzeugakte abrufbar ist und mindestens ein geeignetes Fahrzeugfoto im OneDrive-Unterordner `Fahrzeugbilder` vorhanden ist. Das sind keine Voraussetzungen für Einkaufsspeicherung oder OneDrive-Ordneranlage. OCR, KI-Auswertung, Dateiübertragung und mobile.de-Veröffentlichung sind hier nicht implementiert.
+
+Für eine spätere n8n-Verarbeitung des privaten Fahrzeugscheins kann die Anwendung eine kurzlebige signed URL ausstellen oder die Datei über einen authentifizierten serverseitigen Endpunkt bereitstellen. Es wird jetzt kein Transfer ergänzt. Der Supabase Service Role Key darf weder an den Browser noch an KI-Systeme weitergegeben werden.
 
 ## Wiederholungen und Betrieb
 
@@ -124,13 +131,12 @@ IDs und Identitätsfelder müssen genau aus dem Auftrag stammen. `folder_url` mu
 
 ## Migration und Deployment
 
-Neue Migration: `supabase/migrations/20261104110000_add_purchase_vehicle_folder_jobs.sql`.
+Die ursprüngliche Tabellenmigration bleibt unverändert: `supabase/migrations/20261104110000_add_purchase_vehicle_folder_jobs.sql`. Zusätzlich muss die additive Migration `supabase/migrations/20261104130000_make_purchase_registration_folder_optional.sql` ausgeführt werden. Sie lockert die Ready-Constraint, macht `registration_folder_id` optional und erhält bestehende Feldwerte sowie Zuordnungen.
 
-1. Migration in Supabase ausführen.
-2. In n8n das Header-Auth Credential, den Webhook und den Respond-Node gemäß Vertrag einrichten. Die bestehende Graph-Ordnerlogik beibehalten und auf den Request umstellen.
-3. Den Workflow zunächst über die n8n-Test-URL mit synthetischen UUIDs testen. Keine produktiven Ordner-IDs verändern.
-4. Den Workflow für den Produktiv-Webhook aktivieren und die von n8n angezeigte Produktions-URL in Vercel eintragen. Die serverseitigen Ordner-IDs und dasselbe Secret in Vercel setzen.
-5. WAW Pilot deployen.
-6. Mit einem ausdrücklich dafür vorgesehenen neuen Testankauf den ersten echten OneDrive-Aufruf kontrolliert prüfen.
+1. Additive Migration in Supabase ausführen; keine alte Migration erneut bearbeiten oder rückwirkend ändern.
+2. Im n8n-Workflow die Fahrzeugschein-Unterordneranlage entfernen; nur `Fahrzeugbilder` anlegen. Request, Webhook-URL und Secret bleiben unverändert. `registration_folder_id` kann aus neuen Antworten entfallen.
+3. Den Workflow zunächst über die n8n-Test-URL mit synthetischen UUIDs prüfen, danach den Produktiv-Webhook aktivieren.
+4. WAW Pilot deployen.
+5. Mit einem ausdrücklich dafür vorgesehenen neuen Testankauf den ersten echten OneDrive-Aufruf kontrolliert prüfen.
 
-Die Migration und das Deployment wurden von diesem Implementierungsschritt nicht ausgeführt.
+Die Migration, n8n-Änderung und das Deployment wurden von diesem Implementierungsschritt nicht ausgeführt.
