@@ -31,8 +31,8 @@ type PendingJobRow = { id: string; invoice_id: string; created_at: string };
  *    grace period, in case the original wake call at enqueue-time did not
  *    reach the Render worker (e.g. a sleeping free-tier instance).
  *
- * Invoked by Vercel Cron (see vercel.json) and authenticated via
- * CRON_SECRET; never runs on a schedule that bypasses this check.
+ * Requires CRON_SECRET authentication. No periodic schedule is currently
+ * configured; automatic cron-based recovery is intentionally paused.
  */
 export async function GET(request: Request) {
     if (!authenticateCronRequest(request)) {

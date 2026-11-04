@@ -1,8 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/zugferd-finalize",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}
+{}

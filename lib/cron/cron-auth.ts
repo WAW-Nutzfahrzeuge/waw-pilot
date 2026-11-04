@@ -9,11 +9,10 @@ function equalsConstantTime(actual: string, expected: string): boolean {
 }
 
 /**
- * Authenticates a scheduled (Vercel Cron) request using a constant-time
+ * Authenticates a scheduled or manual request using a constant-time
  * comparison against CRON_SECRET, mirroring the Bearer-token pattern used for
- * automation requests in lib/automation/api-auth.ts. Vercel Cron Jobs send
- * this value as `Authorization: Bearer <CRON_SECRET>` automatically once the
- * env var is configured.
+ * automation requests in lib/automation/api-auth.ts. Callers must send this
+ * value as `Authorization: Bearer <CRON_SECRET>`.
  */
 export function authenticateCronRequest(request: Request): boolean {
     const configuredSecret = process.env.CRON_SECRET?.trim();
