@@ -179,7 +179,11 @@ export async function createCashbookEntryAction(
     const submittedPaymentMethod = getStringValue(formData, "payment_method");
     const amount = getNumberValue(formData, "amount");
     const bookingDate = getStringValue(formData, "booking_date");
-    const description = getStringValue(formData, "description");
+    const submittedDescription = getStringValue(formData, "description");
+    const description =
+        category === "cash_bank_deposit"
+            ? "Bargeld auf Bank eingezahlt"
+            : submittedDescription;
     const fileValue = formData.get("receipt_file");
 
     if (submittedEntryType !== "income" && submittedEntryType !== "expense") {
@@ -210,9 +214,13 @@ export async function createCashbookEntryAction(
               ? "expense"
               : submittedEntryType;
     const paymentMethod =
-        category === "owner_deposit" || category === "owner_withdrawal"
+        category === "owner_deposit" ||
+        category === "owner_withdrawal" ||
+        category === "cash_bank_deposit"
             ? "cash"
             : submittedPaymentMethod;
+    const normalizedEntryType =
+        category === "cash_bank_deposit" ? "expense" : entryType;
 
     if (amount === null || amount <= 0) {
         return {
@@ -235,7 +243,7 @@ export async function createCashbookEntryAction(
         };
     }
 
-    if (paymentMethod === "cash" && entryType === "expense") {
+    if (paymentMethod === "cash" && normalizedEntryType === "expense") {
         try {
             const currentCashBalance = await getCurrentCashBalance(companyId);
             const targetCashBalance = Math.round((currentCashBalance - amount) * 100) / 100;
@@ -291,7 +299,7 @@ export async function createCashbookEntryAction(
             .from("cashbook_entries")
             .insert({
                 company_id: companyId,
-                entry_type: entryType,
+                entry_type: normalizedEntryType,
                 category,
                 payment_method: paymentMethod,
                 amount,

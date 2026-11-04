@@ -29,6 +29,8 @@ type FinancialEntryPayload = {
     document_id: string | null;
     status: "active" | "voided" | "sync_error";
     is_cash_relevant: boolean;
+    is_datev_relevant?: boolean;
+    accounting_status?: "UNREVIEWED" | "REVIEW_REQUIRED" | "COMPLETE" | "EXPORTED" | "ERROR";
     voided_at?: string | null;
     voided_by?: string | null;
     void_reason?: string | null;
@@ -87,8 +89,8 @@ async function upsertFinancialEntry(
     const values = {
         ...payload,
         category_id: categoryId,
-        accounting_status: "UNREVIEWED",
-        is_datev_relevant: true,
+        accounting_status: payload.accounting_status ?? "UNREVIEWED",
+        is_datev_relevant: payload.is_datev_relevant ?? true,
         updated_at: new Date().toISOString(),
     };
 
@@ -303,6 +305,7 @@ export async function syncCashbookEntryFinancialEntry({
         "refund",
         "owner_deposit",
         "owner_withdrawal",
+        "cash_bank_deposit",
         "repair",
         "parts",
         "transport",
@@ -343,6 +346,9 @@ export async function syncCashbookEntryFinancialEntry({
         document_id: (entry.document_id as string | null) ?? null,
         status: "active",
         is_cash_relevant: entry.payment_method === "cash",
+        is_datev_relevant: category !== "cash_bank_deposit",
+        accounting_status:
+            category === "cash_bank_deposit" ? "COMPLETE" : "UNREVIEWED",
     });
 }
 

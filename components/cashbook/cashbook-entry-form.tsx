@@ -51,11 +51,13 @@ export function CashbookEntryForm() {
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
     const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState("other");
     const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(
         null,
     );
 
     const today = getTodayDateOnly();
+    const isBankDeposit = selectedCategory === "cash_bank_deposit";
 
     useFormActionFeedback({
         message: state.message,
@@ -98,7 +100,7 @@ export function CashbookEntryForm() {
             <PageHeader
                 eyebrow="Kassenbuch"
                 title="Finanzvorgang erfassen"
-                description="Erfasse sonstige Bar- oder Bankvorgänge. Verkaufszahlungen werden in der Verkaufsakte erfasst."
+                description="Erfasse sonstige Bar- oder Bankvorgänge und zahle Bargeld aus der Kasse auf das Bankkonto ein. Verkaufszahlungen werden in der Verkaufsakte erfasst."
                 action={
                     <Button
                         asChild
@@ -131,7 +133,7 @@ export function CashbookEntryForm() {
                     />
                 ) : null}
 
-                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                {!isBankDeposit ? <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Wallet}
@@ -155,9 +157,9 @@ export function CashbookEntryForm() {
                             />
                         </div>
                     </CardContent>
-                </Card>
+                </Card> : null}
 
-                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                {!isBankDeposit ? <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Coins}
@@ -181,7 +183,23 @@ export function CashbookEntryForm() {
                             />
                         </div>
                     </CardContent>
-                </Card>
+                </Card> : (
+                    <Card className="rounded-3xl border-cyan-200 bg-cyan-50/70 shadow-sm">
+                        <CardContent className="space-y-3 p-5">
+                            <SectionTitle
+                                icon={Wallet}
+                                title="Einzahlung aus der Barkasse"
+                                description="Der Betrag wird als Umbuchung erfasst und direkt vom laufenden Kassenbestand abgezogen."
+                            />
+                            <input type="hidden" name="entry_type" value="expense" />
+                            <input type="hidden" name="payment_method" value="cash" />
+                            <input type="hidden" name="description" value="Bargeld auf Bank eingezahlt" />
+                            <p className="text-sm font-semibold text-cyan-900">
+                                Die Einzahlung zählt nicht als Barausgabe und verändert nicht die Einnahmen oder Ausgaben der Buchhaltungsübersicht.
+                            </p>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
@@ -200,7 +218,8 @@ export function CashbookEntryForm() {
                                     id="category"
                                     name="category"
                                     required
-                                    defaultValue="other"
+                                    value={selectedCategory}
+                                    onChange={(event) => setSelectedCategory(event.target.value)}
                                     className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-950 outline-none transition focus:border-cyan-300 focus:ring-4 focus:ring-cyan-100"
                                 >
                                     {financialCategories.map((category) => (
@@ -230,7 +249,7 @@ export function CashbookEntryForm() {
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                {!isBankDeposit ? <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={FileText}
@@ -251,9 +270,9 @@ export function CashbookEntryForm() {
                             />
                         </div>
                     </CardContent>
-                </Card>
+                </Card> : null}
 
-                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                {!isBankDeposit ? <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={FileUp}
@@ -315,7 +334,7 @@ export function CashbookEntryForm() {
                             </p>
                         ) : null}
                     </CardContent>
-                </Card>
+                </Card> : null}
 
                 <div className="sticky bottom-0 z-10 -mx-4 border-t border-slate-200 bg-white/85 px-4 py-4 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:py-0">
                     <div className="flex flex-col-reverse gap-3 md:flex-row md:justify-end">
@@ -334,7 +353,7 @@ export function CashbookEntryForm() {
                             className="h-12 rounded-2xl bg-cyan-700 px-6 font-extrabold text-white hover:bg-cyan-800"
                         >
                             <Save className="mr-2 size-4" />
-                            {isPending ? "Speichert..." : "Buchung speichern"}
+                            {isPending ? "Speichert..." : isBankDeposit ? "Einzahlung speichern" : "Buchung speichern"}
                         </Button>
                     </div>
                 </div>

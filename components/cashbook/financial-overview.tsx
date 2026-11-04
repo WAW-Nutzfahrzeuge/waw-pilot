@@ -23,6 +23,7 @@ import {
     getAccountingStatusLabel,
     getAccountingStatusTone,
     getFinancialCategoryLabel,
+    isCashBankTransfer,
 } from "@/lib/accounting/financial-categories";
 import { createSemicolonCsv, formatCsvDecimal } from "@/lib/accounting/csv";
 import { formatCurrency } from "@/lib/format/currency";
@@ -102,7 +103,11 @@ function createFinancialCsv(entries: FinancialEntryRow[]): string {
             entry.entry_reference,
             entry.description,
             formatCsvDecimal(entry.amount),
-            entry.direction === "in" ? "Einnahme" : "Ausgabe",
+            isCashBankTransfer(entry.category_code)
+                ? "Umbuchung Kasse → Bank"
+                : entry.direction === "in"
+                  ? "Einnahme"
+                  : "Ausgabe",
             formatCsvDecimal(entry.net_amount),
             formatCsvDecimal(entry.tax_amount),
             formatCsvDecimal(entry.gross_amount ?? entry.amount),
@@ -195,6 +200,8 @@ export function FinancialOverview({
         for (const entry of filteredEntries) {
             if (entry.status !== "active") continue;
 
+            if (isCashBankTransfer(entry.category_code)) continue;
+
             if (entry.direction === "in") {
                 income += entry.amount;
             } else {
@@ -286,7 +293,7 @@ export function FinancialOverview({
                 </div>
             ) : null}
 
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 print:hidden">
+            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5 print:hidden">
                 {activeTab === "cash" ? (
                     <>
                         <FinancialStatCard
@@ -302,6 +309,13 @@ export function FinancialOverview({
                             description={periodLabel}
                             icon={Coins}
                             tone="success"
+                        />
+                        <FinancialStatCard
+                            label="Auf Bank eingezahlt"
+                            value={formatCurrency(cashSummary.bankDeposits)}
+                            description={periodLabel}
+                            icon={Banknote}
+                            tone="info"
                         />
                         <FinancialStatCard
                             label="Barausgaben"
@@ -562,8 +576,8 @@ function FinancialTable({
                     <th className="px-5 py-4">Kategorie</th>
                     <th className="px-5 py-4">Zahlungsart</th>
                     <th className="px-5 py-4">Kontierung</th>
-                    <th className="px-5 py-4 text-right">Einnahme</th>
-                    <th className="px-5 py-4 text-right">Ausgabe</th>
+                    <th className="px-5 py-4 text-right">Zugang</th>
+                    <th className="px-5 py-4 text-right">Abgang</th>
                     {showRunningBalance ? <th className="px-5 py-4 text-right">Saldo</th> : null}
                     <th className="px-5 py-4 text-right print:hidden">Aktion</th>
                 </tr>
@@ -609,8 +623,10 @@ function FinancialRow({
                 ) : null}
             </td>
             <td className="px-5 py-5">
-                <StatusBadge tone={entry.direction === "in" ? "success" : "danger"}>
-                    {getEntryTypeLabel(entry.entry_type)}
+                <StatusBadge tone={isCashBankTransfer(entry.category_code) ? "info" : entry.direction === "in" ? "success" : "danger"}>
+                    {isCashBankTransfer(entry.category_code)
+                        ? "Umbuchung Kasse → Bank"
+                        : getEntryTypeLabel(entry.entry_type)}
                 </StatusBadge>
                 {entry.status === "voided" ? (
                     <p className="mt-2 text-xs font-bold text-red-700">Storniert</p>
@@ -650,7 +666,9 @@ function FinancialRow({
             </td>
             <td className="px-5 py-5 text-right">
                 {entry.direction === "out" ? (
-                    <p className="font-extrabold text-red-700">{formatCurrency(entry.amount)}</p>
+                    <p className={`font-extrabold ${isCashBankTransfer(entry.category_code) ? "text-cyan-700" : "text-red-700"}`}>
+                        {formatCurrency(entry.amount)}
+                    </p>
                 ) : (
                     <span className="font-semibold text-slate-300">—</span>
                 )}

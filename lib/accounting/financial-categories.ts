@@ -22,6 +22,7 @@ export const financialCategories: FinancialCategoryDefinition[] = [
     { code: "refund", label: "Erstattung", type: "income", defaultDirection: "in" },
     { code: "owner_deposit", label: "Bareinlage", type: "transfer", defaultDirection: "in", defaultPaymentMethod: "cash" },
     { code: "owner_withdrawal", label: "Barentnahme", type: "transfer", defaultDirection: "out", defaultPaymentMethod: "cash" },
+    { code: "cash_bank_deposit", label: "Bargeld auf Bank eingezahlt", type: "transfer", defaultDirection: "out", defaultPaymentMethod: "cash" },
     { code: "repair", label: "Reparatur", type: "expense", defaultDirection: "out" },
     { code: "parts", label: "Ersatzteile", type: "expense", defaultDirection: "out" },
     { code: "transport", label: "Transport", type: "expense", defaultDirection: "out" },
@@ -39,6 +40,10 @@ export const financialCategories: FinancialCategoryDefinition[] = [
 export function getFinancialCategoryLabel(code: string | null | undefined): string {
     if (!code) return "Nicht zugeordnet";
     return financialCategories.find((category) => category.code === code)?.label ?? code;
+}
+
+export function isCashBankTransfer(categoryCode: string | null | undefined): boolean {
+    return categoryCode === "cash_bank_deposit";
 }
 
 export function getAccountingStatusLabel(status: AccountingStatus | string): string {

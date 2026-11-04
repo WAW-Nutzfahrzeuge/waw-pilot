@@ -1,5 +1,6 @@
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { isCashBankTransfer } from "@/lib/accounting/financial-categories";
 
 export type FinancialEntryDirection = "in" | "out";
 export type FinancialEntryStatus = "active" | "voided" | "sync_error";
@@ -54,6 +55,7 @@ export type CashRegisterSummary = {
     openingBalance: number;
     income: number;
     expenses: number;
+    bankDeposits: number;
     endingBalance: number;
     movementCount: number;
 };
@@ -250,6 +252,7 @@ export async function getCashRegisterSummary(
     const openingBalance = Number(cashRegister?.opening_balance ?? 0);
     let income = 0;
     let expenses = 0;
+    let bankDeposits = 0;
     let movementCount = 0;
 
     for (const entry of entries) {
@@ -259,7 +262,9 @@ export async function getCashRegisterSummary(
 
         movementCount += 1;
 
-        if (entry.direction === "in") {
+        if (isCashBankTransfer(entry.category_code)) {
+            bankDeposits += entry.amount;
+        } else if (entry.direction === "in") {
             income += entry.amount;
         } else {
             expenses += entry.amount;
@@ -270,7 +275,8 @@ export async function getCashRegisterSummary(
         openingBalance,
         income,
         expenses,
-        endingBalance: openingBalance + income - expenses,
+        bankDeposits,
+        endingBalance: openingBalance + income - expenses - bankDeposits,
         movementCount,
     };
 }
@@ -284,6 +290,7 @@ export type FinancialTotalsSummary = {
 type FinancialTotalsQueryRow = {
     direction: FinancialEntryDirection;
     amount: number | string;
+    category_code: string | null;
 };
 
 /**
@@ -300,7 +307,7 @@ export async function getFinancialTotalsSummary(
 
     let query = supabase
         .from("financial_entries")
-        .select("direction, amount")
+        .select("direction, amount, category_code")
         .eq("company_id", companyId)
         .eq("status", "active");
 
@@ -322,6 +329,8 @@ export async function getFinancialTotalsSummary(
     let totalExpenses = 0;
 
     for (const entry of (data ?? []) as FinancialTotalsQueryRow[]) {
+        if (isCashBankTransfer(entry.category_code)) continue;
+
         const amount = Number(entry.amount);
 
         if (entry.direction === "in") {
