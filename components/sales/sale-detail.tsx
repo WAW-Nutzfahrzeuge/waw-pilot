@@ -645,6 +645,21 @@ export async function SaleDetail({
                 />
             </section>
 
+            {sale.notes?.trim() ? (
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                    <CardContent className="p-5">
+                        <SectionTitle
+                            icon={FileText}
+                            title="Interne Notizen"
+                            description="Hinweise zur Verkaufsakte. Diese Notizen werden nicht auf die Rechnung gedruckt."
+                        />
+                        <p className="mt-4 whitespace-pre-wrap break-words rounded-2xl bg-slate-50 p-4 text-sm font-medium leading-6 text-slate-700">
+                            {sale.notes}
+                        </p>
+                    </CardContent>
+                </Card>
+            ) : null}
+
             <section className="min-w-0 space-y-6">
                 <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
                     <div className="min-w-0 space-y-6">
