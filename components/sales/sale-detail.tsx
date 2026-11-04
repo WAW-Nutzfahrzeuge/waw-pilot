@@ -249,8 +249,18 @@ export async function SaleDetail({
             document.documentType === saleCommercialRegisterDocumentType ||
             document.acceptedDocumentTypes?.includes(saleCommercialRegisterDocumentType),
     );
+    const generatedDocumentRequirementTypes = new Set([
+        "handover_protocol",
+        "entry_certificate",
+        "transport_proof",
+    ]);
     const standardSaleDocuments = visibleDocuments.filter(
-        (document) => !isSaleCustomDocument(document.document_type),
+        (document) =>
+            !isSaleCustomDocument(document.document_type) &&
+            !generatedDocumentRequirementTypes.has(document.document_type),
+    );
+    const otherRequiredDocuments = sale.required_documents.filter(
+        (document) => !generatedDocumentRequirementTypes.has(document.documentType),
     );
     const saleTitleNumber = sale.invoice?.invoice_number ?? sale.sale_number;
     const saleDeleteDependencies = [
@@ -959,6 +969,25 @@ export async function SaleDetail({
                             documents={generatedDocuments}
                             generatedDocumentType={generatedDocumentType}
                             canReviewAutomationReturns={canAdminDelete}
+                            headerAction={
+                                sale.sale_type !== "export_third_country" ||
+                                requiresEndUseDeclaration(exportDetails.export_destination_country) ? (
+                                    <SendStampDocumentsDialog
+                                        saleId={sale.id}
+                                        saleType={sale.sale_type}
+                                        customer={{
+                                            name: sale.customer.name,
+                                            email: sale.customer.email,
+                                            preferred_language: sale.customer.preferred_language,
+                                            country: sale.customer.country,
+                                        }}
+                                        vehicleLabel={sale.vehicle.name}
+                                        saleIdentifier={sale.sale_identifier}
+                                        documents={sale.documents}
+                                        destinationCountry={exportDetails.export_destination_country}
+                                    />
+                                ) : null
+                            }
                         />
                     ) : null}
 
@@ -967,34 +996,9 @@ export async function SaleDetail({
                             <div className="border-b-2 border-slate-900 p-5">
                                 <SectionTitle
                                     icon={FileWarning}
-                                    title="Pflichtdokumente"
-                                    description="Fehlende Unterlagen direkt hochladen und automatisch der Verkaufsakte zuordnen."
+                                    title="Weitere Pflichtdokumente"
+                                    description="Zusätzliche erforderliche Unterlagen direkt hochladen. Übergabeprotokoll, Gelangensbestätigung und Verbringungsnachweis werden oben gemeinsam verwaltet."
                                 />
-
-                                {sale.sale_type !== "export_third_country" ||
-                                requiresEndUseDeclaration(
-                                    exportDetails.export_destination_country,
-                                ) ? (
-                                    <div className="mt-4">
-                                        <SendStampDocumentsDialog
-                                            saleId={sale.id}
-                                            saleType={sale.sale_type}
-                                            customer={{
-                                                name: sale.customer.name,
-                                                email: sale.customer.email,
-                                                preferred_language:
-                                                    sale.customer.preferred_language,
-                                                country: sale.customer.country,
-                                            }}
-                                            vehicleLabel={sale.vehicle.name}
-                                            saleIdentifier={sale.sale_identifier}
-                                            documents={sale.documents}
-                                            destinationCountry={
-                                                exportDetails.export_destination_country
-                                            }
-                                        />
-                                    </div>
-                                ) : null}
 
                                 <div
                                     className={
@@ -1037,7 +1041,7 @@ export async function SaleDetail({
                             </div>
 
                             <div className="divide-y-2 divide-slate-900/20">
-                                {sale.required_documents.map((requiredDocument) => (
+                                {otherRequiredDocuments.map((requiredDocument) => (
                                     <div
                                         key={requiredDocument.documentType}
                                         id={`document-${requiredDocument.documentType}`}

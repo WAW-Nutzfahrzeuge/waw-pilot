@@ -130,7 +130,8 @@ export function SaleForm({
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
 
     const today = getTodayDateOnly();
-    const [saleType, setSaleType] = useState<SaleType>("inland");
+    const [saleType, setSaleType] = useState<SaleType | null>(null);
+    const effectiveSaleType = saleType ?? "inland";
     const [saleDate, setSaleDate] = useState(today);
     const [selectedCustomerId, setSelectedCustomerId] = useState(
         defaultCustomerId ?? "",
@@ -157,7 +158,7 @@ export function SaleForm({
         "standard",
     );
     const isProformaSelected = createInvoice && invoiceType === "proforma";
-    const requiresExportDetails = saleType === "eu";
+    const requiresExportDetails = effectiveSaleType === "eu";
     const selectedCustomer =
         customers.find((customer) => customer.id === selectedCustomerId) ?? null;
     const selectedCustomerTaxDataOverride = selectedCustomer
@@ -175,7 +176,7 @@ export function SaleForm({
             : normalizeSaleBuyerType(selectedCustomer?.type);
     const taxConfiguration = getSaleTaxConfiguration({
         buyerType: selectedBuyerType,
-        deliveryType: saleType,
+        deliveryType: effectiveSaleType,
         billingCountry: selectedCustomer?.country,
     });
     const selectedCustomerMissingTaxNumber =
@@ -244,13 +245,13 @@ export function SaleForm({
             String(
                 getSaleTaxConfiguration({
                     buyerType: nextBuyerType,
-                    deliveryType: saleType,
+                    deliveryType: effectiveSaleType,
                     billingCountry: selectedCustomer?.country,
                 }).defaultVatRate,
             ),
         );
 
-        if (saleType === "eu") {
+                if (effectiveSaleType === "eu") {
             if (nextBuyerMode === "existing") {
                 applyDestinationAddress(selectedCustomer?.city, selectedCustomer?.country);
             } else {
@@ -266,7 +267,7 @@ export function SaleForm({
             String(
                 getSaleTaxConfiguration({
                     buyerType: nextCustomerType,
-                    deliveryType: saleType,
+                    deliveryType: effectiveSaleType,
                 }).defaultVatRate,
             ),
         );
@@ -288,7 +289,7 @@ export function SaleForm({
     function handleNewCustomerCityChange(value: string) {
         setNewCustomerCity(value);
 
-        if (buyerMode === "new" && saleType === "eu") {
+        if (buyerMode === "new" && effectiveSaleType === "eu") {
             applyDestinationAddress(value, newCustomerCountry);
         }
     }
@@ -297,7 +298,7 @@ export function SaleForm({
         setNewCustomerCountry(value);
         setNewCustomerPreferredLanguage(getEmailLanguageForCountry({ country: value }));
 
-        if (buyerMode === "new" && saleType === "eu") {
+        if (buyerMode === "new" && effectiveSaleType === "eu") {
             applyDestinationAddress(newCustomerCity, value);
         }
     }
@@ -307,7 +308,7 @@ export function SaleForm({
         const customer = customers.find((item) => item.id === customerId) ?? null;
         const nextTaxConfiguration = getSaleTaxConfiguration({
             buyerType: customer?.type,
-            deliveryType: saleType,
+            deliveryType: effectiveSaleType,
             billingCountry: customer?.country,
         });
 
@@ -354,11 +355,59 @@ export function SaleForm({
                     />
                 ) : null}
 
+                <Card className="rounded-3xl border-cyan-200 bg-white/95 shadow-sm">
+                    <CardContent className="space-y-5 p-5">
+                        <SectionTitle
+                            icon={Globe2}
+                            title="1. Verkaufstyp festlegen"
+                            description="Wähle zuerst, ob der Verkauf im Inland, innerhalb der EU oder in ein Drittland erfolgt. Das bestimmt Steuerlogik und erforderliche Dokumente."
+                        />
+
+                        <div className="grid gap-3 md:grid-cols-3">
+                            <SaleTypeOption
+                                value="inland"
+                                title="Inland"
+                                description="Verkauf innerhalb Deutschlands."
+                                checked={saleType === "inland"}
+                                required
+                                onChange={handleSaleTypeChange}
+                            />
+                            <SaleTypeOption
+                                value="eu"
+                                title="EU"
+                                description="Innergemeinschaftliche Lieferung."
+                                checked={saleType === "eu"}
+                                required
+                                onChange={handleSaleTypeChange}
+                            />
+                            <SaleTypeOption
+                                value="export_third_country"
+                                title="Drittland"
+                                description="Export außerhalb der EU."
+                                checked={saleType === "export_third_country"}
+                                required
+                                onChange={handleSaleTypeChange}
+                            />
+                        </div>
+
+                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-start gap-3">
+                                <Info className="mt-0.5 size-5 shrink-0 text-cyan-700" />
+                                <p className="text-sm font-semibold leading-6 text-slate-700">
+                                    {saleType
+                                        ? taxConfiguration.hint
+                                        : "Die passende Steuerlogik und die erforderlichen Unterlagen werden nach deiner Auswahl angezeigt."}
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
                 <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
-                            title="1. Fahrzeug auswählen oder anlegen"
+                            title="2. Fahrzeug auswählen oder anlegen"
                             description="Wähle ein verkaufsfähiges Fahrzeug aus dem Bestand oder erfasse es direkt neu."
                         />
 
@@ -421,7 +470,7 @@ export function SaleForm({
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={UserRound}
-                            title="2. Käufer auswählen oder anlegen"
+                            title="3. Käufer auswählen oder anlegen"
                             description="Wähle einen bestehenden Käufer aus oder lege ihn direkt im Verkauf neu an."
                         />
 
@@ -676,81 +725,7 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
-                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
-                    <CardContent className="space-y-5 p-5">
-                        <SectionTitle
-                            icon={Globe2}
-                            title="3. Umsatzsteuer und Verkaufstyp"
-                            description="Der Verkaufstyp bestimmt automatisch die Pflichtdokumente."
-                        />
-
-                        <div className="grid gap-3 md:grid-cols-3">
-                            <SaleTypeOption
-                                value="inland"
-                                title="Inland"
-                                description="Normaler Verkauf innerhalb Deutschlands."
-                                checked={saleType === "inland"}
-                                onChange={handleSaleTypeChange}
-                            />
-                            <SaleTypeOption
-                                value="eu"
-                                title="EU-Verkauf"
-                                description="Gelangensbestätigung und Verbringungsnachweis nötig."
-                                checked={saleType === "eu"}
-                                onChange={handleSaleTypeChange}
-                            />
-                            <SaleTypeOption
-                                value="export_third_country"
-                                title="Drittlandexport"
-                                description="ABD, Ausgangsvermerk und Exportdokumente nötig."
-                                checked={saleType === "export_third_country"}
-                                onChange={handleSaleTypeChange}
-                            />
-                        </div>
-
-                        <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                            <div className="flex items-start gap-3">
-                                <Info className="mt-0.5 size-5 shrink-0 text-cyan-700" />
-                                <p className="text-sm font-semibold leading-6 text-slate-700">
-                                    {taxConfiguration.hint}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div
-                            className={
-                                requiresExportDetails
-                                    ? "rounded-3xl border border-amber-200 bg-amber-50 p-4"
-                                    : "rounded-3xl border border-cyan-100 bg-cyan-50 p-4"
-                            }
-                        >
-                            <div className="flex items-start gap-3">
-                                <Info
-                                    className={
-                                        requiresExportDetails
-                                            ? "mt-0.5 size-5 shrink-0 text-amber-700"
-                                            : "mt-0.5 size-5 shrink-0 text-cyan-700"
-                                    }
-                                />
-                                <p
-                                    className={
-                                        requiresExportDetails
-                                            ? "text-sm font-semibold leading-6 text-amber-950"
-                                            : "text-sm font-semibold leading-6 text-cyan-950"
-                                    }
-                                >
-                                    {requiresExportDetails
-                                        ? "Für EU-Verkäufe sind diese Angaben erforderlich, damit Gelangensbestätigung und Verbringungsnachweis erstellt werden können."
-                                        : saleType === "export_third_country"
-                                            ? "Für Drittlandexporte sind Gelangensbestätigung und Verbringungsnachweis nicht relevant. Erforderlich sind stattdessen Zoll-/Ausfuhrdokumente (ABD, Ausgangsvermerk)."
-                                            : "Bei Inland-Verkäufen sind Export- und Verbringungsdaten optional."}
-                                </p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {saleType === "export_third_country" ? null : (
+                {effectiveSaleType === "export_third_country" ? null : (
                 <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
@@ -1165,10 +1140,10 @@ export function SaleForm({
                                         : "wird neu angelegt"}
                                 </span>
                             </p>
-                            <p>Verkaufstyp: {getSaleTypeLabel(saleType)}</p>
+                            <p>Verkaufstyp: {saleType ? getSaleTypeLabel(saleType) : "noch nicht gewählt"}</p>
                             <p>
-                                {saleType === "inland" ? "Brutto" : "Netto"}: {formatCurrency(
-                                    saleType === "inland" ? previewGrossAmount : previewNetAmount,
+                                {effectiveSaleType === "inland" ? "Brutto" : "Netto"}: {formatCurrency(
+                                    effectiveSaleType === "inland" ? previewGrossAmount : previewNetAmount,
                                 )}
                             </p>
                         </div>
@@ -1314,12 +1289,14 @@ function SaleTypeOption({
                             title,
                             description,
                             checked,
+                            required = false,
                             onChange,
                         }: {
     value: SaleType;
     title: string;
     description: string;
     checked: boolean;
+    required?: boolean;
     onChange: (value: SaleType) => void;
 }) {
     return (
@@ -1329,6 +1306,7 @@ function SaleTypeOption({
                 name="sale_type"
                 value={value}
                 checked={checked}
+                required={required}
                 onChange={() => onChange(value)}
                 className="sr-only"
             />

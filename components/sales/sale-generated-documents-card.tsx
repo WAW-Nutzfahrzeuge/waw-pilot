@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
     AlertTriangle,
     CheckCircle2,
@@ -29,6 +30,7 @@ type SaleGeneratedDocumentsCardProps = {
     documents: SaleGeneratedDocumentCheck[];
     generatedDocumentType?: string | null;
     canReviewAutomationReturns?: boolean;
+    headerAction?: ReactNode;
 };
 
 export function SaleGeneratedDocumentsCard({
@@ -37,6 +39,7 @@ export function SaleGeneratedDocumentsCard({
                                                documents,
                                                generatedDocumentType = null,
                                                canReviewAutomationReturns = false,
+                                               headerAction = null,
                                            }: SaleGeneratedDocumentsCardProps) {
     const missingDataCount = documents.filter(
         (document) => document.status === "missing_data" && !document.isOptional,
@@ -74,9 +77,9 @@ export function SaleGeneratedDocumentsCard({
                                         Automatische Dokumente
                                     </h2>
                                     <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-500">
-                                        Prüfung der erzeugbaren Verkaufsdokumente inklusive Pflichtdaten,
-                                        Unterschriftenstatus und vorhandenen Dateien.
+                                        Ausgangsdokument erzeugen, versenden und unterschriebene Rückläufe an derselben Stelle verwalten.
                                     </p>
+                                    {headerAction ? <div className="mt-4">{headerAction}</div> : null}
                                 </div>
                             </div>
                         </div>

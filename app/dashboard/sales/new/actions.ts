@@ -106,7 +106,7 @@ function getNumberValue(formData: FormData, key: string): number | null {
     return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function getSaleTypeValue(formData: FormData): SaleType {
+function getSaleTypeValue(formData: FormData): SaleType | null {
     const value = getStringValue(formData, "sale_type");
 
     if (
@@ -117,7 +117,7 @@ function getSaleTypeValue(formData: FormData): SaleType {
         return value;
     }
 
-    return "inland";
+    return null;
 }
 
 async function getNextSalePaymentReference(companyId: string): Promise<string> {
@@ -821,6 +821,12 @@ export async function createSaleAction(
     const vehicleMode = getSelectionMode(formData, "vehicle_mode");
     const saleDate = getStringValue(formData, "sale_date");
     const saleType = getSaleTypeValue(formData);
+    if (!saleType) {
+        return {
+            success: false,
+            message: "Bitte wähle zuerst Inland, EU oder Drittland aus.",
+        };
+    }
     const netAmount = getNumberValue(formData, "net_amount");
     const newCustomerType = getNewCustomerType(formData);
     const notes = getStringValue(formData, "notes");
