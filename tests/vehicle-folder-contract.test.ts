@@ -6,9 +6,12 @@ import { resolve } from "node:path";
 import {
     buildVehicleFolderName,
     validateVehicleFolderResponse,
+    validateVehicleFolderCheckResponse,
     type VehicleFolderRequest,
+    type VehicleFolderCheckRequest,
 } from "../lib/purchases/vehicle-folder-contract.ts";
 import { dispatchVehicleFolderWebhook } from "../lib/purchases/vehicle-folder-dispatch.ts";
+import { dispatchVehicleFolderCheck } from "../lib/purchases/vehicle-folder-check-dispatch.ts";
 
 const request: VehicleFolderRequest = {
     event_id: "b764f8ac-7d25-4e4b-a411-6f735274a9d0",
@@ -18,6 +21,15 @@ const request: VehicleFolderRequest = {
     folder_name: "AK-2026-000421_Mercedes-Actros_3241_Betonmischer",
     drive_id: "drive-1",
     root_folder_id: "root-1",
+};
+
+const checkRequest: VehicleFolderCheckRequest = {
+    event_id: request.event_id,
+    event: "purchase.folder.inspect",
+    purchase_id: request.purchase_id,
+    vehicle_id: request.vehicle_id,
+    drive_id: request.drive_id,
+    folder_id: "folder-id",
 };
 
 function validResponse() {
@@ -131,7 +143,8 @@ test("durable folder jobs enforce unique purchase identity, private access, and 
     assert.match(migration, /create or replace function public\.claim_purchase_vehicle_folder_job/i);
     assert.match(migration, /lease_token\s*=\s*gen_random_uuid\(\)/i);
     assert.match(migration, /lease_expires_at\s*<=\s*now\(\)/i);
-    assert.match(migration, /folder_name is distinct from old\.folder_name/i);
+    const requeueFunction = migration.match(/create or replace function public\.requeue_missing_purchase_vehicle_folder[\s\S]*?\$\$;/i)?.[0] ?? "";
+    assert.doesNotMatch(requeueFunction, /set[\s\S]*?folder_name\s*=/i);
 });
 
 test("mocked n8n success persists the complete validated folder mapping", async () => {
@@ -201,6 +214,91 @@ test("mocked timeout can be retried with the exact same stable folder identity",
     assert.equal(retried.status, "ready");
     assert.deepEqual(secondRequest, request);
     assert.deepEqual(failed, ["TIMEOUT"]);
+});
+
+test("folder inspection resolves renamed folders by stored drive and item IDs and returns the current URL", () => {
+    const response = {
+        status: "found",
+        event_id: checkRequest.event_id,
+        purchase_id: checkRequest.purchase_id,
+        vehicle_id: checkRequest.vehicle_id,
+        drive_id: checkRequest.drive_id,
+        folder_id: checkRequest.folder_id,
+        item_type: "folder",
+        folder_url: "https://tenant.sharepoint.com/sites/WAW/Shared%20Documents/renamed-folder",
+    };
+    assert.equal(validateVehicleFolderCheckResponse(response, checkRequest)?.folder_url, response.folder_url);
+    assert.equal("folder_name" in checkRequest, false);
+    assert.equal(validateVehicleFolderCheckResponse({ ...response, folder_id: "other-id" }, checkRequest), null);
+    assert.equal(validateVehicleFolderCheckResponse({ ...response, item_type: "file" }, checkRequest), null);
+});
+
+test("only an explicit itemNotFound result marks the saved OneDrive folder missing", async () => {
+    let persisted: unknown = null;
+    const result = await dispatchVehicleFolderCheck({
+        request: checkRequest,
+        post: async () => ({
+            statusCode: 200,
+            body: {
+                status: "missing",
+                error_code: "ITEM_NOT_FOUND",
+                event_id: checkRequest.event_id,
+                purchase_id: checkRequest.purchase_id,
+                vehicle_id: checkRequest.vehicle_id,
+                drive_id: checkRequest.drive_id,
+                folder_id: checkRequest.folder_id,
+            },
+        }),
+        persist: async (response, failure) => { persisted = { response, failure }; return true; },
+    });
+    assert.deepEqual(result, { status: "missing" });
+    assert.equal((persisted as { response: { status: string } }).response.status, "missing");
+});
+
+test("403 and timeout preserve the folder mapping and never report it deleted", async () => {
+    for (const [post, reason] of [
+        [async () => ({ statusCode: 403, body: null }), "AUTH"],
+        [async () => { throw Object.assign(new Error("timeout"), { name: "TimeoutError" }); }, "TIMEOUT"],
+    ] as const) {
+        let persistedFailure = "";
+        const result = await dispatchVehicleFolderCheck({
+            request: checkRequest,
+            post,
+            persist: async (response, failure) => {
+                assert.equal(response, null);
+                persistedFailure = failure ?? "";
+                return true;
+            },
+        });
+        assert.deepEqual(result, { status: "unavailable", reason });
+        assert.equal(persistedFailure, reason);
+    }
+});
+
+test("migration serializes concurrent inspection and recreation and preserves stored folder names", () => {
+    const migration = readFileSync(
+        resolve("supabase/migrations/20261104140000_add_purchase_vehicle_folder_inspection.sql"),
+        "utf8",
+    );
+    assert.match(migration, /claim_purchase_vehicle_folder_check/i);
+    assert.match(migration, /check_lease_token is null or coalesce\(j\.check_lease_expires_at, '-infinity'::timestamptz\) <= now\(\)/i);
+    assert.match(migration, /requeue_missing_purchase_vehicle_folder/i);
+    assert.match(migration, /last_error_code = 'FOLDER_NOT_FOUND'/i);
+    assert.match(migration, /folder_event_id = gen_random_uuid\(\)::text/i);
+    assert.match(migration, /check \(status <> 'ready' or \([\s\S]*folder_id is not null/i);
+    const requeueFunction = migration.match(/create or replace function public\.requeue_missing_purchase_vehicle_folder[\s\S]*?\$\$;/i)?.[0] ?? "";
+    assert.doesNotMatch(requeueFunction, /set[\s\S]*?folder_name\s*=/i);
+    assert.match(migration, /p_event_id = j\.folder_event_id/i);
+});
+
+test("inspection and recreation UI distinguishes missing folders from connectivity errors", () => {
+    const card = readFileSync(resolve("components/purchases/vehicle-folder-card.tsx"), "utf8");
+    assert.match(card, /Der OneDrive-Ordner wurde gelöscht oder ist nicht mehr vorhanden\./);
+    assert.match(card, /OneDrive-Ordner neu anlegen/);
+    assert.match(card, /Ordner konnte gerade nicht geprüft werden\./);
+    assert.match(card, /window\.open\("about:blank", "_blank"\)/);
+    assert.match(card, /popup\.location\.replace\(result\.folderUrl\)/);
+    assert.match(card, /Eine Neuanlage stellt zuvor gelöschte Fahrzeugbilder nicht wieder her\./);
 });
 
 test("mocked unsuccessful HTTP status and failed atomic completion do not report ready", async () => {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ExternalLink, FolderOpen, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
 import {
+    checkPurchaseVehicleFolderAction,
     ensurePurchaseVehicleFolderAction,
     type VehicleFolderActionState,
 } from "@/app/dashboard/ankauf/[purchaseId]/vehicle-folder-actions";
@@ -17,9 +18,63 @@ type VehicleFolderCardProps = {
 };
 
 export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCardProps) {
-    const [state, formAction] = useActionState(ensurePurchaseVehicleFolderAction, initialState);
+    const [actionState, formAction] = useActionState(ensurePurchaseVehicleFolderAction, initialState);
+    const [checkState, setCheckState] = useState<VehicleFolderActionState | null>(null);
+    const [checking, setChecking] = useState(false);
+    const state = checkState ?? actionState;
+
     const isReady = state.status === "ready" && Boolean(state.folderUrl);
     const isProcessing = state.status === "processing";
+    const folderMissing = state.status === "error" && state.errorCode === "FOLDER_NOT_FOUND";
+    const checkFailed = state.status === "ready" && state.errorCode === "FOLDER_CHECK_FAILED";
+
+    async function handleOpenFolder() {
+        // Open synchronously inside the user gesture; navigating this tab after
+        // the server check would otherwise be blocked by popup protection.
+        const popup = window.open("about:blank", "_blank");
+        if (popup) {
+            popup.opener = null;
+            popup.document.title = "OneDrive wird geprüft …";
+            popup.document.body.textContent = "OneDrive-Ordner wird geprüft …";
+        }
+        setChecking(true);
+        setCheckState({ ...state, errorCode: null, lastError: null });
+        try {
+            const result = await checkPurchaseVehicleFolderAction(purchaseId);
+            if (result.status === "found") {
+                setCheckState({ ...state, status: "ready", folderUrl: result.folderUrl, errorCode: null, lastError: null });
+                if (popup && !popup.closed) {
+                    popup.location.replace(result.folderUrl);
+                } else {
+                    window.location.assign(result.folderUrl);
+                }
+            } else if (result.status === "missing") {
+                popup?.close();
+                setCheckState({
+                    ...state,
+                    status: "error",
+                    errorCode: "FOLDER_NOT_FOUND",
+                    lastError: "Der OneDrive-Ordner wurde gelöscht oder ist nicht mehr vorhanden.",
+                });
+            } else {
+                popup?.close();
+                setCheckState({
+                    ...state,
+                    errorCode: "FOLDER_CHECK_FAILED",
+                    lastError: result.message,
+                });
+            }
+        } catch {
+            popup?.close();
+            setCheckState({
+                ...state,
+                errorCode: "FOLDER_CHECK_FAILED",
+                lastError: "Ordner konnte gerade nicht geprüft werden.",
+            });
+        } finally {
+            setChecking(false);
+        }
+    }
 
     return (
         <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
@@ -31,9 +86,16 @@ export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCar
                     <div className="min-w-0">
                         <h2 className="font-extrabold text-slate-950">OneDrive-Fahrzeugakte</h2>
                         {isReady ? (
-                            <p className="mt-1 break-all text-sm font-medium text-slate-500">
-                                {state.folderName}
-                            </p>
+                            <>
+                                <p className="mt-1 break-all text-sm font-medium text-slate-500">
+                                    {state.folderName}
+                                </p>
+                                {checkFailed ? (
+                                    <p role="status" className="mt-1 text-sm font-medium text-amber-800">
+                                        {state.lastError ?? "Ordner konnte gerade nicht geprüft werden."}
+                                    </p>
+                                ) : null}
+                            </>
                         ) : isProcessing || state.status === "pending" ? (
                             <p className="mt-1 text-sm font-medium text-slate-500">
                                 Fahrzeugordner wird erstellt …
@@ -52,13 +114,13 @@ export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCar
 
                 {isReady ? (
                     <Button
-                        asChild
+                        type="button"
+                        onClick={handleOpenFolder}
+                        disabled={checking}
                         className="shrink-0 rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
                     >
-                        <a href={state.folderUrl!} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="mr-2 size-4" />
-                            OneDrive-Ordner öffnen
-                        </a>
+                        {checking ? <RefreshCw className="mr-2 size-4 animate-spin" /> : <ExternalLink className="mr-2 size-4" />}
+                        {checking ? "Ordner wird geprüft …" : checkFailed ? "Ordner erneut prüfen" : "OneDrive-Ordner öffnen"}
                     </Button>
                 ) : isProcessing ? (
                     <Button disabled variant="outline" className="shrink-0 rounded-2xl font-bold">
@@ -66,17 +128,25 @@ export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCar
                         Wird erstellt
                     </Button>
                 ) : (
-                    <form action={formAction} className="shrink-0">
+                    <form action={formAction} onSubmit={() => setCheckState(null)} className="shrink-0">
                         <input type="hidden" name="purchase_id" value={purchaseId} />
+                        {folderMissing ? <input type="hidden" name="mode" value="recreate" /> : null}
                         <PendingSubmitButton
-                            label={state.status === "error" ? "Erneut versuchen" : state.status === "pending" ? "Auftrag fortsetzen" : "OneDrive-Ordner erstellen"}
-                            pendingLabel="Wird erstellt …"
+                            label={folderMissing
+                                ? "OneDrive-Ordner neu anlegen"
+                                : state.status === "error" ? "Erneut versuchen" : state.status === "pending" ? "Auftrag fortsetzen" : "OneDrive-Ordner erstellen"}
+                            pendingLabel={folderMissing ? "Wird neu angelegt …" : "Wird erstellt …"}
                             iconName="folder-open"
                             className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
                         />
                     </form>
                 )}
             </CardContent>
+            {folderMissing ? (
+                <CardContent className="-mt-3 pt-0 text-sm text-slate-600">
+                    Eine Neuanlage stellt zuvor gelöschte Fahrzeugbilder nicht wieder her.
+                </CardContent>
+            ) : null}
         </Card>
     );
 }

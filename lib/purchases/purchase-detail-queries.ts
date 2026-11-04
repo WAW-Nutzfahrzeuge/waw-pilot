@@ -169,6 +169,7 @@ export type PurchaseCaseDetail = {
         registration_folder_id: string | null;
         images_folder_id: string | null;
         last_error: string | null;
+        last_error_code: string | null;
         attempt_count: number;
         lease_expires_at: string | null;
     } | null;
@@ -304,7 +305,7 @@ export async function getPurchaseCaseDetail(
             const { data } = await automationSupabase
                 .from("purchase_vehicle_folder_jobs")
                 .select(
-                    "id, status, folder_name, folder_url, folder_id, registration_folder_id, images_folder_id, last_error, attempt_count, lease_expires_at",
+                    "id, status, folder_name, folder_url, folder_id, registration_folder_id, images_folder_id, last_error, last_error_code, attempt_count, lease_expires_at",
                 )
                 .eq("company_id", companyId)
                 .eq("purchase_case_id", purchaseId)

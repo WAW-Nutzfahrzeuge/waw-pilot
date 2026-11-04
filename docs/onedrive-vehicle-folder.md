@@ -17,6 +17,7 @@ Diese Variablen ausschließlich serverseitig in Vercel eintragen (nicht mit `NEX
 | Variable | Wert / Zweck |
 | --- | --- |
 | `N8N_VEHICLE_FOLDER_WEBHOOK_URL` | Die von n8n angezeigte produktive Webhook-URL. Keine URL wird hier vorweggenommen. Muss HTTPS sein. |
+| `N8N_VEHICLE_FOLDER_CHECK_WEBHOOK_URL` | Zusätzlicher HTTPS-Webhook zum Prüfen eines gespeicherten OneDrive-Ordners per Graph-ID. |
 | `N8N_VEHICLE_FOLDER_WEBHOOK_SECRET` | Zufälliges gemeinsames Geheimnis. In Vercel und als n8n Header Auth Credential eintragen. Nicht in Workflow-JSON speichern. |
 | `WAW_ONEDRIVE_DRIVE_ID` | `b!oe6OAdKvDESIihsCSuN1eLMsn4MS_nVHkf65zrbkB85Af_g1IqpIQYbNjdTav2fu` |
 | `WAW_ONEDRIVE_ROOT_FOLDER_ID` | `016EL72IEM7FGCEGP54VD3ES72VUX5VJPO` |
@@ -123,8 +124,11 @@ Für eine spätere n8n-Verarbeitung des privaten Fahrzeugscheins kann die Anwend
 
 ## Wiederholungen und Betrieb
 
-- Erfolgreicher Auftrag: UI zeigt **OneDrive-Ordner öffnen**. Der gespeicherte Link erzeugt keine öffentliche Freigabe; Microsoft-Berechtigungen bleiben erforderlich.
-- Timeout oder n8n-Fehler: Auftrag wird `error`, Einkaufsakte bleibt erhalten. **Erneut versuchen** sendet dieselbe `event_id`, `folder_name`, `drive_id` und `root_folder_id`.
+- **OneDrive-Ordner öffnen** öffnet nicht mehr direkt den gespeicherten Link. Der Browser öffnet im Klick zunächst einen leeren Tab, während der Server den Ordner über den Prüf-Webhook und Microsoft Graph anhand der gespeicherten `drive_id` und `folder_id` prüft. Bei Erfolg speichert WAW Pilot die aktuelle Graph-`webUrl` und navigiert den Tab dorthin. Ein umbenannter Ordner bleibt über seine ID erreichbar. Der gespeicherte Link erzeugt keine öffentliche Freigabe; Microsoft-Berechtigungen bleiben erforderlich.
+- Liefert der Prüf-Webhook eindeutig `status: "missing"` / `ITEM_NOT_FOUND`, wird der Job `error` mit `FOLDER_NOT_FOUND`. Die Einkaufsakte zeigt **Der OneDrive-Ordner wurde gelöscht oder ist nicht mehr vorhanden.** und bietet **OneDrive-Ordner neu anlegen**. Beim bloßen Öffnen wird nichts neu angelegt.
+- 401/403, Timeout, nicht erreichbarer Webhook, ungültige Antwort oder andere Graph-Fehler werden als Prüfproblem behandelt; WAW Pilot erhält den bisherigen Ordnerdatensatz und zeigt **Ordner konnte gerade nicht geprüft werden** mit **Ordner erneut prüfen**. Daraus folgt keine automatische Neuerstellung.
+- Die bestätigte Neuanlage verwendet den unveränderten `folder_name`, dieselben Drive-/Root-Ziele und weiterhin den vorhandenen atomaren Create-Claim. Der Auftrag erhält atomar eine neue `event_id`; Netzwerk-Wiederholungen behalten diese ID. Hauptordner und `Fahrzeugbilder` werden in n8n angelegt oder wiederverwendet, ohne vorhandene Dateien oder Ordner zu löschen. Zuvor gelöschte Fahrzeugbilder werden durch die Ordnerneuanlage nicht wiederhergestellt.
+- Timeout oder n8n-Fehler bei der Ordneranlage: Auftrag wird `error`, Einkaufsakte bleibt erhalten. **Erneut versuchen** sendet innerhalb desselben logischen Anlageversuchs dieselbe `event_id`, `folder_name`, `drive_id` und `root_folder_id`. Nach einer explizit bestätigten Löschung erhält eine bewusste Neuanlage eine neue dauerhafte `event_id`; Wiederholungen dieses neuen Versuchs behalten sie bei.
 - Doppel-/Parallelklick: Datenbank-Unique-Constraint und atomarer Claim erlauben nur einen aktiven Aufruf.
 - Es ist kein Scheduler konfiguriert. Ein fehlgeschlagener Auftrag wird aktuell durch den Button in der Einkaufsakte erneut gestartet. Automatische Wiederholungen erfordern später einen Scheduler/Cron, der denselben dauerhaften Job atomar claimt.
 - Bestehende Einkäufe werden durch die Migration nicht automatisch an n8n gesendet. In ihrer Akte kann **OneDrive-Ordner erstellen** manuell gestartet werden.
@@ -133,10 +137,53 @@ Für eine spätere n8n-Verarbeitung des privaten Fahrzeugscheins kann die Anwend
 
 Die ursprüngliche Tabellenmigration bleibt unverändert: `supabase/migrations/20261104110000_add_purchase_vehicle_folder_jobs.sql`. Zusätzlich muss die additive Migration `supabase/migrations/20261104130000_make_purchase_registration_folder_optional.sql` ausgeführt werden. Sie lockert die Ready-Constraint, macht `registration_folder_id` optional und erhält bestehende Feldwerte sowie Zuordnungen.
 
-1. Additive Migration in Supabase ausführen; keine alte Migration erneut bearbeiten oder rückwirkend ändern.
-2. Im n8n-Workflow die Fahrzeugschein-Unterordneranlage entfernen; nur `Fahrzeugbilder` anlegen. Request, Webhook-URL und Secret bleiben unverändert. `registration_folder_id` kann aus neuen Antworten entfallen.
-3. Den Workflow zunächst über die n8n-Test-URL mit synthetischen UUIDs prüfen, danach den Produktiv-Webhook aktivieren.
-4. WAW Pilot deployen.
-5. Mit einem ausdrücklich dafür vorgesehenen neuen Testankauf den ersten echten OneDrive-Aufruf kontrolliert prüfen.
+Für die Ordnerprüfung und bestätigte Neuanlage kommt `supabase/migrations/20261104140000_add_purchase_vehicle_folder_inspection.sql` hinzu. Sie ergänzt den Check-Lease und die pro Neuanlage dauerhafte `folder_event_id`, ohne bestehende Folder-IDs, URLs oder Dateizuordnungen zu entfernen.
+
+1. Falls die ursprüngliche Jobtabellenmigration noch nicht angewendet wurde, zuerst `20261104110000_add_purchase_vehicle_folder_jobs.sql` ausführen. Danach in Reihenfolge `20261104130000_make_purchase_registration_folder_optional.sql` und `20261104140000_add_purchase_vehicle_folder_inspection.sql` ausführen. Bereits angewendete Migrationen nicht erneut ausführen.
+2. Im Vercel-Projekt `N8N_VEHICLE_FOLDER_CHECK_WEBHOOK_URL` als serverseitige Variable eintragen. Das vorhandene `N8N_VEHICLE_FOLDER_WEBHOOK_SECRET` wird unverändert als Header-Auth-Zugang für beide Webhooks verwendet.
+3. Den zusätzlichen Prüf-Webhook unten im n8n-Workflow anlegen. Der bestehende `purchase.folder.ensure` Create-Vertrag und seine URL bleiben unverändert.
+4. Mit synthetischen IDs prüfen, dann n8n aktivieren und WAW Pilot deployen.
+5. Mit einem dafür vorgesehenen Testankauf kontrollieren, dass Prüfung und Öffnen funktionieren. Ein gelöschter Ordner darf erst nach explizitem Klick auf **OneDrive-Ordner neu anlegen** ersetzt werden.
+
+### Zusätzlicher n8n-Prüf-Webhook
+
+Die Software sendet serverseitig `POST` mit `Content-Type: application/json` und demselben Header `X-WAW-Webhook-Secret`. Die Microsoft-Zugangsdaten bleiben ausschließlich im n8n-Credential. Der Webhook muss den Request authentifizieren, danach Microsoft Graph mit der gespeicherten Drive- und Item-ID abfragen:
+
+```http
+GET /drives/{drive_id}/items/{folder_id}?$select=id,name,folder,webUrl
+```
+
+Der Ordnername wird absichtlich nicht zur Suche benutzt. Bei Graph-Erfolg muss `id` der angefragten `folder_id` entsprechen, `folder` vorhanden sein und `webUrl` die aktuelle HTTPS-URL sein. Den tatsächlichen Graph-Namen muss n8n nicht zurückgeben. Antwort mit HTTP 200 und:
+
+```json
+{
+  "status": "found",
+  "event_id": "<aus Request>",
+  "purchase_id": "<aus Request>",
+  "vehicle_id": "<aus Request>",
+  "drive_id": "<aus Request>",
+  "folder_id": "<aus Request>",
+  "item_type": "folder",
+  "folder_url": "https://<aktuelle-OneDrive-oder-SharePoint-webUrl>"
+}
+```
+
+Nur Graph HTTP 404 mit `error.code = itemNotFound` (Groß-/Kleinschreibung gemäß Graph normalisieren) wird als fehlend interpretiert. n8n soll diesen Graph-Fehler in HTTP 200 mit der folgenden strukturierten Antwort abbilden:
+
+```json
+{
+  "status": "missing",
+  "error_code": "ITEM_NOT_FOUND",
+  "event_id": "<aus Request>",
+  "purchase_id": "<aus Request>",
+  "vehicle_id": "<aus Request>",
+  "drive_id": "<aus Request>",
+  "folder_id": "<aus Request>"
+}
+```
+
+Graph 401/403, Rate-Limits, 5xx, Timeout und sonstige Fehler dürfen nicht als `missing` ausgegeben werden. n8n soll hierfür einen Fehlerstatus (4xx/5xx) oder eine nicht passende strukturierte Fehlerantwort zurückgeben. WAW Pilot bewahrt in diesen Fällen die bisherige Zuordnung und zeigt die erneute Prüfung an. Dateizugriff auf Unterordner wird für diesen Check nicht benötigt.
+
+In der n8n-UI ist ein separater Webhook-Trigger mit Header-Auth-Credential, ein Graph-Request-Node, ein Switch für Erfolg/`itemNotFound`/sonstige Fehler und ein `Respond to Webhook`-Node einzurichten. Die von n8n angezeigte Produktions-URL kommt in `N8N_VEHICLE_FOLDER_CHECK_WEBHOOK_URL`; sie ist hier nicht bekannt und wird nicht erfunden. Workflow-Export oder n8n-Livezugriff liegt nicht vor.
 
 Die Migration, n8n-Änderung und das Deployment wurden von diesem Implementierungsschritt nicht ausgeführt.

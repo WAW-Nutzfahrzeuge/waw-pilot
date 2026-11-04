@@ -148,6 +148,7 @@ export function PurchaseDetail({
                     folderName: purchase.vehicleFolder?.folder_name ?? null,
                     folderUrl: purchase.vehicleFolder?.folder_url ?? null,
                     lastError: purchase.vehicleFolder?.last_error ?? null,
+                    errorCode: purchase.vehicleFolder?.last_error_code ?? null,
                 }}
             />
 

@@ -30,6 +30,27 @@ export type VehicleFolderResponse = {
     images_folder_id: string;
 };
 
+export type VehicleFolderCheckRequest = {
+    event_id: string;
+    event: "purchase.folder.inspect";
+    purchase_id: string;
+    vehicle_id: string;
+    drive_id: string;
+    folder_id: string;
+};
+
+export type VehicleFolderCheckResponse = {
+    status: "found" | "missing";
+    event_id: string;
+    purchase_id: string;
+    vehicle_id: string;
+    drive_id: string;
+    folder_id: string;
+    folder_url?: string;
+    item_type?: "folder";
+    error_code?: "ITEM_NOT_FOUND";
+};
+
 function safeFolderSegment(value: string, maxLength = 64): string {
     const normalized = value
         .normalize("NFKD")
@@ -64,7 +85,7 @@ export function buildVehicleFolderName(identity: VehicleFolderIdentity): string 
     return segments.join("_").slice(0, 220).replace(/[.\s]+$/g, "");
 }
 
-function isValidOneDriveFolderUrl(value: unknown): value is string {
+export function isValidOneDriveFolderUrl(value: unknown): value is string {
     if (typeof value !== "string" || value.length > 2048) return false;
 
     try {
@@ -84,6 +105,36 @@ function isValidOneDriveFolderUrl(value: unknown): value is string {
 
 function nonEmptyString(value: unknown): value is string {
     return typeof value === "string" && value.trim().length > 0 && value.length <= 1024;
+}
+
+export function validateVehicleFolderCheckResponse(
+    value: unknown,
+    expected: VehicleFolderCheckRequest,
+): VehicleFolderCheckResponse | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    const response = value as Record<string, unknown>;
+    const sameIdentity =
+        response.event_id === expected.event_id &&
+        response.purchase_id === expected.purchase_id &&
+        response.vehicle_id === expected.vehicle_id &&
+        response.drive_id === expected.drive_id &&
+        response.folder_id === expected.folder_id;
+
+    if (!sameIdentity) return null;
+
+    if (response.status === "missing" && response.error_code === "ITEM_NOT_FOUND") {
+        return response as VehicleFolderCheckResponse;
+    }
+
+    if (
+        response.status === "found" &&
+        response.item_type === "folder" &&
+        isValidOneDriveFolderUrl(response.folder_url)
+    ) {
+        return response as VehicleFolderCheckResponse;
+    }
+
+    return null;
 }
 
 export function validateVehicleFolderResponse(

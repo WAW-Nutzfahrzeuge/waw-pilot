@@ -6,6 +6,8 @@ import {
     type VehicleFolderRequest,
 } from "@/lib/purchases/vehicle-folder-contract";
 import { dispatchVehicleFolderWebhook } from "@/lib/purchases/vehicle-folder-dispatch";
+import { dispatchVehicleFolderCheck } from "@/lib/purchases/vehicle-folder-check-dispatch";
+import type { VehicleFolderCheckRequest } from "@/lib/purchases/vehicle-folder-contract";
 
 const N8N_TIMEOUT_MS = 25_000;
 const PROCESSING_LEASE_SECONDS = 120;
@@ -14,6 +16,9 @@ type FolderJobStatus = "pending" | "processing" | "ready" | "error";
 
 export type PurchaseVehicleFolderJob = {
     id: string;
+    folder_event_id: string;
+    check_lease_token: string | null;
+    check_lease_expires_at: string | null;
     company_id: string;
     purchase_case_id: string;
     vehicle_id: string;
@@ -26,6 +31,7 @@ export type PurchaseVehicleFolderJob = {
     images_folder_id: string | null;
     status: FolderJobStatus;
     last_error: string | null;
+    last_error_code: string | null;
     attempt_count: number;
     lease_token: string | null;
     lease_expires_at: string | null;
@@ -41,6 +47,7 @@ export type VehicleFolderResult = Pick<
     | "registration_folder_id"
     | "images_folder_id"
     | "last_error"
+    | "last_error_code"
     | "attempt_count"
 >;
 
@@ -60,6 +67,8 @@ function getPublicErrorMessage(code: string): string {
             "Der Auftrag konnte nicht exklusiv übernommen werden. Bitte versuche es erneut.",
         SAVE_FAILED:
             "Die OneDrive-Antwort konnte nicht sicher gespeichert werden. Bitte versuche es erneut.",
+        RECREATE_NOT_ALLOWED:
+            "Die Fahrzeugakte kann nur nach einem bestätigten fehlenden OneDrive-Ordner neu angelegt werden.",
     };
 
     return messages[code] ?? messages.REQUEST_FAILED;
@@ -75,6 +84,7 @@ function toResult(job: PurchaseVehicleFolderJob): VehicleFolderResult {
         registration_folder_id: job.registration_folder_id,
         images_folder_id: job.images_folder_id,
         last_error: job.last_error,
+        last_error_code: job.last_error_code,
         attempt_count: job.attempt_count,
     };
 }
@@ -254,7 +264,7 @@ async function runJob(
     }
 
     const request: VehicleFolderRequest = {
-        event_id: claimed.id,
+        event_id: claimed.folder_event_id,
         event: "purchase.folder.ensure",
         purchase_id: purchaseId,
         vehicle_id: vehicleId,
@@ -348,9 +358,156 @@ export async function ensurePurchaseVehicleFolder(
     });
 
     if (job.status === "ready") return toResult(job);
+    if (job.status === "error" && job.last_error_code === "FOLDER_NOT_FOUND") return toResult(job);
     if (job.status === "processing" && job.lease_expires_at && new Date(job.lease_expires_at).getTime() > Date.now()) {
         return toResult(job);
     }
 
     return runJob(job, purchase.id, job.vehicle_id);
+}
+
+export type VehicleFolderCheckResult =
+    | { status: "found"; folderUrl: string }
+    | { status: "missing" }
+    | { status: "unavailable"; message: string }
+    | { status: "busy"; message: string }
+    | { status: "not_ready"; message: string };
+
+const CHECK_FAILURE_MESSAGE = "Ordner konnte gerade nicht geprüft werden.";
+
+export async function checkPurchaseVehicleFolder(
+    companyId: string,
+    purchaseId: string,
+): Promise<VehicleFolderCheckResult> {
+    const supabase = createAutomationSupabaseClient();
+    const { data: jobData, error: jobError } = await supabase
+        .from("purchase_vehicle_folder_jobs")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("purchase_case_id", purchaseId)
+        .maybeSingle();
+
+    if (jobError) throw new Error("JOB_LOOKUP_FAILED");
+    if (!jobData) return { status: "not_ready", message: "Für diesen Einkauf ist noch kein OneDrive-Ordner hinterlegt." };
+    const job = jobData as PurchaseVehicleFolderJob;
+    if (job.status !== "ready" || !job.folder_id || !job.drive_id) {
+        return { status: "not_ready", message: "Für diesen Einkauf ist kein prüfbarer OneDrive-Ordner hinterlegt." };
+    }
+
+    const { data: claimedRows, error: claimError } = await supabase.rpc(
+        "claim_purchase_vehicle_folder_check",
+        { p_job_id: job.id, p_company_id: companyId, p_lease_seconds: 60 },
+    );
+    if (claimError) throw new Error("CHECK_CLAIM_FAILED");
+    const claimed = Array.isArray(claimedRows)
+        ? claimedRows[0] as PurchaseVehicleFolderJob | undefined
+        : undefined;
+    if (!claimed?.check_lease_token) {
+        return { status: "busy", message: "Die OneDrive-Akte wird bereits geprüft. Bitte warte kurz und versuche es erneut." };
+    }
+
+    const checkUrl = process.env.N8N_VEHICLE_FOLDER_CHECK_WEBHOOK_URL;
+    const secret = process.env.N8N_VEHICLE_FOLDER_WEBHOOK_SECRET;
+    let validUrl = false;
+    try {
+        validUrl = Boolean(checkUrl && new URL(checkUrl).protocol === "https:");
+    } catch {
+        validUrl = false;
+    }
+
+    const request: VehicleFolderCheckRequest = {
+        event_id: claimed.folder_event_id,
+        event: "purchase.folder.inspect",
+        purchase_id: claimed.purchase_case_id,
+        vehicle_id: claimed.vehicle_id,
+        drive_id: claimed.drive_id!,
+        folder_id: claimed.folder_id!,
+    };
+
+    const outcome = await dispatchVehicleFolderCheck({
+        request,
+        post: async (outgoing) => {
+            if (!validUrl || !checkUrl || !secret) throw new Error("check configuration unavailable");
+            const response = await fetch(checkUrl, {
+                method: "POST",
+                headers: {
+                    "content-type": "application/json",
+                    "x-waw-webhook-secret": secret,
+                },
+                body: JSON.stringify(outgoing),
+                signal: AbortSignal.timeout(N8N_TIMEOUT_MS),
+                cache: "no-store",
+            });
+            let body: unknown = null;
+            try {
+                body = await response.json();
+            } catch {
+                // The dispatcher treats an unstructured response as unavailable.
+            }
+            return { statusCode: response.status, body };
+        },
+        persist: async (response, failure) => {
+            const result = failure
+                ? "unavailable"
+                : response?.status === "missing"
+                    ? "missing"
+                    : "found";
+            const { data, error } = await supabase.rpc("complete_purchase_vehicle_folder_check", {
+                p_job_id: claimed.id,
+                p_company_id: companyId,
+                p_check_lease_token: claimed.check_lease_token,
+                p_event_id: request.event_id,
+                p_purchase_id: request.purchase_id,
+                p_vehicle_id: request.vehicle_id,
+                p_drive_id: request.drive_id,
+                p_folder_id: request.folder_id,
+                p_result: result,
+                p_folder_url: result === "found" ? response?.folder_url ?? null : null,
+            });
+            return !error && data === true;
+        },
+    });
+
+    if (outcome.status === "found") return outcome;
+    if (outcome.status === "missing") return outcome;
+    return { status: "unavailable", message: CHECK_FAILURE_MESSAGE };
+}
+
+export async function recreateMissingPurchaseVehicleFolder(
+    companyId: string,
+    purchaseId: string,
+): Promise<VehicleFolderResult> {
+    const supabase = createAutomationSupabaseClient();
+    const { data: job, error: lookupError } = await supabase
+        .from("purchase_vehicle_folder_jobs")
+        .select("id, status, last_error_code")
+        .eq("company_id", companyId)
+        .eq("purchase_case_id", purchaseId)
+        .maybeSingle();
+    if (lookupError || !job) throw new Error("JOB_LOOKUP_FAILED");
+
+    if (job.status === "error" && job.last_error_code === "FOLDER_NOT_FOUND") {
+        const { data: requeued, error } = await supabase.rpc(
+            "requeue_missing_purchase_vehicle_folder",
+            { p_job_id: job.id, p_company_id: companyId },
+        );
+        if (error) throw new Error("RECREATE_FAILED");
+        if (requeued !== true) {
+            const { data: current } = await supabase
+                .from("purchase_vehicle_folder_jobs")
+                .select("*")
+                .eq("id", job.id)
+                .single();
+            if (current && (current.status === "processing" || current.status === "pending")) {
+                return toResult(current as PurchaseVehicleFolderJob);
+            }
+            throw new Error("RECREATE_NOT_ALLOWED");
+        }
+    } else if (job.status !== "pending" && job.status !== "processing") {
+        throw new Error("RECREATE_NOT_ALLOWED");
+    }
+
+    // The persisted folder_name and current drive/root IDs are reused. The
+    // new event ID was committed atomically by the requeue RPC.
+    return ensurePurchaseVehicleFolder(companyId, purchaseId);
 }
