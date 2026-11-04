@@ -7,6 +7,7 @@ import type {
     PurchaseCaseStatus,
 } from "@/lib/purchases/purchase-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
 type SupabaseRelation<T> = T | T[] | null;
 
@@ -159,6 +160,18 @@ export type PurchaseCaseDetail = {
     } | null;
 
     documents: PurchaseCaseDocument[];
+    vehicleFolder: {
+        id: string;
+        status: "pending" | "processing" | "ready" | "error";
+        folder_name: string;
+        folder_url: string | null;
+        folder_id: string | null;
+        registration_folder_id: string | null;
+        images_folder_id: string | null;
+        last_error: string | null;
+        attempt_count: number;
+        lease_expires_at: string | null;
+    } | null;
 };
 
 function getSingleRelation<T>(relation: SupabaseRelation<T>): T | null {
@@ -265,7 +278,7 @@ export async function getPurchaseCaseDetail(
         ? `purchase_case_id.eq.${purchaseId},vehicle_id.eq.${purchase.vehicle_id}`
         : `purchase_case_id.eq.${purchaseId}`;
 
-    const { data: documentsData, error: documentsError } = await supabase
+    const documentsQuery = supabase
         .from("documents")
         .select(
             `
@@ -283,6 +296,41 @@ export async function getPurchaseCaseDetail(
         .eq("company_id", companyId)
         .or(documentRelationFilter)
         .order("created_at", { ascending: false });
+
+    const folderJobQuery = (async () => {
+        if (!purchase.vehicle_id) return null;
+        try {
+            const automationSupabase = createAutomationSupabaseClient();
+            const { data } = await automationSupabase
+                .from("purchase_vehicle_folder_jobs")
+                .select(
+                    "id, status, folder_name, folder_url, folder_id, registration_folder_id, images_folder_id, last_error, attempt_count, lease_expires_at",
+                )
+                .eq("company_id", companyId)
+                .eq("purchase_case_id", purchaseId)
+                .maybeSingle();
+            return data as PurchaseCaseDetail["vehicleFolder"];
+        } catch {
+            // Die Einkaufsakte bleibt lesbar, falls die optionale Integration noch nicht konfiguriert ist.
+            return null;
+        }
+    })();
+
+    const [{ data: documentsData, error: documentsError }, folderJob] = await Promise.all([
+        documentsQuery,
+        folderJobQuery,
+    ]);
+
+    let vehicleFolder = folderJob;
+    if (vehicleFolder?.status === "processing" && vehicleFolder.lease_expires_at) {
+        if (new Date(vehicleFolder.lease_expires_at).getTime() <= Date.now()) {
+            vehicleFolder = {
+                ...vehicleFolder,
+                status: "error",
+                last_error: "Die Ordneranlage wurde unterbrochen und kann erneut gestartet werden.",
+            };
+        }
+    }
 
     if (documentsError) {
         throw new Error(
@@ -381,5 +429,6 @@ export async function getPurchaseCaseDetail(
             : null,
 
         documents,
+        vehicleFolder,
     };
 }

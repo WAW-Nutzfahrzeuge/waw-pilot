@@ -7,6 +7,7 @@ import {
     CheckCircle2,
     FilePlus2,
     FileText,
+    FolderOpen,
     Loader2,
     Mail,
     Trash2,
@@ -19,6 +20,7 @@ type PendingSubmitButtonIconName =
     | "check-circle"
     | "file-plus"
     | "file-text"
+    | "folder-open"
     | "mail"
     | "wallet"
     | "trash";
@@ -27,6 +29,7 @@ const pendingSubmitButtonIcons: Record<PendingSubmitButtonIconName, LucideIcon> 
     "check-circle": CheckCircle2,
     "file-plus": FilePlus2,
     "file-text": FileText,
+    "folder-open": FolderOpen,
     mail: Mail,
     wallet: WalletCards,
     trash: Trash2,

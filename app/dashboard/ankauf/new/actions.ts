@@ -35,6 +35,7 @@ import {
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
 import { normalizeCustomerCountry } from "@/lib/countries/country-options";
+import { ensurePurchaseVehicleFolder } from "@/lib/purchases/vehicle-folder-integration";
 
 type CreatePurchaseCaseState = {
     success: boolean;
@@ -1122,6 +1123,24 @@ export async function createPurchaseCaseAction(
                 new Error(paymentResult.message),
             );
         }
+    }
+
+    try {
+        const folderResult = await measurePurchaseStep(
+            requestId,
+            "vehicle_folder_ensure",
+            () => ensurePurchaseVehicleFolder(companyId, purchaseCaseId!),
+        );
+        logPurchaseWorkflow(requestId, "vehicle_folder_result", {
+            jobId: folderResult.id,
+            status: folderResult.status,
+        });
+    } catch (error) {
+        // The purchase is already saved. A OneDrive problem must never cause the user
+        // to submit the purchase again; the detail page can create or retry the job.
+        logPurchaseWorkflow(requestId, "vehicle_folder_enqueue_failed_non_blocking", {
+            errorCode: error instanceof Error ? error.message : "UNKNOWN",
+        });
     }
 
     logPurchaseWorkflow(requestId, "success", {

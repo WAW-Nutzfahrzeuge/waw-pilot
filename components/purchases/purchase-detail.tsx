@@ -42,6 +42,7 @@ import {
 } from "@/components/purchases/purchase-record-edit-dialogs";
 import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
 import { deletePurchaseAdminAction } from "@/app/dashboard/admin-delete-actions";
+import { VehicleFolderCard } from "@/components/purchases/vehicle-folder-card";
 
 type PurchaseDetailProps = {
     purchase: PurchaseCaseDetailType;
@@ -138,6 +139,17 @@ export function PurchaseDetail({
             {vehicleSaved ? (
                 <FlashMessage message="Fahrzeugdaten wurden gespeichert." />
             ) : null}
+
+            <VehicleFolderCard
+                purchaseId={purchase.id}
+                initialState={{
+                    success: purchase.vehicleFolder?.status === "ready",
+                    status: purchase.vehicleFolder?.status ?? null,
+                    folderName: purchase.vehicleFolder?.folder_name ?? null,
+                    folderUrl: purchase.vehicleFolder?.folder_url ?? null,
+                    lastError: purchase.vehicleFolder?.last_error ?? null,
+                }}
+            />
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <DetailStatCard
