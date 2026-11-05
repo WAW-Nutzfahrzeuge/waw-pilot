@@ -37,7 +37,7 @@ export function RegenerateInvoicePdfForm({
             damageNotesCheckbox instanceof HTMLInputElement &&
             damageNotesCheckbox.checked;
         const includeTermsPdf =
-            !(termsPdfCheckbox instanceof HTMLInputElement) ||
+            termsPdfCheckbox instanceof HTMLInputElement &&
             termsPdfCheckbox.checked;
 
         if (includeSignatureStampInputRef.current) {
@@ -77,7 +77,7 @@ export function RegenerateInvoicePdfForm({
                 ref={includeTermsPdfInputRef}
                 type="hidden"
                 name="include_terms_pdf"
-                value="yes"
+                value="no"
             />
             <RegenerateInvoicePdfButton />
         </form>

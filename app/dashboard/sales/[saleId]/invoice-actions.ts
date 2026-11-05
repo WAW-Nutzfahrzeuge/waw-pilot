@@ -351,7 +351,7 @@ export async function createSaleInvoiceAction(formData: FormData) {
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
     const includeTermsPdf =
-        getStringValue(formData, "include_terms_pdf") !== "no";
+        getStringValue(formData, "include_terms_pdf") === "yes";
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");
@@ -835,7 +835,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
     const includeTermsPdf =
-        getStringValue(formData, "include_terms_pdf") !== "no";
+        getStringValue(formData, "include_terms_pdf") === "yes";
     const requestedIncludeDamageNotesOnInvoice =
         getStringValue(formData, "include_damage_notes_on_invoice") === "yes";
 
@@ -1167,7 +1167,7 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
     const includeTermsPdf =
-        getStringValue(formData, "include_terms_pdf") !== "no";
+        getStringValue(formData, "include_terms_pdf") === "yes";
 
     if (!saleId) {
         throw new Error("Verkauf fehlt.");

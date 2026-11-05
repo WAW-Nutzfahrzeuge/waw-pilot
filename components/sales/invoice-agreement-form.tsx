@@ -30,7 +30,7 @@ export function InvoiceAgreementForm({
             signatureCheckbox instanceof HTMLInputElement &&
             signatureCheckbox.checked;
         const includeTermsPdf =
-            !(termsPdfCheckbox instanceof HTMLInputElement) ||
+            termsPdfCheckbox instanceof HTMLInputElement &&
             termsPdfCheckbox.checked;
 
         if (includeSignatureStampInputRef.current) {
@@ -62,7 +62,7 @@ export function InvoiceAgreementForm({
                 ref={includeTermsPdfInputRef}
                 type="hidden"
                 name="include_terms_pdf"
-                value="yes"
+                value="no"
             />
 
             <div className="space-y-2">

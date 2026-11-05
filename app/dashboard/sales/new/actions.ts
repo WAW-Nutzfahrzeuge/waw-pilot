@@ -836,7 +836,7 @@ export async function createSaleAction(
     const includeSignatureStamp =
         getStringValue(formData, "include_signature_stamp") === "yes";
     const includeTermsPdf =
-        getStringValue(formData, "include_terms_pdf") !== "no";
+        getStringValue(formData, "include_terms_pdf") === "yes";
 
     const exportDestinationCity = getStringValue(
         formData,
