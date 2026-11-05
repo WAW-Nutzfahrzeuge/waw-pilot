@@ -4,6 +4,7 @@ import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useStat
 import { Check, ChevronDown, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FieldLabel } from "@/components/shared/field-label";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -142,10 +143,9 @@ export function SearchCombobox({
     return (
         <div ref={rootRef} className={cn("space-y-2", className)}>
             {label ? (
-                <label className="font-bold text-slate-700" htmlFor={name ? `${name}-combobox` : undefined}>
+                <FieldLabel required={required} htmlFor={name ? `${name}-combobox` : undefined}>
                     {label}
-                    {required ? <span className="ml-1 text-red-600">*</span> : null}
-                </label>
+                </FieldLabel>
             ) : null}
 
             {name ? <input type="hidden" name={name} value={selectedValue ?? ""} required={required} /> : null}

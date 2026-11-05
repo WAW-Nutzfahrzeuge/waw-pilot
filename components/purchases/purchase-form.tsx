@@ -48,6 +48,7 @@ import { useFormActionFeedback } from "@/components/forms/use-form-action-feedba
 import { PersonTypeCards } from "@/components/customers/person-type-cards";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { ActionMessage } from "@/components/shared/action-message";
+import { FieldLabel } from "@/components/shared/field-label";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
 import { normalizeVin } from "@/lib/vehicles/vin";
@@ -377,14 +378,14 @@ export function PurchaseForm({
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <FormField
-                                label="Ankaufsdatum *"
+                                label="Ankaufsdatum"
                                 name="purchase_date"
                                 type="date"
                                 defaultValue={initialValues?.purchase_date ?? today}
                                 required
                             />
                             <FormField
-                                label="Einkaufspreis netto *"
+                                label="Einkaufspreis netto"
                                 name="net_amount"
                                 type="number"
                                 defaultValue={
@@ -409,9 +410,7 @@ export function PurchaseForm({
                                 placeholder="19"
                             />
                             <div className="space-y-2">
-                                <Label htmlFor="payment_status" className="font-bold text-slate-700">
-                                    Zahlungsstatus *
-                                </Label>
+                                <FieldLabel htmlFor="payment_status">Zahlungsstatus</FieldLabel>
                                 <select
                                     id="payment_status"
                                     name="payment_status"
@@ -541,14 +540,14 @@ function VehicleCreateFields() {
 
     return (
         <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Hersteller *" name="new_vehicle_manufacturer" required />
-            <FormField label="Modell *" name="new_vehicle_model" required />
-            <FormField label="Typ *" name="new_vehicle_type" required />
-            <FormField label="Fahrgestellnummer / VIN *" name="new_vehicle_vin" required normalize={normalizeVin} />
-            <FormField label="Baujahr *" name="new_vehicle_construction_year" type="number" required />
+            <FormField label="Hersteller" name="new_vehicle_manufacturer" required />
+            <FormField label="Modell" name="new_vehicle_model" required />
+            <FormField label="Typ" name="new_vehicle_type" required />
+            <FormField label="Fahrgestellnummer / VIN" name="new_vehicle_vin" required normalize={normalizeVin} />
+            <FormField label="Baujahr" name="new_vehicle_construction_year" type="number" required />
             <FormField label="Kilometerstand" name="new_vehicle_mileage" type="number" />
             <FormField label="Farbe" name="new_vehicle_color" />
-            <FormField label="Fahrzeugkategorie *" name="new_vehicle_category" required />
+            <FormField label="Fahrzeugkategorie" name="new_vehicle_category" required />
             <div className="md:col-span-2">
                 <Label htmlFor="new_vehicle_damage_notes" className="font-bold text-slate-700">
                     Schäden
@@ -606,18 +605,18 @@ function SellerCreateFields({
                 <div className="grid gap-4 md:grid-cols-2">
                 {sellerType === "company" ? (
                     <>
-                        <FormField label="Firma *" name="new_seller_company_name" required />
+                        <FormField label="Firma" name="new_seller_company_name" required />
                         <FormField label="Ansprechpartner" name="new_seller_owner_name" />
                     </>
                 ) : (
                     <>
-                        <FormField label="Vorname *" name="new_seller_first_name" required />
-                        <FormField label="Nachname *" name="new_seller_last_name" required />
+                        <FormField label="Vorname" name="new_seller_first_name" required />
+                        <FormField label="Nachname" name="new_seller_last_name" required />
                     </>
                 )}
-                <FormField label="Straße und Hausnummer *" name="new_seller_street" required />
-                <FormField label="PLZ *" name="new_seller_postal_code" required />
-                <FormField label="Ort *" name="new_seller_city" required />
+                <FormField label="Straße und Hausnummer" name="new_seller_street" required />
+                <FormField label="PLZ" name="new_seller_postal_code" required />
+                <FormField label="Ort" name="new_seller_city" required />
                 <CountryCombobox
                     name="new_seller_country"
                     value={country}
@@ -839,9 +838,7 @@ function FormField({
 }) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={name} className="font-bold text-slate-700">
-                {label}
-            </Label>
+            <FieldLabel htmlFor={name} required={required}>{label}</FieldLabel>
             <Input
                 id={name}
                 name={name}

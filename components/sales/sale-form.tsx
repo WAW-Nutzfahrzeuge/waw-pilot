@@ -55,6 +55,7 @@ import { CountryCombobox } from "@/components/customers/country-combobox";
 import { VehicleCombobox } from "@/components/vehicles/vehicle-combobox";
 import { BzstVatValidationLink } from "@/components/shared/bzst-vat-validation-link";
 import { CompanyVatIdCopyButton } from "@/components/shared/company-tax-number-copy-button";
+import { FieldLabel } from "@/components/shared/field-label";
 import { ActionMessage } from "@/components/shared/action-message";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -361,6 +362,7 @@ export function SaleForm({
                             icon={Globe2}
                             title="1. Verkaufstyp festlegen"
                             description="Wähle zuerst, ob der Verkauf im Inland, innerhalb der EU oder in ein Drittland erfolgt. Das bestimmt Steuerlogik und erforderliche Dokumente."
+                            required
                         />
 
                         <div className="grid gap-3 md:grid-cols-3">
@@ -429,7 +431,7 @@ export function SaleForm({
                                 <VehicleCombobox
                                     vehicles={vehicles}
                                     name="vehicle_id"
-                                    label="Fahrzeug *"
+                                    label="Fahrzeug"
                                     value={selectedVehicleId}
                                     required
                                     placeholder="VIN, Bestandsnummer, Hersteller, Modell oder Kennzeichen suchen..."
@@ -492,7 +494,7 @@ export function SaleForm({
                                 <CustomerCombobox
                                     customers={customers}
                                     name="buyer_customer_id"
-                                    label="Käufer *"
+                                    label="Käufer"
                                     value={selectedCustomerId}
                                     required
                                     placeholder="Käufer nach Name, Firma, E-Mail oder Ort suchen..."
@@ -606,7 +608,7 @@ export function SaleForm({
                                     {newCustomerType === "company" ? (
                                         <>
                                             <FormField
-                                                label="Firmenname *"
+                                                label="Firmenname"
                                                 name="new_customer_company_name"
                                                 required
                                             />
@@ -618,12 +620,12 @@ export function SaleForm({
                                     ) : (
                                         <>
                                             <FormField
-                                                label="Vorname *"
+                                                label="Vorname"
                                                 name="new_customer_first_name"
                                                 required
                                             />
                                             <FormField
-                                                label="Nachname *"
+                                                label="Nachname"
                                                 name="new_customer_last_name"
                                                 required
                                             />
@@ -631,17 +633,17 @@ export function SaleForm({
                                     )}
 
                                     <FormField
-                                        label="Straße und Hausnummer *"
+                                        label="Straße und Hausnummer"
                                         name="new_customer_street"
                                         required
                                     />
                                     <FormField
-                                        label="PLZ *"
+                                        label="PLZ"
                                         name="new_customer_postal_code"
                                         required
                                     />
                                     <FormField
-                                        label="Ort *"
+                                        label="Ort"
                                         name="new_customer_city"
                                         required
                                         value={newCustomerCity}
@@ -681,10 +683,7 @@ export function SaleForm({
                                         <>
                                             <div className="space-y-2">
                                                 <FormField
-                                                    label={getRequiredLabel(
-                                                        "Steuernummer",
-                                                        requiresNewCustomerTaxNumber,
-                                                    )}
+                                                    label="Steuernummer"
                                                     name="new_customer_tax_number"
                                                     required={requiresNewCustomerTaxNumber}
                                                 />
@@ -693,10 +692,7 @@ export function SaleForm({
                                                 />
                                             </div>
                                             <FormField
-                                                label={getRequiredLabel(
-                                                    "USt-ID | VAT | NIP",
-                                                    requiresNewCustomerVatId,
-                                                )}
+                                                label="USt-ID | VAT | NIP"
                                                 name="new_customer_vat_id"
                                                 value={newCustomerVatId}
                                                 onChange={(event) =>
@@ -740,10 +736,7 @@ export function SaleForm({
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <FormField
-                                label={getRequiredLabel(
-                                    "Zielort / Empfangsort",
-                                    requiresExportDetails,
-                                )}
+                                label="Zielort / Empfangsort"
                                 name="export_destination_city"
                                 required={requiresExportDetails}
                                 value={exportDestinationCity}
@@ -755,10 +748,7 @@ export function SaleForm({
                             />
 
                             <FormField
-                                label={getRequiredLabel(
-                                    "Zielland / Empfangsland",
-                                    requiresExportDetails,
-                                )}
+                                label="Zielland / Empfangsland"
                                 name="export_destination_country"
                                 required={requiresExportDetails}
                                 value={exportDestinationCountry}
@@ -798,15 +788,13 @@ export function SaleForm({
                             ) : null}
 
                             <div className="space-y-2">
-                                <Label
+                                <FieldLabel
                                     htmlFor="export_arrival_month"
                                     className="font-bold text-slate-700"
+                                    required={requiresExportDetails}
                                 >
-                                    {getRequiredLabel(
-                                        "Monat des Gelangens",
-                                        requiresExportDetails,
-                                    )}
-                                </Label>
+                                    Monat des Gelangens
+                                </FieldLabel>
                                 <select
                                     id="export_arrival_month"
                                     name="export_arrival_month"
@@ -824,15 +812,13 @@ export function SaleForm({
                             </div>
 
                             <div className="space-y-2">
-                                <Label
+                                <FieldLabel
                                     htmlFor="export_arrival_year"
                                     className="font-bold text-slate-700"
+                                    required={requiresExportDetails}
                                 >
-                                    {getRequiredLabel(
-                                        "Jahr des Gelangens",
-                                        requiresExportDetails,
-                                    )}
-                                </Label>
+                                    Jahr des Gelangens
+                                </FieldLabel>
                                 <select
                                     id="export_arrival_year"
                                     name="export_arrival_year"
@@ -850,25 +836,20 @@ export function SaleForm({
                             </div>
 
                             <FormField
-                                label={getRequiredLabel(
-                                    "Verbringungs- / Übergabedatum",
-                                    requiresExportDetails,
-                                )}
+                                label="Verbringungs- / Übergabedatum"
                                 name="export_transport_date"
                                 type="date"
                                 required={requiresExportDetails}
                             />
 
                             <div className="space-y-2">
-                                <Label
+                                <FieldLabel
                                     htmlFor="export_transport_type"
                                     className="font-bold text-slate-700"
+                                    required={requiresExportDetails}
                                 >
-                                    {getRequiredLabel(
-                                        "Art der Verbringung",
-                                        requiresExportDetails,
-                                    )}
-                                </Label>
+                                    Art der Verbringung
+                                </FieldLabel>
                                 <select
                                     id="export_transport_type"
                                     name="export_transport_type"
@@ -905,7 +886,7 @@ export function SaleForm({
 
                         <div className="grid gap-4 md:grid-cols-3">
                             <FormField
-                                label="Verkaufspreis netto *"
+                                label="Verkaufspreis netto"
                                 name="net_amount"
                                 type="number"
                                 step="0.01"
@@ -931,7 +912,7 @@ export function SaleForm({
                                 }
                             />
                             <FormField
-                                label="Verkaufsdatum *"
+                                label="Verkaufsdatum"
                                 name="sale_date"
                                 type="date"
                                 value={saleDate}
@@ -1542,10 +1523,6 @@ function NewVehicleFields({
     );
 }
 
-function getRequiredLabel(label: string, required: boolean): string {
-    return required ? `${label} *` : label;
-}
-
 function getCustomerSummaryName(customer: CustomerRow): string {
     if (customer.type === "company") return customer.company_name ?? "Unbekannte Firma";
 
@@ -1571,10 +1548,12 @@ function SectionTitle({
                           icon: Icon,
                           title,
                           description,
+                          required = false,
                       }: {
     icon: typeof Truck;
     title: string;
     description: string;
+    required?: boolean;
 }) {
     return (
         <div className="flex items-start gap-3">
@@ -1582,7 +1561,10 @@ function SectionTitle({
                 <Icon className="size-5" />
             </div>
             <div>
-                <h2 className="text-xl font-extrabold text-slate-950">{title}</h2>
+                <h2 className="flex flex-wrap items-center gap-x-2 text-xl font-extrabold text-slate-950">
+                    {title}
+                    {required ? <span className="text-sm font-bold text-red-600">(erforderlich)</span> : null}
+                </h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">
                     {description}
                 </p>
@@ -1674,9 +1656,7 @@ function FormField({
 }) {
     return (
         <div className="space-y-2">
-            <Label htmlFor={name} className="font-bold text-slate-700">
-                {label}
-            </Label>
+            <FieldLabel htmlFor={name} required={required}>{label}</FieldLabel>
             <Input
                 id={name}
                 name={name}
