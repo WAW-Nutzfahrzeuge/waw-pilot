@@ -1418,11 +1418,11 @@ export async function generateInvoicePdf(
     );
 
     const agreementNotes = data.invoiceNotes?.trim();
-    const warrantyTextTopY = agreementNotes ? tableContentTopY - 96 : tableContentTopY - 50;
+    const warrantyTextTopY = tableContentTopY - 50;
 
     if (agreementNotes) {
         const agreementX = tableX + col1 + 12;
-        const agreementY = tableContentTopY - 47;
+        const agreementY = tableContentTopY - 96;
         const agreementWidth = col2 - 24;
 
         drawText(page, "Zusätzliche Vereinbarung:", agreementX, agreementY, {
