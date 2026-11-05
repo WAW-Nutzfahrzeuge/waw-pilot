@@ -6,6 +6,34 @@ import {
 
 export type VehicleFolderCheckFailure = "AUTH" | "TIMEOUT" | "UNAVAILABLE" | "INVALID_RESPONSE";
 
+export function isVehicleFolderCheckLeaseActive(
+    token: string | null | undefined,
+    expiresAt: string | null | undefined,
+    now = Date.now(),
+): boolean {
+    if (!token || !expiresAt) return false;
+    const expiresAtMs = Date.parse(expiresAt);
+    return Number.isFinite(expiresAtMs) && expiresAtMs > now;
+}
+
+export async function withVehicleFolderCheckTimeout<T>(
+    operation: Promise<T>,
+    timeoutMs: number,
+): Promise<{ timedOut: false; value: T } | { timedOut: true }> {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    try {
+        const result = await Promise.race([
+            operation.then((value) => ({ timedOut: false as const, value })),
+            new Promise<{ timedOut: true }>((resolve) => {
+                timeout = setTimeout(() => resolve({ timedOut: true }), timeoutMs);
+            }),
+        ]);
+        return result;
+    } finally {
+        if (timeout) clearTimeout(timeout);
+    }
+}
+
 export async function dispatchVehicleFolderCheck({
     request,
     post,
@@ -40,7 +68,14 @@ export async function dispatchVehicleFolderCheck({
     const response = failure ? null : validateVehicleFolderCheckResponse(body, request);
     if (!failure && !response) failure = "INVALID_RESPONSE";
 
-    const persisted = await persist(response, failure);
+    let persisted = false;
+    try {
+        persisted = await persist(response, failure);
+    } catch {
+        // A failed persistence call must not leave the Server Action waiting
+        // forever. The DB lease expires and a later check can atomically claim it.
+        return { status: "unavailable", reason: "UNAVAILABLE" };
+    }
     if (!persisted) return { status: "unavailable", reason: "UNAVAILABLE" };
 
     if (failure) return { status: "unavailable", reason: failure };

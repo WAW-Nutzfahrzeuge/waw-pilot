@@ -6,6 +6,7 @@ import { ExternalLink, FolderOpen, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PendingSubmitButton } from "@/components/forms/pending-submit-button";
+import { withVehicleFolderCheckTimeout } from "@/lib/purchases/vehicle-folder-check-dispatch";
 import {
     checkPurchaseVehicleFolderAction,
     ensurePurchaseVehicleFolderAction,
@@ -16,6 +17,8 @@ type VehicleFolderCardProps = {
     purchaseId: string;
     initialState: VehicleFolderActionState;
 };
+
+const CHECK_UI_TIMEOUT_MS = 45_000;
 
 export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCardProps) {
     const [actionState, formAction] = useActionState(ensurePurchaseVehicleFolderAction, initialState);
@@ -40,7 +43,20 @@ export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCar
         setChecking(true);
         setCheckState({ ...state, errorCode: null, lastError: null });
         try {
-            const result = await checkPurchaseVehicleFolderAction(purchaseId);
+            const boundedResult = await withVehicleFolderCheckTimeout(
+                checkPurchaseVehicleFolderAction(purchaseId),
+                CHECK_UI_TIMEOUT_MS,
+            );
+            if (boundedResult.timedOut) {
+                popup?.close();
+                setCheckState({
+                    ...state,
+                    errorCode: "FOLDER_CHECK_FAILED",
+                    lastError: "Ordner konnte gerade nicht geprüft werden. Bitte versuche es erneut.",
+                });
+                return;
+            }
+            const result = boundedResult.value;
             if (result.status === "found") {
                 setCheckState({ ...state, status: "ready", folderUrl: result.folderUrl, errorCode: null, lastError: null });
                 if (popup && !popup.closed) {

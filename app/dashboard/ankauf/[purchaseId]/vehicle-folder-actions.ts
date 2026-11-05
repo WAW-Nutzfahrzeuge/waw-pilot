@@ -84,7 +84,13 @@ export async function checkPurchaseVehicleFolderAction(
 
     try {
         const result = await checkPurchaseVehicleFolder(companyId, purchaseId);
-        revalidatePath(`/dashboard/ankauf/${purchaseId}`);
+        try {
+            revalidatePath(`/dashboard/ankauf/${purchaseId}`);
+        } catch (error) {
+            console.error("[purchase-vehicle-folder] inspection revalidation failed", {
+                errorCode: error instanceof Error ? error.name : "UNKNOWN",
+            });
+        }
         return result;
     } catch (error) {
         const errorCode = error instanceof Error ? error.message : "UNKNOWN";

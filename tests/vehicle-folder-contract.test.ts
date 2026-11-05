@@ -11,7 +11,11 @@ import {
     type VehicleFolderCheckRequest,
 } from "../lib/purchases/vehicle-folder-contract.ts";
 import { dispatchVehicleFolderWebhook } from "../lib/purchases/vehicle-folder-dispatch.ts";
-import { dispatchVehicleFolderCheck } from "../lib/purchases/vehicle-folder-check-dispatch.ts";
+import {
+    dispatchVehicleFolderCheck,
+    isVehicleFolderCheckLeaseActive,
+    withVehicleFolderCheckTimeout,
+} from "../lib/purchases/vehicle-folder-check-dispatch.ts";
 
 const request: VehicleFolderRequest = {
     event_id: "b764f8ac-7d25-4e4b-a411-6f735274a9d0",
@@ -255,6 +259,56 @@ test("only an explicit itemNotFound result marks the saved OneDrive folder missi
     assert.equal((persisted as { response: { status: string } }).response.status, "missing");
 });
 
+test("the configured direct n8n response body is accepted without expecting an outer wrapper", async () => {
+    const directRespondToWebhookBody = {
+        status: "missing",
+        error_code: "ITEM_NOT_FOUND",
+        event_id: checkRequest.event_id,
+        purchase_id: checkRequest.purchase_id,
+        vehicle_id: checkRequest.vehicle_id,
+        drive_id: checkRequest.drive_id,
+        folder_id: checkRequest.folder_id,
+    };
+    let savedResult = "";
+    const result = await dispatchVehicleFolderCheck({
+        request: checkRequest,
+        post: async () => ({ statusCode: 200, body: directRespondToWebhookBody }),
+        persist: async (response, failure) => {
+            assert.equal(failure, null);
+            savedResult = response?.status ?? "";
+            return true;
+        },
+    });
+    assert.deepEqual(result, { status: "missing" });
+    assert.equal(savedResult, "missing");
+});
+
+test("found response persists the current webUrl and completes the check normally", async () => {
+    const currentUrl = "https://tenant.sharepoint.com/sites/WAW/Shared%20Documents/renamed-folder";
+    const response = {
+        status: "found",
+        event_id: checkRequest.event_id,
+        purchase_id: checkRequest.purchase_id,
+        vehicle_id: checkRequest.vehicle_id,
+        drive_id: checkRequest.drive_id,
+        folder_id: checkRequest.folder_id,
+        item_type: "folder",
+        folder_url: currentUrl,
+    };
+    let savedUrl = "";
+    const result = await dispatchVehicleFolderCheck({
+        request: checkRequest,
+        post: async () => ({ statusCode: 200, body: response }),
+        persist: async (value, failure) => {
+            assert.equal(failure, null);
+            savedUrl = value?.folder_url ?? "";
+            return true;
+        },
+    });
+    assert.deepEqual(result, { status: "found", folderUrl: currentUrl });
+    assert.equal(savedUrl, currentUrl);
+});
+
 test("403 and timeout preserve the folder mapping and never report it deleted", async () => {
     for (const [post, reason] of [
         [async () => ({ statusCode: 403, body: null }), "AUTH"],
@@ -275,6 +329,43 @@ test("403 and timeout preserve the folder mapping and never report it deleted", 
     }
 });
 
+test("expired check leases are reclaimable while unexpired claims remain active", () => {
+    const now = Date.parse("2026-11-05T12:00:00.000Z");
+    assert.equal(isVehicleFolderCheckLeaseActive("old-token", "2026-11-05T11:59:00.000Z", now), false);
+    assert.equal(isVehicleFolderCheckLeaseActive("active-token", "2026-11-05T12:01:00.000Z", now), true);
+    assert.equal(isVehicleFolderCheckLeaseActive(null, "2026-11-05T12:01:00.000Z", now), false);
+});
+
+test("the UI timeout ends loading for resolved and hanging check actions", async () => {
+    const completed = await withVehicleFolderCheckTimeout(Promise.resolve({ status: "missing" }), 100);
+    assert.deepEqual(completed, { timedOut: false, value: { status: "missing" } });
+
+    const timedOut = await withVehicleFolderCheckTimeout(new Promise<never>(() => {}), 5);
+    assert.deepEqual(timedOut, { timedOut: true });
+
+    const card = readFileSync(resolve("components/purchases/vehicle-folder-card.tsx"), "utf8");
+    assert.match(card, /finally\s*\{\s*setChecking\(false\)/);
+    assert.match(card, /if \(boundedResult\.timedOut\)[\s\S]*?popup\?\.close\(\)/);
+    assert.match(card, /window\.location\.assign\(result\.folderUrl\)/);
+});
+
+test("database persistence failure after n8n responds returns unavailable instead of leaving dispatch pending", async () => {
+    const result = await dispatchVehicleFolderCheck({
+        request: checkRequest,
+        post: async () => ({ statusCode: 200, body: {
+            status: "missing",
+            error_code: "ITEM_NOT_FOUND",
+            event_id: checkRequest.event_id,
+            purchase_id: checkRequest.purchase_id,
+            vehicle_id: checkRequest.vehicle_id,
+            drive_id: checkRequest.drive_id,
+            folder_id: checkRequest.folder_id,
+        } }),
+        persist: async () => { throw new Error("database unavailable"); },
+    });
+    assert.deepEqual(result, { status: "unavailable", reason: "UNAVAILABLE" });
+});
+
 test("migration serializes concurrent inspection and recreation and preserves stored folder names", () => {
     const migration = readFileSync(
         resolve("supabase/migrations/20261104140000_add_purchase_vehicle_folder_inspection.sql"),
@@ -282,6 +373,7 @@ test("migration serializes concurrent inspection and recreation and preserves st
     );
     assert.match(migration, /claim_purchase_vehicle_folder_check/i);
     assert.match(migration, /check_lease_token is null or coalesce\(j\.check_lease_expires_at, '-infinity'::timestamptz\) <= now\(\)/i);
+    assert.doesNotMatch(migration.match(/create or replace function public\.claim_purchase_vehicle_folder_check[\s\S]*?\$\$;/i)?.[0] ?? "", /check_lease_token is null\s*\n\s*returning/i);
     assert.match(migration, /requeue_missing_purchase_vehicle_folder/i);
     assert.match(migration, /last_error_code = 'FOLDER_NOT_FOUND'/i);
     assert.match(migration, /folder_event_id = gen_random_uuid\(\)::text/i);
@@ -289,6 +381,12 @@ test("migration serializes concurrent inspection and recreation and preserves st
     const requeueFunction = migration.match(/create or replace function public\.requeue_missing_purchase_vehicle_folder[\s\S]*?\$\$;/i)?.[0] ?? "";
     assert.doesNotMatch(requeueFunction, /set[\s\S]*?folder_name\s*=/i);
     assert.match(migration, /p_event_id = j\.folder_event_id/i);
+
+    const expiredLeaseMigration = readFileSync(
+        resolve("supabase/migrations/20261105100000_reject_expired_purchase_vehicle_folder_checks.sql"),
+        "utf8",
+    );
+    assert.match(expiredLeaseMigration, /j\.check_lease_token = p_check_lease_token[\s\S]*?j\.check_lease_expires_at > now\(\)/i);
 });
 
 test("inspection and recreation UI distinguishes missing folders from connectivity errors", () => {

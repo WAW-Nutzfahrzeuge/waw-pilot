@@ -6,10 +6,15 @@ import {
     type VehicleFolderRequest,
 } from "@/lib/purchases/vehicle-folder-contract";
 import { dispatchVehicleFolderWebhook } from "@/lib/purchases/vehicle-folder-dispatch";
-import { dispatchVehicleFolderCheck } from "@/lib/purchases/vehicle-folder-check-dispatch";
+import {
+    dispatchVehicleFolderCheck,
+    isVehicleFolderCheckLeaseActive,
+} from "@/lib/purchases/vehicle-folder-check-dispatch";
 import type { VehicleFolderCheckRequest } from "@/lib/purchases/vehicle-folder-contract";
 
 const N8N_TIMEOUT_MS = 25_000;
+const VEHICLE_FOLDER_CHECK_TIMEOUT_MS = 15_000;
+const AUTOMATION_DB_TIMEOUT_MS = 8_000;
 const PROCESSING_LEASE_SECONDS = 120;
 
 type FolderJobStatus = "pending" | "processing" | "ready" | "error";
@@ -379,7 +384,7 @@ export async function checkPurchaseVehicleFolder(
     companyId: string,
     purchaseId: string,
 ): Promise<VehicleFolderCheckResult> {
-    const supabase = createAutomationSupabaseClient();
+    const supabase = createAutomationSupabaseClient({ requestTimeoutMs: AUTOMATION_DB_TIMEOUT_MS });
     const { data: jobData, error: jobError } = await supabase
         .from("purchase_vehicle_folder_jobs")
         .select("*")
@@ -403,7 +408,10 @@ export async function checkPurchaseVehicleFolder(
         ? claimedRows[0] as PurchaseVehicleFolderJob | undefined
         : undefined;
     if (!claimed?.check_lease_token) {
-        return { status: "busy", message: "Die OneDrive-Akte wird bereits geprüft. Bitte warte kurz und versuche es erneut." };
+        if (isVehicleFolderCheckLeaseActive(job.check_lease_token, job.check_lease_expires_at)) {
+            return { status: "busy", message: "Die OneDrive-Akte wird bereits geprüft. Bitte warte kurz und versuche es erneut." };
+        }
+        return { status: "unavailable", message: CHECK_FAILURE_MESSAGE };
     }
 
     const checkUrl = process.env.N8N_VEHICLE_FOLDER_CHECK_WEBHOOK_URL;
@@ -435,7 +443,7 @@ export async function checkPurchaseVehicleFolder(
                     "x-waw-webhook-secret": secret,
                 },
                 body: JSON.stringify(outgoing),
-                signal: AbortSignal.timeout(N8N_TIMEOUT_MS),
+                signal: AbortSignal.timeout(VEHICLE_FOLDER_CHECK_TIMEOUT_MS),
                 cache: "no-store",
             });
             let body: unknown = null;
