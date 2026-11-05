@@ -25,6 +25,11 @@ export type InvoicePdfData = {
     saleNumber: string | null;
     invoiceDate: string;
     dueDate: string | null;
+    paymentStatus: string | null;
+    payments: Array<{
+        amount: number;
+        paymentMethod: "bank" | "cash";
+    }>;
     correction?: {
         originalInvoiceNumber: string | null;
         originalInvoiceDate: string | null;
@@ -784,7 +789,7 @@ function getSaleTypeInvoiceLabel(saleType: SaleType): string {
 
 function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
     const baseLines = [
-        "Betrag wird auf das Konto überwiesen. | Payment via bank transfer in advance.",
+        getInvoicePaymentLine(data),
         "",
         "Delivery terms: EXW (Ex Works) according to Incoterms",
         "Das KFZ wird unter Ausschluss jeder Gewährleistung, so wie es steht, verkauft. | Sold without warranty or guarantee .",
@@ -807,6 +812,49 @@ function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
     }
 
     return baseLines;
+}
+
+function getInvoicePaymentLine(data: InvoicePdfData): string {
+    if (data.invoiceType === "proforma") {
+        return "Zahlung nach Erhalt der endgültigen Rechnung. | Payment due after the final invoice is issued.";
+    }
+
+    const cashAmount = data.payments
+        .filter((payment) => payment.paymentMethod === "cash")
+        .reduce((total, payment) => total + payment.amount, 0);
+    const bankAmount = data.payments
+        .filter((payment) => payment.paymentMethod === "bank")
+        .reduce((total, payment) => total + payment.amount, 0);
+    const paidAmount = cashAmount + bankAmount;
+    const grossAmount = data.amounts.grossAmount;
+
+    if (paidAmount >= grossAmount - 0.01) {
+        if (cashAmount > 0 && bankAmount > 0) {
+            return "Betrag wurde teilweise bar und teilweise per Überweisung bezahlt. | Paid partly in cash and partly by bank transfer.";
+        }
+        if (cashAmount > 0) {
+            return "Betrag wurde bar bezahlt. | Paid in cash.";
+        }
+        if (bankAmount > 0) {
+            return "Betrag wurde überwiesen. | Paid by bank transfer.";
+        }
+    }
+
+    if (paidAmount > 0) {
+        if (cashAmount > 0 && bankAmount > 0) {
+            return "Teilzahlung bar und per Überweisung erhalten; Restbetrag ist noch offen. | Partial cash and bank transfer received; balance remains due.";
+        }
+        if (cashAmount > 0) {
+            return "Teilzahlung in bar erhalten; Restbetrag ist noch offen. | Partial cash payment received; balance remains due.";
+        }
+        return "Teilzahlung per Überweisung erhalten; Restbetrag ist noch offen. | Partial bank transfer received; balance remains due.";
+    }
+
+    if (data.paymentStatus === "paid") {
+        return "Betrag ist als bezahlt erfasst. | Payment is recorded as paid.";
+    }
+
+    return "Betrag wird auf das Konto überwiesen. | Payment via bank transfer in advance.";
 }
 
 function getTermsNotice(language: string | null | undefined): string {

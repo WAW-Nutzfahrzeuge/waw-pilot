@@ -53,10 +53,18 @@ type VehicleRelation = {
 };
 
 type SaleRelation = {
+    sale_payments: SalePaymentRelation[] | null;
     sale_number: string | null;
     sale_type: SaleType | null;
     invoice_notes: string | null;
     include_damage_notes_on_invoice: boolean | null;
+};
+
+type SalePaymentRelation = {
+    amount: number | string;
+    payment_method: "bank" | "cash";
+    is_voided: boolean | null;
+    finalization_status: "pending" | "processing" | "failed" | "completed" | null;
 };
 
 type SupabaseRelation<T> = T | T[] | null;
@@ -67,6 +75,7 @@ type InvoiceQueryResult = {
     invoice_number: string;
     invoice_date: string;
     due_date: string | null;
+    payment_status: string | null;
     net_amount: number | string;
     vat_rate: number | string;
     vat_amount: number | string;
@@ -95,6 +104,7 @@ const invoicePdfBaseSelect = `
       invoice_number,
       invoice_date,
       due_date,
+      payment_status,
       net_amount,
       vat_rate,
       vat_amount,
@@ -148,7 +158,13 @@ const invoicePdfBaseSelect = `
         sale_number,
         sale_type,
         invoice_notes,
-        include_damage_notes_on_invoice
+        include_damage_notes_on_invoice,
+        sale_payments (
+          amount,
+          payment_method,
+          is_voided,
+          finalization_status
+        )
       )
 `;
 
@@ -300,6 +316,18 @@ export async function getInvoicePdfData(
         saleNumber: sale?.sale_number ?? null,
         invoiceDate: invoice.invoice_date,
         dueDate: invoice.due_date,
+        paymentStatus: invoice.payment_status,
+        payments: (sale?.sale_payments ?? [])
+            .filter((payment) =>
+                !payment.is_voided &&
+                (payment.finalization_status == null || payment.finalization_status === "completed"),
+            )
+            .filter((payment) => payment.payment_method === "bank" || payment.payment_method === "cash")
+            .map((payment) => ({
+                amount: Number(payment.amount),
+                paymentMethod: payment.payment_method,
+            }))
+            .filter((payment) => Number.isFinite(payment.amount) && payment.amount > 0),
         correction: invoice.original_invoice_number
             ? {
                   originalInvoiceNumber: invoice.original_invoice_number,
