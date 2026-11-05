@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DocumentCard } from "@/components/shared/document-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { VehicleDocumentUploadForm } from "@/components/vehicles/vehicle-document-upload-form";
+import { VehicleListingDetailsFields } from "@/components/vehicles/vehicle-listing-details-fields";
 import { normalizeVin } from "@/lib/vehicles/vin";
 import {
     formatFileSize,
@@ -71,6 +72,7 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
     const updateVehicle = updateVehicleAction.bind(null, vehicle.id);
     const [state, formAction] = useActionState(updateVehicle, initialState);
     const [damageNotes, setDamageNotes] = useState(vehicle.damage_notes ?? "");
+    const [vehicleType, setVehicleType] = useState(vehicle.vehicle_type);
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
@@ -195,7 +197,8 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                         <Input
                                             id="vehicle_type"
                                             name="vehicle_type"
-                                            defaultValue={vehicle.vehicle_type}
+                                            value={vehicleType}
+                                            onChange={(event) => setVehicleType(event.currentTarget.value)}
                                             required
                                             className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
                                         />
@@ -219,6 +222,16 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                             </FormField>
                                         </div>
                                     </div>
+
+                                    <FormField label="Erstzulassung" htmlFor="first_registration">
+                                        <Input
+                                            id="first_registration"
+                                            name="first_registration"
+                                            type="date"
+                                            defaultValue={vehicle.first_registration ?? ""}
+                                            className="h-12 rounded-2xl border-slate-200 bg-slate-50 font-semibold"
+                                        />
+                                    </FormField>
 
                                     <FormField label="Vorheriges Kennzeichen (optional)" htmlFor="license_plate">
                                         <Input
@@ -273,6 +286,16 @@ export function VehicleEditForm({ vehicle }: VehicleEditFormProps) {
                                         </FormField>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                            <CardContent className="p-5">
+                                <VehicleListingDetailsFields
+                                    namePrefix="listing_"
+                                    vehicleType={vehicleType}
+                                    value={vehicle.listing_details}
+                                />
                             </CardContent>
                         </Card>
 

@@ -4,14 +4,18 @@ import test from "node:test";
 
 import {
     compareVehicleSuggestions,
+    buildPurchaseListingSourceRevision,
     fingerprintListingCallback,
     getListingN8nHttpFailure,
     getListingTextTemplate,
+    getWawListingTemplateV2,
     inspectListingImageBytes,
     isListingJobLeaseExpired,
     isSupportedListingImageMime,
     isValidListingAutomationToken,
     stableListingRevision,
+    toPublicListingVehicleData,
+    validateWawPublicListingText,
     validateListingAcceptanceAck,
     validateListingAutomationEnvironment,
     validateListingCallback,
@@ -36,6 +40,55 @@ test("WAW listing template uses known facts only and leaves missing sales facts 
     assert.ok(draft.openPoints.includes("Kilometerstand prüfen"));
 });
 
+test("WAW v2 template builds a compact vehicle-specific title and plain-text sections", () => {
+    const listingDetails = {
+        enginePowerKw: 301, transmission: "Automatik", emissionClass: "Euro VI", cab: "Highline",
+        retarder: "Retarder", hydraulics: "Kipphydraulik", axleFormula: "8x4", frontSuspension: null,
+        rearSuspension: "Luftfederung", grossVehicleWeightKg: 32000, curbWeightKg: null, payloadKg: null,
+        wheelbaseMm: null, huUntil: null, spUntil: null, bodyManufacturer: "Stetter", bodyType: "Betonmischer",
+        bodyYear: null, mixerNominalVolumeM3: 9, mixerDrive: null, waterTankLiters: null, bodyControls: null,
+        includedAccessories: null, equipment: "Klimaanlage\nRückfahrkamera", vehicleCondition: "Gebrauchter Zustand",
+        bodyCondition: null, knownDamages: "Lackschaden bekannt", maintenanceHistory: null, repairHistory: null,
+        vehicleLocation: null, availabilityConfirmed: false,
+    };
+    const draft = getWawListingTemplateV2({ ...vehicle, vehicleType: "Betonmischer", listingDetails });
+    assert.equal(draft.title, "Mercedes-Benz Actros 1845 | 8x4 | Stetter Betonmischer 9 m³");
+    assert.match(draft.description, /FAHRZEUGDATEN\n• Fahrzeugart: Betonmischer/);
+    assert.match(draft.description, /BETONMISCHERAUFBAU/);
+    assert.match(draft.description, /AUSSTATTUNG\n• Klimaanlage\n• Rückfahrkamera/);
+    assert.match(draft.description, /Bekannte Schäden und Einschränkungen: Lackschaden bekannt/);
+    assert.doesNotMatch(draft.description, /<[^>]+>|\|.*\||Noch nicht angegeben|Bitte .* ergänzen/);
+    assert.equal(validateWawPublicListingText(draft.title, draft.description, { ...vehicle, vehicleType: "Betonmischer" }), true);
+    assert.equal(getWawListingTemplateV2({ ...vehicle, manufacturer: "", listingDetails }).title, "");
+});
+
+test("v2 outbound vehicle data excludes internal notes and cannot infer contact or private details", () => {
+    const outbound = toPublicListingVehicleData({ ...vehicle, id: "vehicle-id", listingDetails: { knownDamages: "confirmed damage" } as never });
+    assert.equal("purchaseNotes" in outbound, false);
+    assert.equal("damageNotes" in outbound, false);
+    assert.equal("notes" in outbound, false);
+    assert.equal("purchasePrice" in outbound, false);
+    assert.equal(outbound.listingDetails.knownDamages, "confirmed damage");
+});
+
+test("v1 source revisions remain stable for old jobs while v2 revisions include listing-specific facts, not private notes", () => {
+    const details = { transmission: "Automatik" } as never;
+    const input = {
+        purchase: { id: "purchase", purchaseNumber: "EK-1", purchaseDate: "2026-01-01" },
+        vehicle: { ...vehicle, id: "vehicle", listingDetails: details },
+        databaseListingDetails: details,
+        registration: { id: "document", filePath: "private/path", createdAt: "2026-01-01", fileSize: 10 },
+        oneDrive: { driveId: "drive", folderId: "folder", imagesFolderId: "images" },
+    };
+    const v1Before = buildPurchaseListingSourceRevision({ ...input, contractVersion: 1 });
+    const v1AfterDetailsChange = buildPurchaseListingSourceRevision({ ...input, contractVersion: 1, vehicle: { ...input.vehicle, listingDetails: { transmission: "Schaltgetriebe" } as never } });
+    assert.equal(v1Before, v1AfterDetailsChange);
+    const v2Before = buildPurchaseListingSourceRevision({ ...input, contractVersion: 2 });
+    const v2AfterDetailsChange = buildPurchaseListingSourceRevision({ ...input, contractVersion: 2, vehicle: { ...input.vehicle, listingDetails: { transmission: "Schaltgetriebe" } as never }, databaseListingDetails: { transmission: "Schaltgetriebe" } });
+    assert.notEqual(v2Before, v2AfterDetailsChange);
+    assert.notEqual(v2Before, v1Before);
+});
+
 test("vehicle registration conflicts are identified without replacing confirmed values", () => {
     const conflicts = compareVehicleSuggestions(vehicle, { vin: "WDB999", firstRegistration: "2021-01-01", mileage: 120000 });
     assert.deepEqual(conflicts.map(({ field }) => field), ["vin", "firstRegistration"]);
@@ -47,6 +100,8 @@ test("acceptance response must be HTTP-202 contract complete and match all job i
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity }, identity), true);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity, vehicleId: "other" }, identity), false);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity, dispatchToken: "old" }, identity), false);
+    assert.equal(validateListingAcceptanceAck({ status: "accepted", contractVersion: 2, ...identity }, { ...identity, contractVersion: 2 }), true);
+    assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity }, { ...identity, contractVersion: 2 }), false);
 });
 
 test("listing automation configuration reports only missing or invalid variable names", () => {
@@ -119,6 +174,20 @@ test("callback validation checks identity, lease token, image membership and doe
     assert.deepEqual(validateListingCallback({ ...base, selectedImageIds: ["foreign"] }, { job, dispatchToken: "lease", imageIds: new Set(["image-1"]) }), { ok: false, code: "invalid_image_reference" });
 });
 
+test("legacy v1 callbacks remain accepted while v2 requires its own version and filters OCR to technical fields", () => {
+    const base = { schemaVersion: 1, jobId: "job", purchaseId: "purchase", vehicleId: "vehicle", sourceRevision: "revision", dispatchToken: "lease", status: "draft_ready", title: "Mercedes-Benz Actros 1845", description: "FAHRZEUGDATEN\n• Fahrzeugart: Sattelzugmaschine", extractedSuggestions: { vin: "WDB123", mileage: 20000, ownerName: "Private Person" }, missingFields: [], selectedImageIds: ["image"] };
+    const commonJob = { id: "job", company_id: "company", purchase_case_id: "purchase", vehicle_id: "vehicle", source_revision: "revision", status: "processing", source_snapshot: {}, confirmed_vehicle_data: vehicle, extracted_suggestions: {}, conflicts: [], missing_fields: [], title: null, description: null, selected_image_ids: [], manual_revision: 0, result_fingerprint: null, dispatch_token: "lease", lease_expires_at: null, attempt_count: 1, last_error_code: null, last_error: null, created_at: "", updated_at: "" };
+    const legacy = validateListingCallback(base, { job: commonJob, dispatchToken: "lease", imageIds: new Set(["image"]) });
+    assert.equal(legacy.ok, true);
+    if (legacy.ok && legacy.result.status !== "failed") assert.deepEqual(legacy.result.suggestions, { vin: "WDB123", mileage: 20000 });
+
+    const v2 = validateListingCallback({ ...base, contractVersion: 2, title: "Mercedes-Benz Actros 1845", extractedSuggestions: { vin: "WDB123", mileage: 20000, enginePowerKw: 330, ownerName: "Private Person", firstRegistration: "2021-01-01" } }, { job: { ...commonJob, contract_version: 2 }, dispatchToken: "lease", imageIds: new Set(["image"]) });
+    assert.equal(v2.ok, true);
+    if (v2.ok && v2.result.status !== "failed") assert.deepEqual(v2.result.suggestions, { vin: "WDB123", enginePowerKw: 330, firstRegistration: "2021-01-01" });
+    assert.deepEqual(validateListingCallback({ ...base, contractVersion: 1 }, { job: { ...commonJob, contract_version: 2 }, dispatchToken: "lease", imageIds: new Set(["image"]) }), { ok: false, code: "contract_version_conflict" });
+    assert.deepEqual(validateListingCallback({ ...base, contractVersion: 2, title: "Actros 1845" }, { job: { ...commonJob, contract_version: 2 }, dispatchToken: "lease", imageIds: new Set(["image"]) }), { ok: false, code: "invalid_public_text" });
+});
+
 test("callback fingerprints are stable for technical retries", () => {
     assert.equal(fingerprintListingCallback({ b: 2, a: 1 }), fingerprintListingCallback({ a: 1, b: 2 }));
 });
@@ -153,6 +222,8 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     const callback = readFileSync("app/api/automation/purchase-listings/[jobId]/callback/route.ts", "utf8");
     const imageApi = readFileSync("app/api/automation/purchase-listings/[jobId]/images/route.ts", "utf8");
     const ui = readFileSync("components/purchases/purchase-listing-preparation-card.tsx", "utf8");
+    const details = readFileSync("lib/vehicles/listing-details.ts", "utf8");
+    const newMigration = readFileSync("supabase/migrations/20261106110000_add_vehicle_listing_details_and_confirmations.sql", "utf8");
     assert.match(migration, /purchase_listing_jobs_active_revision_uidx/);
     assert.match(migration, /claim_purchase_listing_job/);
     assert.match(migration, /lease_expires_at/);
@@ -165,9 +236,18 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(action, /AbortSignal\.timeout\(8_000\)/);
     assert.match(callback, /eq\("manual_revision", 0\)/);
     assert.match(callback, /eq\("dispatch_token", dispatchToken\)/);
+    assert.match(callback, /loadPurchaseListingSource\(companyId, job\.purchase_case_id, job\.contract_version === 2 \? 2 : 1\)/);
+    assert.match(callback, /eq\("source_revision", job\.source_revision\)/);
     assert.match(imageApi, /createSignedUploadUrl/);
     assert.equal(imageApi.includes("companies/${companyId}/purchase-listings/${jobId}/${imageId}"), true);
     assert.match(ui, /router\.refresh\(\)/);
     assert.match(ui, /Neue Vorschau vorbereiten/);
     assert.match(ui, /Titelbild/);
+    assert.match(action, /confirm_purchase_listing_suggestions/);
+    assert.match(action, /sanitizeListingSuggestions\(job\.extracted_suggestions, 2\)/);
+    assert.match(ui, /Ausgewählte Vorschläge in Fahrzeugakte übernehmen/);
+    assert.match(newMigration, /contract_version is distinct from old\.contract_version/);
+    assert.match(newMigration, /confirmed_suggestions/);
+    assert.match(details, /payloadKg/);
+    assert.doesNotMatch(action, /purchaseNotes: source\.vehicle|damageNotes: source\.vehicle/);
 });

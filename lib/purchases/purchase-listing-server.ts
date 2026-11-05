@@ -4,10 +4,10 @@ import { createHash } from "node:crypto";
 
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { selectCurrentVehicleDocument } from "@/lib/vehicles/vehicle-document-selection";
+import { normalizeVehicleListingDetails, type VehicleListingDetails } from "@/lib/vehicles/listing-details";
 import {
-    listingTemplateVersion,
+    buildPurchaseListingSourceRevision,
     isValidListingAutomationToken,
-    stableListingRevision,
     validateListingAutomationEnvironment,
     type ListingConfirmedVehicleData,
     type ListingJobStatus,
@@ -19,6 +19,7 @@ export type ListingJobRecord = {
     purchase_case_id: string;
     vehicle_id: string;
     source_revision: string;
+    contract_version: number;
     status: ListingJobStatus;
     source_snapshot: Record<string, unknown>;
     confirmed_vehicle_data: ListingConfirmedVehicleData;
@@ -56,9 +57,10 @@ export type ListingImageRecord = {
 
 export type ListingSource = {
     purchase: { id: string; company_id: string; vehicle_id: string; purchase_number: string | null; purchase_date: string };
-    vehicle: ListingConfirmedVehicleData & { id: string };
+    vehicle: ListingConfirmedVehicleData & { id: string; listingDetails: VehicleListingDetails };
     registrationDocument: { id: string; file_path: string; file_name: string; mime_type: string | null; file_size: number | null; created_at: string };
     folder: { drive_id: string; folder_id: string; folder_url: string; images_folder_id: string };
+    databaseListingDetails: unknown;
     sourceRevision: string;
 };
 
@@ -77,7 +79,7 @@ export function getListingAutomationConfig() {
     });
 }
 
-export async function loadPurchaseListingSource(companyId: string, purchaseId: string): Promise<ListingSource> {
+export async function loadPurchaseListingSource(companyId: string, purchaseId: string, contractVersion: 1 | 2 = 2): Promise<ListingSource> {
     const supabase = createAutomationSupabaseClient({ requestTimeoutMs: 12_000 });
     const { data: purchase, error: purchaseError } = await supabase
         .from("purchase_cases")
@@ -87,7 +89,7 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
     if (!purchase?.vehicle_id) throw new Error("PURCHASE_NOT_FOUND");
 
     const [vehicleResult, documentsResult, folderResult] = await Promise.all([
-        supabase.from("vehicles").select("id, manufacturer, model, vehicle_type, vehicle_category, vin, first_registration, construction_year, mileage, color, notes, damage_notes")
+        supabase.from("vehicles").select("id, manufacturer, model, vehicle_type, vehicle_category, vin, first_registration, construction_year, mileage, color, notes, damage_notes, listing_details")
             .eq("company_id", companyId).eq("id", purchase.vehicle_id).maybeSingle(),
         supabase.from("documents").select("id, document_type, status, file_path, file_name, mime_type, file_size, created_at, purchase_case_id, vehicle_id")
             .eq("company_id", companyId).or(`purchase_case_id.eq.${purchaseId},vehicle_id.eq.${purchase.vehicle_id}`).order("created_at", { ascending: false }),
@@ -122,22 +124,25 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
         purchaseNotes: v.notes ?? null,
         damageNotes: v.damage_notes ?? null,
     };
-    const identity = {
+    const listingDetails = normalizeVehicleListingDetails(v.listing_details);
+    const revision = buildPurchaseListingSourceRevision({
+        contractVersion,
         purchase: { id: purchase.id, purchaseNumber: purchase.purchase_number, purchaseDate: purchase.purchase_date },
-        vehicle: { id: v.id, ...confirmed },
+        vehicle: { id: v.id, ...confirmed, listingDetails },
+        databaseListingDetails: v.listing_details ?? {},
         registration: { id: document.id, filePath: document.file_path, createdAt: document.created_at, fileSize: document.file_size },
         oneDrive: { driveId: folder.drive_id, folderId: folder.folder_id, imagesFolderId: folder.images_folder_id },
-        templateVersion: listingTemplateVersion,
-    };
+    });
     return {
         purchase: purchase as ListingSource["purchase"],
-        vehicle: { id: v.id, ...confirmed },
+        vehicle: { id: v.id, ...confirmed, listingDetails },
         registrationDocument: {
             id: document.id, file_path: document.file_path, file_name: document.file_name,
             mime_type: document.mime_type, file_size: document.file_size, created_at: document.created_at,
         },
         folder: { drive_id: folder.drive_id, folder_id: folder.folder_id, folder_url: folder.folder_url, images_folder_id: folder.images_folder_id },
-        sourceRevision: stableListingRevision(identity),
+        databaseListingDetails: v.listing_details ?? {},
+        sourceRevision: revision,
     };
 }
 

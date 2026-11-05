@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
 import { CalendarDays, FileText, Save, Truck } from "lucide-react";
 
 import { createVehicleAction } from "@/app/dashboard/vehicles/new/actions";
@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
+import { VehicleListingDetailsFields } from "@/components/vehicles/vehicle-listing-details-fields";
 import { normalizeVin } from "@/lib/vehicles/vin";
 
 const initialState = {
@@ -31,6 +32,7 @@ export function VehicleForm() {
         createVehicleAction,
         initialState,
     );
+    const [vehicleType, setVehicleType] = useState("");
     const formRef = useRef<HTMLFormElement | null>(null);
     const messageRef = useRef<HTMLDivElement | null>(null);
     const lastSubmittedSnapshotRef = useRef<FormSnapshot | null>(null);
@@ -95,13 +97,19 @@ export function VehicleForm() {
                         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                             <FormField label="Hersteller *" name="manufacturer" required />
                             <FormField label="Modell *" name="model" required />
-                            <FormField label="Fahrzeugtyp *" name="vehicle_type" required />
+                            <FormField label="Fahrzeugtyp *" name="vehicle_type" required value={vehicleType} onChange={(event) => setVehicleType(event.currentTarget.value)} />
                             <FormField label="FIN / VIN *" name="vin" required normalize={normalizeVin} />
                             <FormField
                                 label="Vorheriges Kennzeichen (optional)"
                                 name="license_plate"
                             />
                         </div>
+                    </CardContent>
+                </Card>
+
+                <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+                    <CardContent className="p-5">
+                        <VehicleListingDetailsFields namePrefix="listing_" vehicleType={vehicleType} />
                     </CardContent>
                 </Card>
 
@@ -120,6 +128,7 @@ export function VehicleForm() {
                                 type="number"
                                 placeholder="z. B. 2019"
                             />
+                            <FormField label="Erstzulassung" name="first_registration" type="date" />
                         </div>
 
                         <div className="space-y-2">
@@ -264,6 +273,8 @@ function FormField({
                        name,
                        type = "text",
                        required = false,
+    value,
+    onChange,
                        defaultValue,
                        placeholder,
                        step,
@@ -273,6 +284,8 @@ function FormField({
     name: string;
     type?: string;
     required?: boolean;
+    value?: string;
+    onChange?: React.ChangeEventHandler<HTMLInputElement>;
     defaultValue?: string;
     placeholder?: string;
     step?: string;
@@ -288,10 +301,14 @@ function FormField({
                 name={name}
                 type={type}
                 required={required}
-                defaultValue={defaultValue}
+                value={value}
+                defaultValue={value === undefined ? defaultValue : undefined}
                 placeholder={placeholder}
                 step={step}
-                onChange={normalize ? (event) => { event.currentTarget.value = normalize(event.currentTarget.value); } : undefined}
+                onChange={(event) => {
+                    if (normalize) event.currentTarget.value = normalize(event.currentTarget.value);
+                    onChange?.(event);
+                }}
                 className="h-11 rounded-2xl border-slate-200 bg-slate-50 font-medium"
             />
         </div>

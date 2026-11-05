@@ -51,6 +51,7 @@ import { ActionMessage } from "@/components/shared/action-message";
 import { FieldLabel } from "@/components/shared/field-label";
 import { SearchCombobox, type SearchComboboxOption } from "@/components/ui/search-combobox";
 import { VehicleDocumentUploadFields } from "@/components/vehicles/vehicle-document-upload-fields";
+import { VehicleListingDetailsFields } from "@/components/vehicles/vehicle-listing-details-fields";
 import { normalizeVin } from "@/lib/vehicles/vin";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -533,6 +534,7 @@ export function PurchaseForm({
 
 function VehicleCreateFields() {
     const [damageNotes, setDamageNotes] = useState("");
+    const [vehicleType, setVehicleType] = useState("");
 
     const handleDamageNotesChange: ChangeEventHandler<HTMLTextAreaElement> = (event) => {
         setDamageNotes(event.currentTarget.value);
@@ -542,9 +544,10 @@ function VehicleCreateFields() {
         <div className="grid gap-4 md:grid-cols-2">
             <FormField label="Hersteller" name="new_vehicle_manufacturer" required />
             <FormField label="Modell" name="new_vehicle_model" required />
-            <FormField label="Typ" name="new_vehicle_type" required />
+            <FormField label="Typ" name="new_vehicle_type" required value={vehicleType} onChange={(event) => setVehicleType(event.currentTarget.value)} />
             <FormField label="Fahrgestellnummer / VIN" name="new_vehicle_vin" required normalize={normalizeVin} />
             <FormField label="Baujahr" name="new_vehicle_construction_year" type="number" required />
+            <FormField label="Erstzulassung" name="new_vehicle_first_registration" type="date" />
             <FormField label="Kilometerstand" name="new_vehicle_mileage" type="number" />
             <FormField label="Farbe" name="new_vehicle_color" />
             <FormField label="Fahrzeugkategorie" name="new_vehicle_category" required />
@@ -560,6 +563,9 @@ function VehicleCreateFields() {
                     placeholder="Bekannte Schäden oder Mängel am Fahrzeug eintragen."
                     className="mt-2 min-h-24 rounded-2xl border-slate-200 bg-slate-50 font-medium"
                 />
+            </div>
+            <div className="md:col-span-2">
+                <VehicleListingDetailsFields namePrefix="new_vehicle_listing_" vehicleType={vehicleType} />
             </div>
         </div>
     );

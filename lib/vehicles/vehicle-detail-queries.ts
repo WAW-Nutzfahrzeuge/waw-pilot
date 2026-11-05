@@ -1,6 +1,7 @@
 import { getCurrentCompanyId } from "@/lib/company";
 import type { PaymentStatus, SaleStatus } from "@/lib/sales/sale-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { normalizeVehicleListingDetails, type VehicleListingDetails } from "@/lib/vehicles/listing-details";
 
 type VehicleBaseRow = {
     id: string;
@@ -17,6 +18,7 @@ type VehicleBaseRow = {
     mileage: number | string | null;
     color: string | null;
     vehicle_category: string | null;
+    listing_details: unknown;
     purchase_price_net: number | string;
     sale_price_net: number | string | null;
     additional_costs_net: number | string | null;
@@ -117,6 +119,7 @@ export type VehicleDetail = {
     mileage: number | null;
     color: string | null;
     vehicle_category: string | null;
+    listing_details: VehicleListingDetails;
     purchase_price_net: number;
     sale_price_net: number | null;
     additional_costs_net: number;
@@ -266,6 +269,7 @@ export async function getVehicleDetail(
       mileage,
       color,
       vehicle_category,
+      listing_details,
       purchase_price_net,
       sale_price_net,
       additional_costs_net,
@@ -500,6 +504,7 @@ export async function getVehicleDetail(
         mileage: vehicle.mileage === null ? null : Number(vehicle.mileage),
         color: vehicle.color,
         vehicle_category: vehicle.vehicle_category,
+        listing_details: normalizeVehicleListingDetails(vehicle.listing_details),
         purchase_price_net: Number(vehicle.purchase_price_net),
         sale_price_net:
             vehicle.sale_price_net === null ? null : Number(vehicle.sale_price_net),

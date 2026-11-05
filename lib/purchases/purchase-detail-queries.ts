@@ -19,10 +19,12 @@ export type PurchaseListingImage = {
 
 export type PurchaseListingJob = {
     id: string;
+    contract_version: number;
     status: "queued" | "processing" | "needs_input" | "draft_ready" | "failed";
     source_revision: string;
     confirmed_vehicle_data: Record<string, unknown>;
     extracted_suggestions: Record<string, unknown>;
+    confirmed_suggestions: Record<string, unknown>;
     conflicts: unknown[];
     missing_fields: unknown[];
     title: string | null;
@@ -353,7 +355,7 @@ export async function getPurchaseCaseDetail(
             const automationSupabase = createAutomationSupabaseClient();
             const { data: jobs } = await automationSupabase
                 .from("purchase_listing_jobs")
-                .select("id, status, source_revision, confirmed_vehicle_data, extracted_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, lease_expires_at, last_error_code, last_error, updated_at")
+                .select("id, contract_version, status, source_revision, confirmed_vehicle_data, extracted_suggestions, confirmed_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, lease_expires_at, last_error_code, last_error, updated_at")
                 .eq("company_id", companyId)
                 .eq("purchase_case_id", purchaseId)
                 .order("created_at", { ascending: false })

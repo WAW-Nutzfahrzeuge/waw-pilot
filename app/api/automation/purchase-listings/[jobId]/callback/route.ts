@@ -8,7 +8,7 @@ import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
 export const runtime = "nodejs";
 type Context = { params: Promise<{ jobId: string }> };
-const jobSelect = "id, company_id, purchase_case_id, vehicle_id, source_revision, status, source_snapshot, confirmed_vehicle_data, extracted_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, result_fingerprint, dispatch_token, lease_expires_at, attempt_count, last_error_code, last_error, created_at, updated_at";
+const jobSelect = "id, company_id, purchase_case_id, vehicle_id, source_revision, contract_version, status, source_snapshot, confirmed_vehicle_data, extracted_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, result_fingerprint, dispatch_token, lease_expires_at, attempt_count, last_error_code, last_error, created_at, updated_at";
 
 export async function POST(request: Request, context: Context) {
     if (!isListingAutomationRequestAuthorized(request)) return automationError(401, "unauthorized", "Automatisierungszugang ungültig.");
@@ -31,7 +31,7 @@ export async function POST(request: Request, context: Context) {
 
     let currentSource;
     try {
-        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id);
+        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id, job.contract_version === 2 ? 2 : 1);
     } catch {
         return automationError(409, "source_no_longer_available", "Die Quelldaten sind inzwischen nicht mehr vollständig verfügbar.");
     }

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AlertTriangle, ChevronDown, ChevronUp, FileCheck2, LoaderCircle, Save, Sparkles } from "lucide-react";
 
-import { startPurchaseListingPreparation, savePurchaseListingDraft } from "@/app/dashboard/ankauf/[purchaseId]/listing-actions";
+import { confirmPurchaseListingSuggestions, startPurchaseListingPreparation, savePurchaseListingDraft } from "@/app/dashboard/ankauf/[purchaseId]/listing-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { PurchaseListingJob } from "@/lib/purchases/purchase-detail-queries";
@@ -18,9 +18,18 @@ type Props = {
     jobs: PurchaseListingJob[];
 };
 
-const suggestionFields = [
+const legacySuggestionFields = [
     ["manufacturer", "Hersteller"], ["model", "Modell"], ["vehicleType", "Aufbau"], ["vin", "FIN"],
     ["firstRegistration", "Erstzulassung"], ["constructionYear", "Baujahr"], ["mileage", "Kilometerstand"], ["color", "Farbe"],
+] as const;
+const technicalSuggestionFields = [
+    ["manufacturer", "Hersteller"], ["model", "Modell"], ["vin", "FIN"],
+    ["firstRegistration", "Erstzulassung"], ["constructionYear", "Baujahr"], ["enginePowerKw", "Motorleistung (kW)"],
+    ["transmission", "Getriebe"], ["emissionClass", "Schadstoffklasse"], ["axleFormula", "Achsformel"],
+    ["frontSuspension", "Federung vorne"], ["rearSuspension", "Federung hinten"],
+    ["grossVehicleWeightKg", "Zulässiges Gesamtgewicht (kg)"], ["curbWeightKg", "Leergewicht (kg)"],
+    ["payloadKg", "Nutzlast (kg)"], ["wheelbaseMm", "Radstand (mm)"], ["huUntil", "HU bis"],
+    ["spUntil", "SP bis"], ["color", "Farbe"],
 ] as const;
 const statusLabels: Record<string, string> = {
     queued: "Wartet auf n8n", processing: "Wird vorbereitet", needs_input: "Prüfung erforderlich",
@@ -30,6 +39,9 @@ const openPointLabels: Record<string, string> = {
     mileage: "Kilometerstand prüfen", condition: "Zustand und bekannte Mängel prüfen",
     equipment: "Ausstattung und Besonderheiten prüfen", inspection: "Besichtigung und Kontakt ergänzen",
     photos: "Fahrzeugfotos in OneDrive hochladen",
+    location: "Fahrzeugstandort und Verfügbarkeit bestätigen", vehicleIdentity: "Fahrzeugidentität prüfen",
+    technicalData: "Technische Fahrzeugdaten prüfen", bodyDetails: "Aufbauangaben prüfen",
+    maintenanceHistory: "Wartungs- und Reparaturhistorie ergänzen",
 };
 
 export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasRegistration, oneDriveReady, jobs }: Props) {
@@ -136,9 +148,12 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
 }) {
     const [title, setTitle] = useState(job.title ?? "");
     const [description, setDescription] = useState(job.description ?? "");
-    const [suggestions, setSuggestions] = useState<Record<string, string>>(() => normalizeSuggestions(job.extracted_suggestions));
+    const suggestionFields = job.contract_version === 2 ? technicalSuggestionFields : legacySuggestionFields;
+    const [suggestions, setSuggestions] = useState<Record<string, string>>(() => normalizeSuggestions(job.extracted_suggestions, suggestionFields));
     const [imageIds, setImageIds] = useState<string[]>(job.selected_image_ids ?? []);
+    const [approvedFields, setApprovedFields] = useState<string[]>([]);
     const [isSaving, saveTransition] = useTransition();
+    const [isConfirming, confirmTransition] = useTransition();
     const sortedImages = useMemo(() => job.images.filter((image) => image.upload_status === "available").sort((a, b) => {
         const ai = imageIds.indexOf(a.id);
         const bi = imageIds.indexOf(b.id);
@@ -147,6 +162,10 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
         if (bi >= 0) return 1;
         return a.file_name.localeCompare(b.file_name);
     }), [job.images, imageIds]);
+    const initialSuggestions = normalizeSuggestions(job.extracted_suggestions, suggestionFields);
+    const isDraftDirty = title !== (job.title ?? "") || description !== (job.description ?? "") ||
+        JSON.stringify(imageIds) !== JSON.stringify(job.selected_image_ids ?? []) ||
+        JSON.stringify(suggestions) !== JSON.stringify(initialSuggestions);
 
     function saveDraft(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -168,6 +187,17 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
         setImageIds(next);
     }
 
+    function confirmSuggestions() {
+        confirmTransition(async () => {
+            const result = await confirmPurchaseListingSuggestions({
+                purchaseId, jobId: job.id, expectedSourceRevision: job.source_revision,
+                expectedManualRevision: job.manual_revision, selectedFields: approvedFields,
+            });
+            onMessage(result.message);
+            if (result.ok) onSaved();
+        });
+    }
+
     return (
         <>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -175,14 +205,24 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
                 <p className="mt-1 text-xs text-slate-500">OCR-Vorschläge ändern die Fahrzeugstammdaten nicht. Widersprüche bitte vor einer späteren Verwendung prüfen.</p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {suggestionFields.map(([key, label]) => {
-                        const confirmedValue = job.confirmed_vehicle_data[key];
+                        const nestedDetails = job.confirmed_vehicle_data.listingDetails as Record<string, unknown> | undefined;
+                        const accepted = (job.confirmed_suggestions.fields as Record<string, unknown> | undefined)?.[key];
+                        const snapshotValue = key in (nestedDetails ?? {}) ? nestedDetails?.[key] : job.confirmed_vehicle_data[key];
+                        const confirmedValue = accepted !== undefined ? accepted : snapshotValue;
                         const conflict = job.conflicts.some((item) => Boolean(item && typeof item === "object" && (item as { field?: string }).field === key));
-                        return <label key={key} className="text-xs font-bold text-slate-600">{label}{conflict ? <span className="ml-1 text-amber-700">· Abweichung</span> : null}
+                        return <label key={key} className="text-xs font-bold text-slate-600">{label}{conflict ? <span className="ml-1 text-amber-700">· Abweichung</span> : null}{accepted !== undefined ? <span className="ml-1 text-emerald-700">· bestätigt</span> : null}
                             <span className="mt-1 block truncate rounded-lg bg-white px-2 py-1 font-medium text-slate-500">Bestätigt: {confirmedValue === null || confirmedValue === undefined || confirmedValue === "" ? "—" : String(confirmedValue)}</span>
                             <input value={suggestions[key] ?? ""} onChange={(event) => setSuggestions((current) => ({ ...current, [key]: event.target.value }))} placeholder="Kein Vorschlag" className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium text-slate-900" />
+                            {job.contract_version === 2 && suggestions[key] ? <span className="mt-1 flex items-center gap-2 font-medium"><input type="checkbox" checked={approvedFields.includes(key)} onChange={(event) => setApprovedFields((current) => event.target.checked ? [...current, key] : current.filter((field) => field !== key))} />Diesen Wert ausdrücklich übernehmen</span> : null}
                         </label>;
                     })}
                 </div>
+                {job.contract_version === 2 && Object.keys(suggestions).some((field) => suggestions[field]) ? <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center">
+                    <Button type="button" variant="outline" disabled={!approvedFields.length || isConfirming || isDraftDirty} onClick={confirmSuggestions} className="font-bold">
+                        {isConfirming ? "Werte werden übernommen …" : "Ausgewählte Vorschläge in Fahrzeugakte übernehmen"}
+                    </Button>
+                    {isDraftDirty ? <span className="text-xs text-amber-800">Speichere zuerst die aktuellen Entwurfsänderungen. So bleiben sie bei der Bestätigung erhalten.</span> : <span className="text-xs text-slate-500">Nur markierte Felder werden nach dieser Bestätigung geändert. Bestehende Werte werden nicht automatisch überschrieben.</span>}
+                </div> : null}
             </div>
 
             {job.missing_fields.length ? <div className="flex gap-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><p>Offene Angaben: {job.missing_fields.map((item) => openPointLabels[String(item)] ?? "Angabe prüfen").join(", ")}. Der Entwurf bleibt unvollständig, bis diese Punkte geprüft wurden.</p></div> : null}
@@ -219,9 +259,9 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
     );
 }
 
-function normalizeSuggestions(value: Record<string, unknown> | null | undefined): Record<string, string> {
+function normalizeSuggestions(value: Record<string, unknown> | null | undefined, fields: ReadonlyArray<readonly [string, string]>): Record<string, string> {
     const result: Record<string, string> = {};
-    for (const [key] of suggestionFields) {
+    for (const [key] of fields) {
         const entry = value?.[key];
         if (typeof entry === "string" || typeof entry === "number") result[key] = String(entry);
     }

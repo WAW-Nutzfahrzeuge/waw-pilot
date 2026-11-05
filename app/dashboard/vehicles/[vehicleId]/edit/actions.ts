@@ -12,6 +12,7 @@ import {
     translateVehicleDatabaseError,
 } from "@/lib/vehicles/vehicle-save-errors";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import { parseVehicleListingDetailsForm } from "@/lib/vehicles/listing-details";
 
 export type UpdateVehicleState = {
     success: boolean;
@@ -64,6 +65,7 @@ export async function updateVehicleAction(
     const model = getStringFormValue(formData, "model");
     const vehicleType = getStringFormValue(formData, "vehicle_type");
     const constructionYear = getDecimalFormValue(formData, "construction_year");
+    const firstRegistration = getStringFormValue(formData, "first_registration");
     const vin = normalizeVin(getStringFormValue(formData, "vin") ?? "");
     const licensePlate = getStringFormValue(formData, "license_plate");
     const purchasePriceNet = getDecimalFormValue(formData, "purchase_price_net");
@@ -74,6 +76,7 @@ export async function updateVehicleAction(
     const mileage = getDecimalFormValue(formData, "mileage");
     const color = getStringFormValue(formData, "color");
     const vehicleCategory = getStringFormValue(formData, "vehicle_category");
+    const listingDetails = parseVehicleListingDetailsForm(formData, "listing_");
     const redirectTo = getSafeDashboardRedirectPath(
         getStringFormValue(formData, "redirect_to"),
         `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
@@ -128,6 +131,11 @@ export async function updateVehicleAction(
         };
     }
 
+    if (!listingDetails.ok) return { success: false, message: listingDetails.message };
+    if (firstRegistration && !/^\d{4}-\d{2}-\d{2}$/.test(firstRegistration)) {
+        return { success: false, message: "Bitte die Erstzulassung als gültiges Datum eingeben." };
+    }
+
     const { data: existingVehicle, error: loadError } = await supabase
         .from("vehicles")
         .select("id, internal_number, manufacturer, model, show_damage_on_invoice")
@@ -170,6 +178,7 @@ export async function updateVehicleAction(
             model,
             vehicle_type: vehicleType,
             construction_year: constructionYear,
+            first_registration: firstRegistration,
             vin,
             license_plate: licensePlate,
             mileage,
@@ -180,6 +189,7 @@ export async function updateVehicleAction(
             status,
             notes,
             damage_notes: damageNotes,
+            listing_details: listingDetails.value,
             show_damage_on_invoice: Boolean(existingVehicle.show_damage_on_invoice),
         })
         .eq("id", vehicleId)

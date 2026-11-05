@@ -14,6 +14,7 @@ import {
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import { parseVehicleListingDetailsForm } from "@/lib/vehicles/listing-details";
 import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
@@ -182,6 +183,8 @@ export async function createVehicleAction(
     const vin = normalizeVin(getStringValue(formData, "vin") ?? "");
 
     const constructionYear = getNumberValue(formData, "construction_year");
+    const firstRegistration = getStringValue(formData, "first_registration");
+    const listingDetails = parseVehicleListingDetailsForm(formData, "listing_");
     const licensePlate = getStringValue(formData, "license_plate");
 
     const purchasePriceNet = getNumberValue(formData, "purchase_price_net");
@@ -200,6 +203,11 @@ export async function createVehicleAction(
             message:
                 "Bitte fülle Hersteller, Modell, Fahrzeugtyp und VIN aus.",
         };
+    }
+
+    if (!listingDetails.ok) return { success: false, message: listingDetails.message };
+    if (firstRegistration && !/^\d{4}-\d{2}-\d{2}$/.test(firstRegistration)) {
+        return { success: false, message: "Bitte die Erstzulassung als gültiges Datum eingeben." };
     }
 
     if (purchasePriceNet === null) {
@@ -242,7 +250,7 @@ export async function createVehicleAction(
             model,
             vehicle_type: vehicleType,
             construction_year: constructionYear,
-            first_registration: null,
+            first_registration: firstRegistration,
             vin,
             license_plate: licensePlate,
             purchase_price_net: purchasePriceNet,
@@ -252,6 +260,7 @@ export async function createVehicleAction(
             seller_customer_id: null,
             notes,
             damage_notes: damageNotes,
+            listing_details: listingDetails.value,
             show_damage_on_invoice: false,
         })
         .select("id")

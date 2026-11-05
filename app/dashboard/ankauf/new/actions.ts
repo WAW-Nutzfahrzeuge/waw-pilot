@@ -25,6 +25,7 @@ import {
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeVin } from "@/lib/vehicles/vin";
+import { parseVehicleListingDetailsForm } from "@/lib/vehicles/listing-details";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
     createPurchasePaymentAndSync,
@@ -667,6 +668,8 @@ async function resolveVehicleId({
         formData,
         "new_vehicle_construction_year",
     );
+    const firstRegistration = getStringValue(formData, "new_vehicle_first_registration");
+    const listingDetails = parseVehicleListingDetailsForm(formData, "new_vehicle_listing_");
     const mileage = getNumberValue(formData, "new_vehicle_mileage");
     const color = getStringValue(formData, "new_vehicle_color");
     const vehicleCategory = getStringValue(formData, "new_vehicle_category");
@@ -678,6 +681,11 @@ async function resolveVehicleId({
             message:
                 "Hersteller, Modell, Typ, Fahrzeugkategorie, VIN und Baujahr des Fahrzeugs sind Pflichtfelder.",
         };
+    }
+
+    if (!listingDetails.ok) return { success: false as const, message: listingDetails.message };
+    if (firstRegistration && !/^\d{4}-\d{2}-\d{2}$/.test(firstRegistration)) {
+        return { success: false as const, message: "Bitte die Erstzulassung als gültiges Datum eingeben." };
     }
 
     const { data: duplicateVin } = await supabase
@@ -700,7 +708,7 @@ async function resolveVehicleId({
             model,
             vehicle_type: vehicleType,
             construction_year: constructionYear,
-            first_registration: null,
+            first_registration: firstRegistration,
             vin,
             license_plate: null,
             mileage,
@@ -713,6 +721,7 @@ async function resolveVehicleId({
             seller_customer_id: sellerCustomerId,
             notes: null,
             damage_notes: damageNotes,
+            listing_details: listingDetails.value,
             show_damage_on_invoice: false,
         })
         .select("id, internal_number, manufacturer, model")
