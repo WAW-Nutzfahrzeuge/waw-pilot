@@ -895,6 +895,7 @@ export async function SaleDetail({
                                 />
 
                                 <InvoiceAgreementForm
+                                    key={`${sale.id}-${sale.invoice_notes ?? ""}`}
                                     saleId={sale.id}
                                     invoiceNotes={sale.invoice_notes}
                                 />

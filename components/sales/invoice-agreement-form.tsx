@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ export function InvoiceAgreementForm({
     saleId,
     invoiceNotes,
 }: InvoiceAgreementFormProps) {
+    const [agreementText, setAgreementText] = useState(invoiceNotes ?? "");
     const includeSignatureStampInputRef = useRef<HTMLInputElement>(null);
     const includeTermsPdfInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,7 +76,8 @@ export function InvoiceAgreementForm({
                 <Textarea
                     id="sale-invoice-notes"
                     name="invoice_notes"
-                    defaultValue={invoiceNotes ?? ""}
+                    value={agreementText}
+                    onChange={(event) => setAgreementText(event.currentTarget.value)}
                     placeholder="z. B. Sondervereinbarung, Abholbedingung oder ergänzender Rechnungstext..."
                     className="min-h-24 rounded-2xl border-slate-200 bg-white font-medium"
                 />
