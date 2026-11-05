@@ -127,6 +127,66 @@ export function validateListingAcceptanceAck(value: unknown, expected: {
         ack.vehicleId === expected.vehicleId && ack.sourceRevision === expected.sourceRevision && ack.dispatchToken === expected.dispatchToken;
 }
 
+export type ListingAutomationEnvironment = {
+    N8N_VEHICLE_LISTING_WEBHOOK_URL?: string;
+    N8N_VEHICLE_LISTING_TOKEN?: string;
+    N8N_VEHICLE_LISTING_CALLBACK_BASE_URL?: string;
+};
+
+export type ListingAutomationConfiguration = {
+    webhookUrl: string;
+    token: string;
+    callbackBaseUrl: string;
+};
+
+export function validateListingAutomationEnvironment(environment: ListingAutomationEnvironment):
+    | { ok: true; config: ListingAutomationConfiguration }
+    | { ok: false; missingVariables: string[]; invalidVariables: string[] } {
+    const names = [
+        "N8N_VEHICLE_LISTING_WEBHOOK_URL",
+        "N8N_VEHICLE_LISTING_TOKEN",
+        "N8N_VEHICLE_LISTING_CALLBACK_BASE_URL",
+    ] as const;
+    const missingVariables = names.filter((name) => !environment[name]?.trim());
+    if (missingVariables.length) return { ok: false, missingVariables, invalidVariables: [] };
+
+    const webhookUrl = environment.N8N_VEHICLE_LISTING_WEBHOOK_URL!.trim();
+    const token = environment.N8N_VEHICLE_LISTING_TOKEN!.trim();
+    const callbackBaseUrl = environment.N8N_VEHICLE_LISTING_CALLBACK_BASE_URL!.trim();
+    const invalidVariables: string[] = [];
+    let webhook: URL | null = null;
+    let callback: URL | null = null;
+    try { webhook = new URL(webhookUrl); } catch { invalidVariables.push("N8N_VEHICLE_LISTING_WEBHOOK_URL"); }
+    try { callback = new URL(callbackBaseUrl); } catch { invalidVariables.push("N8N_VEHICLE_LISTING_CALLBACK_BASE_URL"); }
+    if (webhook && webhook.protocol !== "https:" && !invalidVariables.includes("N8N_VEHICLE_LISTING_WEBHOOK_URL")) {
+        invalidVariables.push("N8N_VEHICLE_LISTING_WEBHOOK_URL");
+    }
+    if (callback && (callback.protocol !== "https:" || callback.pathname !== "/") && !invalidVariables.includes("N8N_VEHICLE_LISTING_CALLBACK_BASE_URL")) {
+        invalidVariables.push("N8N_VEHICLE_LISTING_CALLBACK_BASE_URL");
+    }
+    if (invalidVariables.length) return { ok: false, missingVariables: [], invalidVariables };
+    return { ok: true, config: { webhookUrl, token, callbackBaseUrl: callbackBaseUrl.replace(/\/$/, "") } };
+}
+
+export function getListingN8nHttpFailure(status: number): { code: string; message: string } {
+    if (status === 401 || status === 403) return {
+        code: "N8N_AUTH_FAILED",
+        message: "n8n hat den Auftrag mit HTTP-Zugriffsfehler abgewiesen. Bitte prüfe das n8n Bearer-Credential und N8N_VEHICLE_LISTING_TOKEN.",
+    };
+    if (status === 404) return {
+        code: "N8N_HTTP_404",
+        message: "n8n hat HTTP 404 zurückgegeben. Bitte prüfe, ob N8N_VEHICLE_LISTING_WEBHOOK_URL auf den aktiven Inserats-Webhook zeigt.",
+    };
+    if (status >= 500) return {
+        code: `N8N_HTTP_${status}`,
+        message: `n8n hat den Auftrag mit HTTP ${status} abgewiesen. Bitte prüfe den n8n-Ausführungsfehler.`,
+    };
+    return {
+        code: `N8N_HTTP_${status}`,
+        message: `n8n hat den Auftrag mit HTTP ${status} statt HTTP 202 abgewiesen. Bitte prüfe die Webhook-Antwort.`,
+    };
+}
+
 export function isListingJobLeaseExpired(status: string, leaseExpiresAt: string | null, now = Date.now()): boolean {
     return status === "processing" && Boolean(leaseExpiresAt) && Date.parse(leaseExpiresAt!) <= now;
 }

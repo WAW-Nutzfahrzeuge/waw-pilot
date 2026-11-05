@@ -106,7 +106,7 @@ export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasR
                     </div>
                 ) : null}
 
-                {job?.status === "failed" ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">{job.last_error ?? "Die Inseratsvorbereitung ist fehlgeschlagen."}</div> : null}
+                {job?.status === "failed" ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900"><span className="mb-1 block text-xs font-extrabold uppercase tracking-wide text-red-700">Letzter gespeicherter Auftragsfehler</span>{job.last_error ?? "Die Inseratsvorbereitung ist fehlgeschlagen."}</div> : null}
 
                 {job && (job.status === "needs_input" || job.status === "draft_ready") ? (
                     <ListingDraftEditor

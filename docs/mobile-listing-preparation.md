@@ -239,6 +239,18 @@ Serverseitige Variablen, ohne `NEXT_PUBLIC_`:
 | `N8N_VEHICLE_LISTING_CALLBACK_BASE_URL` | Kanonischer HTTPS-Origin der WAW-Vercel-Anwendung, ohne Pfad oder abschließende Route. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bereits verwendeter serverseitiger Schlüssel; bleibt ausschließlich in Vercel. |
 
+Der Konfigurationscheck prüft genau diese drei neuen n8n-Werte: sie dürfen nicht leer sein, Webhook-URL und Callback-Origin müssen HTTPS verwenden und der Callback-Origin darf keinen Pfad außer `/` enthalten. Er protokolliert bei Fehlern nur `missingVariables`, `invalidVariables`, `requestStarted` und – falls n8n geantwortet hat – den HTTP-Status. Werte, Header, Token, Payload und Antwortinhalt werden nicht protokolliert.
+
+Bei der Fehlersuche:
+
+- `CONFIG_MISSING` oder `CONFIG_INVALID`, `requestStarted: false`: WAW hat keinen Request an n8n gestartet. Die Logfelder nennen ausschließlich die betroffenen Variablennamen.
+- `n8n dispatch started`, danach `httpStatus`: Request wurde mit `POST`, `Authorization: Bearer …` und dem dokumentierten JSON-Auftrag gesendet. HTTP `202` muss ein JSON-Objekt mit `status: "accepted"` und exakt passenden `jobId`, `purchaseId`, `vehicleId`, `sourceRevision` und `dispatchToken` liefern.
+- `N8N_HTTP_404`: wahrscheinlich falsche Webhook-URL oder nicht erreichbarer aktiver Webhook. `401`/`403` bezeichnet eine Authentifizierungsablehnung. Andere Status werden samt Statuscode angezeigt.
+- `INVALID_N8N_ACK` bei HTTP `202`: n8n hat geantwortet, aber die Annahmeantwort entspricht nicht dem Vertrag.
+- `DISPATCH_TIMEOUT` oder `DISPATCH_UNAVAILABLE`: Ausgang kann unklar sein; die stabile Job-ID und Lease bleiben erhalten.
+
+Die Verkaufsakte kennzeichnet eine gespeicherte Fehlermeldung zusätzlich als „Letzter gespeicherter Auftragsfehler“. Sie kann von einem früheren Versuch stammen und ist von der Meldung des aktuellen Klicks zu unterscheiden.
+
 Der Startaufruf wartet höchstens 8 Sekunden auf n8n-Annahme; OCR und Generierung laufen danach in n8n. Server Actions auf der Einkaufsseite und die registrierungs-/bildprüfenden Routen setzen `maxDuration = 30`, im Rahmen der derzeit dokumentierten Vercel Hobby-Funktionsobergrenze. Das ist nur die Laufzeit des kurzen Start-/Dateiprüfaufrufs und keine synchrone OCR-Verarbeitung.
 
 ## Deployment-Reihenfolge

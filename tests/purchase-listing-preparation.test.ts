@@ -5,6 +5,7 @@ import test from "node:test";
 import {
     compareVehicleSuggestions,
     fingerprintListingCallback,
+    getListingN8nHttpFailure,
     getListingTextTemplate,
     inspectListingImageBytes,
     isListingJobLeaseExpired,
@@ -12,6 +13,7 @@ import {
     isValidListingAutomationToken,
     stableListingRevision,
     validateListingAcceptanceAck,
+    validateListingAutomationEnvironment,
     validateListingCallback,
 } from "../lib/purchases/purchase-listing-contract.ts";
 import sharp from "sharp";
@@ -45,6 +47,51 @@ test("acceptance response must be HTTP-202 contract complete and match all job i
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity }, identity), true);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity, vehicleId: "other" }, identity), false);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity, dispatchToken: "old" }, identity), false);
+});
+
+test("listing automation configuration reports only missing or invalid variable names", () => {
+    const missing = validateListingAutomationEnvironment({
+        N8N_VEHICLE_LISTING_WEBHOOK_URL: "https://n8n.example/webhook/listing",
+        N8N_VEHICLE_LISTING_TOKEN: "",
+        N8N_VEHICLE_LISTING_CALLBACK_BASE_URL: "https://waw.example",
+    });
+    assert.deepEqual(missing, {
+        ok: false,
+        missingVariables: ["N8N_VEHICLE_LISTING_TOKEN"],
+        invalidVariables: [],
+    });
+
+    const invalid = validateListingAutomationEnvironment({
+        N8N_VEHICLE_LISTING_WEBHOOK_URL: "http://n8n.example/webhook/listing",
+        N8N_VEHICLE_LISTING_TOKEN: "test-token",
+        N8N_VEHICLE_LISTING_CALLBACK_BASE_URL: "https://waw.example/dashboard",
+    });
+    assert.deepEqual(invalid, {
+        ok: false,
+        missingVariables: [],
+        invalidVariables: ["N8N_VEHICLE_LISTING_WEBHOOK_URL", "N8N_VEHICLE_LISTING_CALLBACK_BASE_URL"],
+    });
+
+    const valid = validateListingAutomationEnvironment({
+        N8N_VEHICLE_LISTING_WEBHOOK_URL: " https://n8n.example/webhook/listing ",
+        N8N_VEHICLE_LISTING_TOKEN: " test-token ",
+        N8N_VEHICLE_LISTING_CALLBACK_BASE_URL: "https://waw.example/",
+    });
+    assert.deepEqual(valid, {
+        ok: true,
+        config: {
+            webhookUrl: "https://n8n.example/webhook/listing",
+            token: "test-token",
+            callbackBaseUrl: "https://waw.example",
+        },
+    });
+});
+
+test("non-202 n8n responses map to distinct safe diagnostic messages", () => {
+    assert.equal(getListingN8nHttpFailure(401).code, "N8N_AUTH_FAILED");
+    assert.match(getListingN8nHttpFailure(404).message, /URL.*aktiven Inserats-Webhook/);
+    assert.match(getListingN8nHttpFailure(503).message, /HTTP 503/);
+    assert.match(getListingN8nHttpFailure(200).message, /statt HTTP 202/);
 });
 
 test("callback validation checks identity, lease token, image membership and does not allow a ready draft without a photo", () => {
@@ -111,6 +158,10 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(migration, /lease_expires_at/);
     assert.match(action, /getCurrentUserContext/);
     assert.match(server, /N8N_VEHICLE_LISTING_WEBHOOK_URL/);
+    assert.match(action, /method: "POST"/);
+    assert.match(action, /authorization: `Bearer \$\{config\.token\}`/);
+    assert.match(action, /httpStatus: responseStatus/);
+    assert.match(action, /missingVariables: configuration\.missingVariables/);
     assert.match(action, /AbortSignal\.timeout\(8_000\)/);
     assert.match(callback, /eq\("manual_revision", 0\)/);
     assert.match(callback, /eq\("dispatch_token", dispatchToken\)/);

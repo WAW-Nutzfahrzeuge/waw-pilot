@@ -8,6 +8,7 @@ import {
     listingTemplateVersion,
     isValidListingAutomationToken,
     stableListingRevision,
+    validateListingAutomationEnvironment,
     type ListingConfirmedVehicleData,
     type ListingJobStatus,
 } from "@/lib/purchases/purchase-listing-contract";
@@ -69,18 +70,11 @@ export function isListingAutomationRequestAuthorized(request: Request): boolean 
 }
 
 export function getListingAutomationConfig() {
-    const webhookUrl = process.env.N8N_VEHICLE_LISTING_WEBHOOK_URL?.trim();
-    const token = process.env.N8N_VEHICLE_LISTING_TOKEN?.trim();
-    const callbackBaseUrl = process.env.N8N_VEHICLE_LISTING_CALLBACK_BASE_URL?.trim();
-    if (!webhookUrl || !token || !callbackBaseUrl) return null;
-    try {
-        const webhook = new URL(webhookUrl);
-        const callback = new URL(callbackBaseUrl);
-        if (webhook.protocol !== "https:" || callback.protocol !== "https:" || callback.pathname !== "/") return null;
-    } catch {
-        return null;
-    }
-    return { webhookUrl, token, callbackBaseUrl: callbackBaseUrl.replace(/\/$/, "") };
+    return validateListingAutomationEnvironment({
+        N8N_VEHICLE_LISTING_WEBHOOK_URL: process.env.N8N_VEHICLE_LISTING_WEBHOOK_URL,
+        N8N_VEHICLE_LISTING_TOKEN: process.env.N8N_VEHICLE_LISTING_TOKEN,
+        N8N_VEHICLE_LISTING_CALLBACK_BASE_URL: process.env.N8N_VEHICLE_LISTING_CALLBACK_BASE_URL,
+    });
 }
 
 export async function loadPurchaseListingSource(companyId: string, purchaseId: string): Promise<ListingSource> {
