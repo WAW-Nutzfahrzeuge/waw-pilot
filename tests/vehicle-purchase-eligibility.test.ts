@@ -130,6 +130,15 @@ test("central ankauf/new page resolves and validates vehicleId server-side via t
     assert.equal(source.includes("PurchaseForm"), true);
 });
 
+test("purchase creation no longer offers a picker for arbitrary existing vehicles", () => {
+    const source = readFileSync("components/purchases/purchase-form.tsx", "utf8");
+    assert.doesNotMatch(source, /Fahrzeug auswählen oder anlegen/);
+    assert.doesNotMatch(source, /firstLabel="Bestehendes Fahrzeug"/);
+    assert.match(source, /mode === "edit" \|\| initialValues\?\.vehicle_id \? "existing" : "new"/);
+    assert.match(source, /mode === "edit" \? \([\s\S]*?SearchCombobox/);
+    assert.match(source, /initialValues\?\.vehicle_id \? \([\s\S]*?PrefilledVehicleSummary/);
+});
+
 // TEST D / TEST E: unified entry points must funnel into the same createPurchaseCaseAction
 // (single source of truth for seller, tax and payment-status handling / Kassenbuch impact).
 test("purchase form always submits through the single central createPurchaseCaseAction", () => {

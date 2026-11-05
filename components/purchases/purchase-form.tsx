@@ -90,7 +90,8 @@ export function PurchaseForm({
     const action =
         mode === "edit" ? updatePurchaseCaseAction : createPurchaseCaseAction;
     const [state, formAction, isPending] = useActionState(action, initialState);
-    const [vehicleMode, setVehicleMode] = useState<SelectionMode>("existing");
+    const vehicleMode: SelectionMode =
+        mode === "edit" || initialValues?.vehicle_id ? "existing" : "new";
     const [sellerMode, setSellerMode] = useState<SelectionMode>("existing");
     const [sellerType, setSellerType] = useState<"company" | "private">("company");
     const [newSellerVatId, setNewSellerVatId] = useState("");
@@ -285,19 +286,14 @@ export function PurchaseForm({
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Truck}
-                            title="1. Fahrzeug auswählen oder anlegen"
-                            description="Wähle ein bestehendes geeignetes Fahrzeug oder erfasse es direkt neu."
+                            title={mode === "edit" ? "1. Fahrzeug bearbeiten" : "1. Fahrzeug erfassen"}
+                            description={mode === "edit"
+                                ? "Das Fahrzeug ist mit diesem Ankauf verknüpft."
+                                : initialValues?.vehicle_id
+                                    ? "Das Fahrzeug wurde aus seiner Fahrzeugakte übernommen."
+                                    : "Erfasse hier das Fahrzeug, das angekauft wird."}
                         />
-                        {mode === "create" ? (
-                            <ModeTabs
-                                name="vehicle-mode-ui"
-                                value={vehicleMode}
-                                firstLabel="Bestehendes Fahrzeug"
-                                secondLabel="Neues Fahrzeug"
-                                onChange={setVehicleMode}
-                            />
-                        ) : null}
-                        {vehicleMode === "existing" || mode === "edit" ? (
+                        {mode === "edit" ? (
                             <SearchCombobox
                                 name="vehicle_id"
                                 label="Fahrzeug"
@@ -308,6 +304,13 @@ export function PurchaseForm({
                                 emptyText="Kein geeignetes Fahrzeug gefunden."
                                 maxVisibleItems={60}
                             />
+                        ) : initialValues?.vehicle_id ? (
+                            <>
+                                <input type="hidden" name="vehicle_id" value={initialValues.vehicle_id} />
+                                <PrefilledVehicleSummary
+                                    vehicle={formData.vehicles.find((vehicle) => vehicle.id === initialValues.vehicle_id) ?? null}
+                                />
+                            </>
                         ) : (
                             <VehicleCreateFields />
                         )}
@@ -477,7 +480,11 @@ export function PurchaseForm({
                             description="Prüfe die Angaben und speichere den Ankauf erst am Ende."
                         />
                         <SummaryGrid
-                            vehicleMode={mode === "edit" ? "existing" : vehicleMode}
+                            vehicleLabel={mode === "edit"
+                                ? "Fahrzeug bleibt zugeordnet"
+                                : initialValues?.vehicle_id
+                                    ? "aus Fahrzeugakte übernommen"
+                                    : "wird neu angelegt"}
                             sellerMode={mode === "edit" ? "existing" : sellerMode}
                         />
                         <Textarea
@@ -742,17 +749,36 @@ function ModeCard({
 }
 
 function SummaryGrid({
-    vehicleMode,
+    vehicleLabel,
     sellerMode,
 }: {
-    vehicleMode: SelectionMode;
+    vehicleLabel: string;
     sellerMode: SelectionMode;
 }) {
     return (
         <div className="grid gap-3 text-sm md:grid-cols-3">
-            <SummaryBox label="Fahrzeug" value={vehicleMode === "new" ? "wird neu angelegt" : "bestehendes Fahrzeug"} />
+            <SummaryBox label="Fahrzeug" value={vehicleLabel} />
             <SummaryBox label="Verkäufer" value={sellerMode === "new" ? "wird neu angelegt" : "bestehender Verkäufer"} />
             <SummaryBox label="Dokumente" value="Fahrzeugschein / Einkaufsrechnung optional" />
+        </div>
+    );
+}
+
+function PrefilledVehicleSummary({
+    vehicle,
+}: {
+    vehicle: PurchaseFormData["vehicles"][number] | null;
+}) {
+    return (
+        <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4">
+            <p className="text-sm font-extrabold text-cyan-950">
+                {vehicle ? vehicle.label : "Fahrzeug aus Fahrzeugakte"}
+            </p>
+            {vehicle ? (
+                <p className="mt-1 text-sm font-medium text-cyan-800">
+                    VIN: {vehicle.vin}
+                </p>
+            ) : null}
         </div>
     );
 }
