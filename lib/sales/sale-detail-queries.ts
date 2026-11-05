@@ -210,12 +210,12 @@ type LegacyInvoiceRelation = {
 
 type LegacySaleDetailQueryRow = Omit<
     SaleDetailQueryRow,
-    | "invoice_notes"
     | "include_damage_notes_on_invoice"
     | "invoices"
     | "sale_refunds"
 > & {
     invoices: SupabaseRelation<LegacyInvoiceRelation>;
+    invoice_notes?: string | null;
 };
 
 export type SaleDetailDocument = {
@@ -653,7 +653,7 @@ function mapLegacyInvoice(invoice: LegacyInvoiceRelation): InvoiceRelation {
 function mapLegacySaleDetailRow(row: LegacySaleDetailQueryRow): SaleDetailQueryRow {
     return {
         ...row,
-        invoice_notes: null,
+        invoice_notes: row.invoice_notes ?? null,
         include_damage_notes_on_invoice: false,
         invoices: getManyRelation(row.invoices).map(mapLegacyInvoice),
         sale_refunds: [],
@@ -944,9 +944,23 @@ export async function getSaleDetail(saleId: string): Promise<SaleDetail> {
             notFound();
         }
 
+        // Keep the independently stored invoice agreement visible even when
+        // the rest of the sale detail query must use its legacy projection.
+        const { data: invoiceNotesData, error: invoiceNotesError } = await supabase
+            .from("sales")
+            .select("invoice_notes")
+            .eq("id", saleId)
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+        const legacySaleRow = {
+            ...(fallbackData as unknown as LegacySaleDetailQueryRow),
+            invoice_notes: invoiceNotesError ? null : invoiceNotesData?.invoice_notes ?? null,
+        };
+
         return attachSaleDetailSideData({
             sale: buildSaleDetail(
-                mapLegacySaleDetailRow(fallbackData as unknown as LegacySaleDetailQueryRow),
+                mapLegacySaleDetailRow(legacySaleRow),
             ),
             companyId,
         });
