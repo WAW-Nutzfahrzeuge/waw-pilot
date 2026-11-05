@@ -160,8 +160,8 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(server, /N8N_VEHICLE_LISTING_WEBHOOK_URL/);
     assert.match(action, /method: "POST"/);
     assert.match(action, /authorization: `Bearer \$\{config\.token\}`/);
-    assert.match(action, /httpStatus: responseStatus/);
-    assert.match(action, /missingVariables: configuration\.missingVariables/);
+    assert.doesNotMatch(action, /console\.(info|warn)\(\[?"\[purchase-listing\] n8n/);
+    assert.doesNotMatch(action, /requestStarted|httpStatus: responseStatus/);
     assert.match(action, /AbortSignal\.timeout\(8_000\)/);
     assert.match(callback, /eq\("manual_revision", 0\)/);
     assert.match(callback, /eq\("dispatch_token", dispatchToken\)/);

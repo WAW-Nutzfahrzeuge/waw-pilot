@@ -35,12 +35,6 @@ export async function startPurchaseListingPreparation(purchaseId: string): Promi
 
     const configuration = getListingAutomationConfig();
     if (!configuration.ok) {
-        console.error("[purchase-listing] n8n configuration invalid", {
-            errorCode: configuration.missingVariables.length ? "CONFIG_MISSING" : "CONFIG_INVALID",
-            missingVariables: configuration.missingVariables,
-            invalidVariables: configuration.invalidVariables,
-            requestStarted: false,
-        });
         const affectedVariables = [...configuration.missingVariables, ...configuration.invalidVariables];
         return fail(affectedVariables.length
             ? `Die n8n-Konfiguration ist unvollständig oder ungültig. Bitte prüfe in Vercel: ${affectedVariables.join(", " )}.`
@@ -157,11 +151,7 @@ export async function startPurchaseListingPreparation(purchaseId: string): Promi
         imageUploadUrl: `${config.callbackBaseUrl}/api/automation/purchase-listings/${job.id}/images`,
         callbackUrl,
     };
-    let requestStarted = false;
-    let responseStatus: number | null = null;
     try {
-        requestStarted = true;
-        console.info("[purchase-listing] n8n dispatch started", { jobId: job.id, requestStarted });
         const response = await fetch(config.webhookUrl, {
             method: "POST",
             headers: { "content-type": "application/json", authorization: `Bearer ${config.token}` },
@@ -169,19 +159,15 @@ export async function startPurchaseListingPreparation(purchaseId: string): Promi
             cache: "no-store",
             signal: AbortSignal.timeout(8_000),
         });
-        responseStatus = response.status;
-        console.info("[purchase-listing] n8n dispatch response", { jobId: job.id, requestStarted, httpStatus: responseStatus });
         if (response.status !== 202) {
             const { code, message } = getListingN8nHttpFailure(response.status);
             await supabase.from("purchase_listing_jobs").update({ status: "failed", last_error_code: code,
                 last_error: message, lease_expires_at: null, dispatch_token: null, updated_at: new Date().toISOString() })
                 .eq("id", job.id).eq("company_id", companyId).eq("dispatch_token", job.dispatch_token).eq("status", "processing");
-            console.warn("[purchase-listing] n8n rejected dispatch", { jobId: job.id, errorCode: code, requestStarted, httpStatus: response.status });
             return { ok: false, message, job: { ...job, status: "failed", last_error_code: code, last_error: message } };
         }
         const ack = await response.json().catch(() => null) as Record<string, unknown> | null;
         if (!validateListingAcceptanceAck(ack, { jobId: job.id, purchaseId: source.purchase.id, vehicleId: source.vehicle.id, sourceRevision: source.sourceRevision, dispatchToken: String(job.dispatch_token) })) {
-            console.warn("[purchase-listing] n8n acceptance response invalid", { jobId: job.id, errorCode: "INVALID_N8N_ACK", requestStarted, httpStatus: response.status });
             const message = "n8n hat HTTP 202 geliefert, aber die Annahmebestätigung passt nicht zum erwarteten Auftrag. Bitte prüfe die n8n-Antwort gemäß API-Vertrag.";
             await supabase.from("purchase_listing_jobs").update({ status: "failed", last_error_code: "INVALID_N8N_ACK",
                 last_error: message, lease_expires_at: null, dispatch_token: null, updated_at: new Date().toISOString() })
@@ -200,8 +186,6 @@ export async function startPurchaseListingPreparation(purchaseId: string): Promi
         console.error("[purchase-listing] dispatch unavailable", {
             jobId: job.id,
             errorCode: timedOut ? "DISPATCH_TIMEOUT" : "DISPATCH_UNAVAILABLE",
-            requestStarted,
-            httpStatus: responseStatus,
         });
         revalidatePath(`/dashboard/ankauf/${purchaseId}`);
         return { ok: true, message: timedOut ? "Die Annahmebestätigung dauert noch. Der Auftrag kann bereits laufen; bitte warte auf den Status oder versuche es nach Ablauf der Frist erneut." : "Die Verbindung zu n8n wurde unterbrochen. Der Auftrag kann bereits angenommen worden sein; bitte prüfe den Status vor einem erneuten Versuch.", job };

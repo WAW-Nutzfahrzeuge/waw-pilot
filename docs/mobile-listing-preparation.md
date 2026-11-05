@@ -239,15 +239,15 @@ Serverseitige Variablen, ohne `NEXT_PUBLIC_`:
 | `N8N_VEHICLE_LISTING_CALLBACK_BASE_URL` | Kanonischer HTTPS-Origin der WAW-Vercel-Anwendung, ohne Pfad oder abschließende Route. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bereits verwendeter serverseitiger Schlüssel; bleibt ausschließlich in Vercel. |
 
-Der Konfigurationscheck prüft genau diese drei neuen n8n-Werte: sie dürfen nicht leer sein, Webhook-URL und Callback-Origin müssen HTTPS verwenden und der Callback-Origin darf keinen Pfad außer `/` enthalten. Er protokolliert bei Fehlern nur `missingVariables`, `invalidVariables`, `requestStarted` und – falls n8n geantwortet hat – den HTTP-Status. Werte, Header, Token, Payload und Antwortinhalt werden nicht protokolliert.
+Der Konfigurationscheck prüft genau diese drei neuen n8n-Werte: sie dürfen nicht leer sein, Webhook-URL und Callback-Origin müssen HTTPS verwenden und der Callback-Origin darf keinen Pfad außer `/` enthalten. Bei einer unvollständigen Konfiguration nennt die Oberfläche die betroffenen Variablennamen, aber keine Werte.
 
-Bei der Fehlersuche:
+Fehler unterscheidet WAW wie folgt:
 
-- `CONFIG_MISSING` oder `CONFIG_INVALID`, `requestStarted: false`: WAW hat keinen Request an n8n gestartet. Die Logfelder nennen ausschließlich die betroffenen Variablennamen.
-- `n8n dispatch started`, danach `httpStatus`: Request wurde mit `POST`, `Authorization: Bearer …` und dem dokumentierten JSON-Auftrag gesendet. HTTP `202` muss ein JSON-Objekt mit `status: "accepted"` und exakt passenden `jobId`, `purchaseId`, `vehicleId`, `sourceRevision` und `dispatchToken` liefern.
-- `N8N_HTTP_404`: wahrscheinlich falsche Webhook-URL oder nicht erreichbarer aktiver Webhook. `401`/`403` bezeichnet eine Authentifizierungsablehnung. Andere Status werden samt Statuscode angezeigt.
+- Konfigurationsfehler werden vor dem n8n-Aufruf gemeldet.
+- HTTP-Fehler werden mit Statuscode angezeigt. `404` weist meist auf eine falsche oder nicht aktive Webhook-URL hin; `401`/`403` auf eine Authentifizierungsablehnung.
+- HTTP `202` muss ein JSON-Objekt mit `status: "accepted"` und exakt passenden `jobId`, `purchaseId`, `vehicleId`, `sourceRevision` und `dispatchToken` liefern.
 - `INVALID_N8N_ACK` bei HTTP `202`: n8n hat geantwortet, aber die Annahmeantwort entspricht nicht dem Vertrag.
-- `DISPATCH_TIMEOUT` oder `DISPATCH_UNAVAILABLE`: Ausgang kann unklar sein; die stabile Job-ID und Lease bleiben erhalten.
+- Bei Timeout oder Verbindungsabbruch kann n8n den Auftrag bereits angenommen haben; die stabile Job-ID und Lease bleiben erhalten.
 
 Die Verkaufsakte kennzeichnet eine gespeicherte Fehlermeldung zusätzlich als „Letzter gespeicherter Auftragsfehler“. Sie kann von einem früheren Versuch stammen und ist von der Meldung des aktuellen Klicks zu unterscheiden.
 
