@@ -43,6 +43,7 @@ import {
 import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
 import { deletePurchaseAdminAction } from "@/app/dashboard/admin-delete-actions";
 import { VehicleFolderCard } from "@/components/purchases/vehicle-folder-card";
+import { PurchaseListingPreparationCard } from "@/components/purchases/purchase-listing-preparation-card";
 
 type PurchaseDetailProps = {
     purchase: PurchaseCaseDetailType;
@@ -150,6 +151,14 @@ export function PurchaseDetail({
                     lastError: purchase.vehicleFolder?.last_error ?? null,
                     errorCode: purchase.vehicleFolder?.last_error_code ?? null,
                 }}
+            />
+
+            <PurchaseListingPreparationCard
+                purchaseId={purchase.id}
+                purchaseLabel={purchase.purchase_number ?? "Ankauf"}
+                hasRegistration={purchase.documents.some((document) => document.document_type === "vehicle_registration" && document.status === "available" && Boolean(document.file_path))}
+                oneDriveReady={purchase.vehicleFolder?.status === "ready" && Boolean(purchase.vehicleFolder.images_folder_id && purchase.vehicleFolder.drive_id && purchase.vehicleFolder.folder_id)}
+                jobs={purchase.listingJobs}
             />
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

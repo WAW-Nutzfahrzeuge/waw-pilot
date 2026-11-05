@@ -20,6 +20,7 @@ import {
     type StagedPrivateDocumentFile,
 } from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
 type SupabaseServerClient = ReturnType<typeof createServerSupabaseClient>;
 
@@ -221,9 +222,31 @@ async function getPurchaseStoragePaths({
         documentIds: documents.map((document) => document.id),
     });
 
+    const automationSupabase = createAutomationSupabaseClient();
+    const { data: listingJobs, error: listingJobsError } = await automationSupabase
+        .from("purchase_listing_jobs")
+        .select("id")
+        .eq("company_id", companyId)
+        .eq("purchase_case_id", purchaseId);
+    if (listingJobsError && !["42P01", "PGRST205"].includes(listingJobsError.code ?? "")) {
+        throw new Error(`Inseratsaufträge konnten nicht geprüft werden: ${listingJobsError.message}`);
+    }
+    const listingJobIds = (listingJobs ?? []).map((job) => String(job.id));
+    let listingImagePaths: string[] = [];
+    if (listingJobIds.length) {
+        const { data: listingImages, error: listingImagesError } = await automationSupabase
+            .from("purchase_listing_job_images")
+            .select("storage_path")
+            .eq("company_id", companyId)
+            .in("job_id", listingJobIds);
+        if (listingImagesError) throw new Error(`Inseratsbilder konnten nicht geprüft werden: ${listingImagesError.message}`);
+        listingImagePaths = (listingImages ?? []).map((image) => String(image.storage_path));
+    }
+
     return collectAdminDeleteStoragePaths([
         ...documents.map((document) => ({ filePath: document.file_path })),
         ...versionPaths.map((path) => ({ versionStoragePath: path })),
+        ...listingImagePaths.map((filePath) => ({ filePath })),
     ]);
 }
 

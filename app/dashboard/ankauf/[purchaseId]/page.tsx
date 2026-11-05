@@ -2,6 +2,8 @@ import { PurchaseDetail } from "@/components/purchases/purchase-detail";
 import { getCurrentUserRole } from "@/lib/auth/current-user";
 import { getPurchaseCaseDetail } from "@/lib/purchases/purchase-detail-queries";
 
+export const maxDuration = 30;
+
 type PurchaseDetailPageProps = {
     params: Promise<{
         purchaseId: string;

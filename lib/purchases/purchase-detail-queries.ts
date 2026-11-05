@@ -9,6 +9,33 @@ import type {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
+export type PurchaseListingImage = {
+    id: string;
+    file_name: string;
+    mime_type: string;
+    file_size: number;
+    upload_status: "pending" | "available";
+};
+
+export type PurchaseListingJob = {
+    id: string;
+    status: "queued" | "processing" | "needs_input" | "draft_ready" | "failed";
+    source_revision: string;
+    confirmed_vehicle_data: Record<string, unknown>;
+    extracted_suggestions: Record<string, unknown>;
+    conflicts: unknown[];
+    missing_fields: unknown[];
+    title: string | null;
+    description: string | null;
+    selected_image_ids: string[];
+    manual_revision: number;
+    lease_expires_at: string | null;
+    last_error_code: string | null;
+    last_error: string | null;
+    updated_at: string;
+    images: PurchaseListingImage[];
+};
+
 type SupabaseRelation<T> = T | T[] | null;
 
 type PurchaseCaseDetailQueryRow = {
@@ -166,6 +193,7 @@ export type PurchaseCaseDetail = {
         folder_name: string;
         folder_url: string | null;
         folder_id: string | null;
+        drive_id: string | null;
         registration_folder_id: string | null;
         images_folder_id: string | null;
         last_error: string | null;
@@ -173,6 +201,8 @@ export type PurchaseCaseDetail = {
         attempt_count: number;
         lease_expires_at: string | null;
     } | null;
+    listingJob: PurchaseListingJob | null;
+    listingJobs: PurchaseListingJob[];
 };
 
 function getSingleRelation<T>(relation: SupabaseRelation<T>): T | null {
@@ -305,7 +335,7 @@ export async function getPurchaseCaseDetail(
             const { data } = await automationSupabase
                 .from("purchase_vehicle_folder_jobs")
                 .select(
-                    "id, status, folder_name, folder_url, folder_id, registration_folder_id, images_folder_id, last_error, last_error_code, attempt_count, lease_expires_at",
+                    "id, status, folder_name, folder_url, folder_id, drive_id, registration_folder_id, images_folder_id, last_error, last_error_code, attempt_count, lease_expires_at",
                 )
                 .eq("company_id", companyId)
                 .eq("purchase_case_id", purchaseId)
@@ -317,9 +347,38 @@ export async function getPurchaseCaseDetail(
         }
     })();
 
-    const [{ data: documentsData, error: documentsError }, folderJob] = await Promise.all([
+    const listingJobQuery = (async () => {
+        if (!purchase.vehicle_id) return null;
+        try {
+            const automationSupabase = createAutomationSupabaseClient();
+            const { data: jobs } = await automationSupabase
+                .from("purchase_listing_jobs")
+                .select("id, status, source_revision, confirmed_vehicle_data, extracted_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, lease_expires_at, last_error_code, last_error, updated_at")
+                .eq("company_id", companyId)
+                .eq("purchase_case_id", purchaseId)
+                .order("created_at", { ascending: false })
+                .limit(10);
+            if (!jobs?.length) return { latest: null, history: [] };
+            const history = await Promise.all(jobs.map(async (job) => {
+                const { data: images } = await automationSupabase
+                    .from("purchase_listing_job_images")
+                    .select("id, file_name, mime_type, file_size, upload_status")
+                    .eq("company_id", companyId)
+                    .eq("job_id", job.id)
+                    .order("created_at", { ascending: true });
+                return { ...job, images: images ?? [] } as PurchaseListingJob;
+            }));
+            return { latest: history[0] ?? null, history };
+        } catch {
+            // Until the additive migration is applied, the rest of the purchase remains usable.
+            return { latest: null, history: [] };
+        }
+    })();
+
+    const [{ data: documentsData, error: documentsError }, folderJob, listingJobsResult] = await Promise.all([
         documentsQuery,
         folderJobQuery,
+        listingJobQuery,
     ]);
 
     let vehicleFolder = folderJob;
@@ -431,5 +490,7 @@ export async function getPurchaseCaseDetail(
 
         documents,
         vehicleFolder,
+        listingJob: listingJobsResult?.latest ?? null,
+        listingJobs: listingJobsResult?.history ?? [],
     };
 }

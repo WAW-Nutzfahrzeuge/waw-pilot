@@ -93,7 +93,7 @@ export function VehicleFolderCard({ purchaseId, initialState }: VehicleFolderCar
     }
 
     return (
-        <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
+        <Card id="vehicle-onedrive-folder" className="scroll-mt-24 rounded-3xl border-slate-200 bg-white/90 shadow-sm">
             <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                     <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700">
