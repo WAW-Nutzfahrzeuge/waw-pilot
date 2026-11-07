@@ -1,8 +1,59 @@
 # Inseratsvorbereitung für Fahrzeugankäufe
 
+## Aktueller Stand: Formular und Vertrag v3
+
+Diese Aktualisierung ergänzt die ältere V1/V2-Dokumentation unten. Neue Inseratsangaben werden im bestehenden optionalen JSONB-Feld `vehicles.listing_details` gespeichert. Der aktuelle Kilometerstand bleibt in `vehicles.mileage`; der bestehende Angebotspreis steht in `vehicles.sale_price_net` und wird ausdrücklich als **Netto** behandelt. Eine künftige Verkaufs-Steuerbehandlung ist beim Einkauf nicht gespeichert: `purchase_cases.vat_rate` beschreibt die Steuer des Einkaufs und wird nicht als Verkaufs-Steuerbehandlung verwendet. Daher wird `taxTreatment: null` an n8n übergeben. Die konkrete Steuerart entsteht erst beim tatsächlichen Verkauf.
+
+Die Einkaufsakte zeigt oberhalb von **Inserat vorbereiten** das Formular **Angaben zum Inserat**. „Angaben speichern“ speichert nur. „Inserat vorbereiten“ speichert zuerst und startet nur bei erfolgreichem Speichern den vorhandenen asynchronen Ablauf. Das Fahrzeug-Update erfolgt über `save_purchase_listing_information`: Company-/Einkaufszuordnung wird in der Funktion geprüft, die Werte werden unter Zeilensperre gemeinsam aktualisiert und parallele Änderungen mit SQLSTATE `40001` abgewiesen. Bei Fehlern bleiben bereits gespeicherte Angaben erhalten; es wird kein Auftrag gestartet.
+
+Neue Aufträge verwenden `contractVersion: 3` und `templateVersion: "waw-mobile-listing-v3"`. Dafür ist serverseitig `N8N_VEHICLE_LISTING_CONTRACT_VERSION=3` erforderlich. Solange dieser Schalter fehlt oder einen anderen Wert hat, kann das Formular gespeichert werden, aber die Software startet keinen Auftrag. Das verhindert, dass der aktuelle Workflow v2 einen unbekannten Auftrag erhält. Vorhandene v1/v2-Aufträge und Callbacks bleiben unterstützt.
+
+V3 überträgt nur eine explizite Allowlist aus bestätigten Fahrzeug-/Inseratsdaten. `vehicles.notes`, `damage_notes`, Einkaufspreise, Margen, Verkäufer-/Kundendaten und Halterdaten werden nicht übertragen. `sale_price_net` wird getrennt unter `listingInformation.sellingPrice` als `{ amount, basis: "net", currency: "EUR" }` gesendet. Aus dem Fahrzeugschein werden keine neuen OCR-Felder angefordert. Nicht zum Fahrzeugtyp passende Betonmischerangaben werden im V3-Auftrag auf `null` gesetzt; vorhandene Werte bleiben in der Datenbank erhalten. Das bisher mehrdeutige Feld `grossVehicleWeightKg` wird in V3 nicht gesendet. F.1 und F.2 bleiben getrennt.
+
+V3-Kern des Auftrags (Werte sind synthetische Platzhalter):
+
+```json
+{
+  "schemaVersion": 1,
+  "contractVersion": 3,
+  "event": "purchase.listing.prepare",
+  "jobId": "<UUID>",
+  "purchaseId": "<Einkaufs-UUID>",
+  "vehicleId": "<Fahrzeug-UUID>",
+  "sourceRevision": "<SHA-256>",
+  "dispatchToken": "<UUID>",
+  "templateVersion": "waw-mobile-listing-v3",
+  "textTemplate": { "title": "<WAW-Vorschlag>", "description": "<Klartext>", "openPoints": ["salePrice", "availability"] },
+  "confirmedVehicleData": {
+    "manufacturer": "<bestätigt>", "model": "<bestätigt>", "vehicleType": "<bestätigt>",
+    "vehicleCategory": null, "vin": "<FIN>", "firstRegistration": null,
+    "constructionYear": null, "mileage": null, "color": null,
+    "listingDetails": { "fuelType": null, "engineDisplacementCc": null, "axleCount": null, "drivenAxleCount": null, "lengthMm": null, "widthMm": null, "heightMm": null, "permittedMassF1Kg": null, "permittedMassF2Kg": null, "vehicleReadiness": "unknown", "currentDamageStatus": "unknown", "repairedDamageStatus": "unknown", "availabilityStatus": "unknown" }
+  },
+  "listingInformation": {
+    "sellingPrice": { "amount": 12500, "basis": "net", "currency": "EUR" },
+    "taxTreatment": null,
+    "confirmedDetails": { "availabilityStatus": "unknown", "vehicleReadiness": "unknown", "currentDamageStatus": "unknown" },
+    "instructions": ["Nur bestätigte Fakten verwenden; unbekannt bleibt offen."]
+  },
+  "registrationDocument": { "documentId": "<Dokument-UUID>", "fileName": "<Dateiname>", "mimeType": "application/pdf", "fileSize": 123456, "downloadUrl": "<geschützte WAW-URL>" },
+  "oneDriveImages": { "driveId": "<Drive-ID>", "folderId": "<Fahrzeugbilder-Ordner-ID>" },
+  "imageUploadUrl": "<geschützte WAW-URL>",
+  "callbackUrl": "<geschützte WAW-URL>"
+}
+```
+
+Die Kurzfassung oben zeigt nur ausgewählte Felder; `confirmedVehicleData.listingDetails` und `listingInformation.confirmedDetails` verwenden dieselbe V3-Whitelist. Vollständige Property-Namen: bestehende Werte `enginePowerKw`, `transmission`, `emissionClass`, `cab`, `retarder`, `hydraulics`, `axleFormula`, `frontSuspension`, `rearSuspension`, `curbWeightKg`, `payloadKg`, `wheelbaseMm`, `huUntil`, `spUntil`, `bodyManufacturer`, `bodyType`, `bodyYear`, `mixerNominalVolumeM3`, `mixerDrive`, `waterTankLiters`, `bodyControls`, `includedAccessories`, `equipment`, `vehicleCondition`, `bodyCondition`, `knownDamages`, `maintenanceHistory`, `repairHistory`, `vehicleLocation`, `availabilityConfirmed`; neue Werte `availabilityStatus`, `availableFrom`, `publicHighlights`, `vehicleReadiness`, `engineFunction`, `transmissionFunction`, `otherFunction`, `cabinCondition`, `tireCondition`, `currentDamageStatus`, `repairedDamageStatus`, `repairedDamageDescription`, `maintenanceProofStatus`, `featureAirConditioning`, `featureCruiseControl`, `featureCamera`, `featurePto`, `bodyFunctionStatus`, `bodyKnownIssues`, `excludedItems`, `mixerDrumCondition`, `waterSystemFunction`, `mixerRemoteControl`, `chuteExtensions`, `fuelType`, `engineDisplacementCc`, `axleCount`, `drivenAxleCount`, `lengthMm`, `widthMm`, `heightMm`, `permittedMassF1Kg`, `permittedMassF2Kg`.
+
+V3-Annahme bleibt kurz (HTTP 202) und muss zusätzlich `contractVersion: 3`, `jobId`, `purchaseId`, `vehicleId`, `sourceRevision` und `dispatchToken` unverändert bestätigen. Der Ergebnis-Callback bleibt `POST /api/automation/purchase-listings/{jobId}/callback`; er muss `schemaVersion: 1`, `contractVersion: 3` und dieselben Identitäten zurückgeben. V3 behält das bestehende Antwortformat `title`, `description`, `missingFields`, `extractedSuggestions`, `selectedImageIds`, `status`; V3 erlaubt zusätzlich die offenen Punkte `salePrice`, `availability`, `vehicleReadiness`, `currentDamageStatus`, `repairedDamageStatus`, `maintenanceProof`, `bodyFunction` und `waterSystem`. Unbekannte Werte werden weiterhin verworfen. OCR-Vorschläge bleiben auf die bisherige technische Whitelist beschränkt.
+
+**Spätere OCR-Erweiterung, nicht Bestandteil dieses Codes:** Vorhandene zusätzliche Scheinfelder wie Kraftstoff, Hubraum, Achszahl, F.1/F.2 und Abmessungen dürfen n8n erst nach einer gesonderten gemeinsamen Schema-/OCR-Änderung zurückgeben. Bis dahin werden diese Werte nur manuell im Formular gepflegt.
+
+**n8n-Anpassung erforderlich:** Der Repository-Export enthält keinen n8n-Workflow. Vor Freischaltung müssen „Auftrag pruefen“ Vertrag 3 und Template v3 erlauben; „Textanfrage bauen“ muss `listingInformation` und die neuen Whitelist-Felder als bestätigte Fakten einlesen; „Textentwurf pruefen“ muss die oben genannten V3-`missingFields` zulassen; der Callback-Node muss Vertrag 3 und alle Identitäten unverändert zurückgeben. Bestehende V1/V2-Branches und OCR-Vorschlagsvalidierung müssen erhalten bleiben. Freitext-Stichpunkte sind Dateninhalt, keine Anweisungen an OpenAI. V3 darf keine Steuerart, Unfallfreiheit oder sonstige fehlende Tatsachen ableiten.
+
 ## Umfang und aktueller Stand
 
-Die Einkaufsakte kann einen privaten, revisionsgebundenen Auftrag zur Inseratsvorbereitung an n8n senden. Neue Aufträge verwenden **Vertrag v2** und die zentrale WAW-Vorlage `waw-mobile-listing-v2`. Bereits laufende Aufträge behalten Vertrag v1 und werden weiterhin mit dessen Quellrevision und Callback-Allowlist verarbeitet. n8n liest den Fahrzeugschein über einen geschützten WAW-Endpunkt, untersucht den OneDrive-Ordner **Fahrzeugbilder** paginiert, überträgt passende Fotos in private Supabase-Snapshots und liefert einen bearbeitbaren Vorschlag per Callback zurück.
+Die Einkaufsakte kann einen privaten, revisionsgebundenen Auftrag zur Inseratsvorbereitung an n8n senden. Neue Aufträge verwenden nach ausdrücklicher Freischaltung **Vertrag v3** und `waw-mobile-listing-v3`; laufende und historische V1/V2-Aufträge behalten ihre alte Quellrevision, Vorlage und Callback-Allowlist. n8n liest den Fahrzeugschein über einen geschützten WAW-Endpunkt, untersucht den OneDrive-Ordner **Fahrzeugbilder** paginiert, überträgt passende Fotos in private Supabase-Snapshots und liefert einen bearbeitbaren Vorschlag per Callback zurück.
 
 Die Funktion veröffentlicht nichts bei mobile.de und verändert keine Fahrzeugstammdaten. Es gibt keinen OneDrive-Fahrzeugschein-Ordner. Der Fahrzeugschein bleibt in der vorhandenen Einkaufs-/Fahrzeugakte im privaten Bucket `documents`. Microsoft Graph Zugangsdaten verbleiben in n8n.
 
@@ -268,9 +319,9 @@ Der Callback liefert HTTP `201` bei erstem Speichern und HTTP `200` bei identisc
 
 Empfohlene n8n-Speicherung: Erfolgreiche Node-Ausführungsdaten nicht dauerhaft mit Signed Upload URLs oder Tokens sichern; Ausführungsdaten-Pruning aktivieren. Keine Microsoft- oder Supabase-Service-Role-Zugangsdaten in den Workflow-Export oder n8n-Auftragsbody schreiben.
 
-## WAW-Inseratsstil v2 und n8n-Node-Änderungen
+## Historischer WAW-Inseratsstil v2 und n8n-Node-Änderungen
 
-Im Repository liegt kein n8n-Workflow-Export. Die Live-Workflow-Nodes wurden daher nicht geändert. Die folgenden Verträge und Codeblöcke bilden die neue Softwareseite ab; Node-Eingangs-/Ausgangsreferenzen müssen beim Einfügen an die vorhandenen Verbindungskanten angepasst werden. `schemaVersion` bleibt 1. Nur `contractVersion` wird für neue Jobs auf 2 gesetzt.
+Im Repository liegt kein n8n-Workflow-Export. Die Live-Workflow-Nodes wurden nicht geändert. Dieser Abschnitt bewahrt den früheren V2-Vertrag. Für neue Daten ist der V3-Abschnitt am Dokumentanfang maßgeblich. `schemaVersion` bleibt 1.
 
 ### Optionale Felder in der Einkaufs-/Fahrzeugakte
 
@@ -315,16 +366,17 @@ Beschreibung ist Klartext ohne HTML, Markdown-Tabelle, dekorative Linie oder Emo
 const body = $json.body ?? $json;
 const version = body.contractVersion ?? 1;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-if (body.schemaVersion !== 1 || ![1, 2].includes(version) || body.event !== 'purchase.listing.prepare' ||
+if (body.schemaVersion !== 1 || ![1, 2, 3].includes(version) || body.event !== 'purchase.listing.prepare' ||
     !uuid.test(body.jobId) || !uuid.test(body.purchaseId) || !uuid.test(body.vehicleId) ||
     !/^[a-f0-9]{64}$/i.test(body.sourceRevision) || !uuid.test(body.dispatchToken)) {
   throw new Error('INVALID_LISTING_REQUEST');
 }
 if (version === 2 && body.templateVersion !== 'waw-mobile-listing-v2') throw new Error('INVALID_TEMPLATE_VERSION');
+if (version === 3 && body.templateVersion !== 'waw-mobile-listing-v3') throw new Error('INVALID_TEMPLATE_VERSION');
 return [{ json: { ...body, contractVersion: version } }];
 ```
 
-Der Webhook antwortet zeitnah mit HTTP 202, `status: accepted`, allen Identitäten und `contractVersion`. Bei v2 muss `contractVersion: 2` enthalten sein; WAW prüft es. Die alte WAW-Version akzeptiert eine zusätzliche Antwort-Eigenschaft, daher kann n8n zuerst erweitert werden.
+Der Webhook antwortet zeitnah mit HTTP 202, `status: accepted`, allen Identitäten und `contractVersion`. Für v1, v2 und v3 muss die jeweilige Versionsnummer mit dem Auftrag übereinstimmen; WAW prüft sie.
 
 **2. „OCR Anfrage bauen“** — OCR auf Fahrzeugtechnik beschränken. Der OCR-Auftrag soll ausdrücklich nur die oben freigegebenen technischen Felder anfordern. Keine Halter-, Anschrift-, Personen-, Geburts-, Dokumentnummer- oder MRZ-Felder zurückgeben lassen. `Kilometerstand`, Fahrzeugzustand, Ausstattung und Aufbauangaben nicht aus dem Fahrzeugschein ableiten. Erstzulassung nur nach Datum und Baujahr nur dann, wenn das Dokument ein getrenntes Baujahr ausdrücklich ausweist.
 
@@ -352,11 +404,13 @@ Die Software validiert dieselben Werte noch einmal. Der Code-Node darf Roh-OCR n
 
 **4. „Textanfrage bauen“** — den vorhandenen redaktionell aktualisierten Prompt behalten und diese Regeln ergänzen: `textTemplate` und `confirmedVehicleData` sind die einzigen Quellen für den öffentlichen Titel/Beschreibungstext; `extractedSuggestions` bleiben separat und unbestätigt. Nichts aus OCR-Vorschlägen als Tatsache in den Inseratstext übernehmen. Nur bestätigte `listingDetails` aufnehmen. Template-Abschnitte, Klartext, einzelne Stichpunkte und leere Abschnitte ohne Platzhalter beibehalten. Keine erfundenen Angaben, Rechtsklauseln, Kontaktdaten oder Werbefloskeln. Ausgabeformat bleibt `{ title, description, missingFields }`.
 
-**5. „Textentwurf pruefen“** — bestehende Antwortfelder beibehalten. Prüfen: `title` und `description` sind Strings innerhalb der Größenlimits; Titel beginnt mit bestätigtem Hersteller/Modell; höchstens zwei ` | `; kein Preis, FIN, Fahrzeug-/Verkaufs-ID oder Telefon im Titel; Beschreibung enthält keine HTML-Tags, Tabellen, dekorativen Trennlinien, Emojis oder offene Prüfanweisungen. Unbekannte `missingFields` verwerfen. V2 kennt zusätzlich `location`, `vehicleIdentity`, `technicalData`, `bodyDetails`, `maintenanceHistory`. V1 behält bisherige Werte.
+**5. „Textentwurf pruefen“** — bestehende Antwortfelder beibehalten. Prüfen: `title` und `description` sind Strings innerhalb der Größenlimits; Titel beginnt mit bestätigtem Hersteller/Modell; höchstens zwei ` | `; kein Preis, FIN, Fahrzeug-/Verkaufs-ID oder Telefon im Titel; Beschreibung enthält keine HTML-Tags, Tabellen, dekorativen Trennlinien, Emojis oder offene Prüfanweisungen. Unbekannte `missingFields` verwerfen. V2 kennt zusätzlich `location`, `vehicleIdentity`, `technicalData`, `bodyDetails`, `maintenanceHistory`; V3 kennt zusätzlich die im V3-Abschnitt genannten Punkte. V1 behält bisherige Werte.
 
-**6. Ergebnis/Callback** — OCR-Vorschläge separat als `extractedSuggestions` übermitteln; keine Zusatzfelder in das öffentliche Textobjekt schreiben. Callback führt `contractVersion: 2` neben `schemaVersion: 1`, unveränderte job-/purchase-/vehicle-IDs, `sourceRevision`, `dispatchToken`, `status`, Text und Bild-IDs. WAW ignoriert unbekannte Vorschlagsfelder und lehnt falsche Version/Identität ab. Altjobs mit Version 1 behalten die alte Form.
+**6. Ergebnis/Callback (historischer V2-Vertrag)** — OCR-Vorschläge separat als `extractedSuggestions` übermitteln; keine Zusatzfelder in das öffentliche Textobjekt schreiben. Callback führt `contractVersion: 2` neben `schemaVersion: 1`, unveränderte job-/purchase-/vehicle-IDs, `sourceRevision`, `dispatchToken`, `status`, Text und Bild-IDs. WAW ignoriert unbekannte Vorschlagsfelder und lehnt falsche Version/Identität ab. Altjobs mit Version 1 behalten die alte Form. Für neue Vertragsanpassungen ist V3 im Abschnitt oben maßgeblich.
 
-### Sichere Umstellung
+### Sichere Umstellung der historischen V2-Erweiterung
+
+Die folgenden Schritte dokumentieren den früheren V2-Rollout. Für das jetzt implementierte V3 gilt die verbindliche Reihenfolge am Ende dieses Dokuments.
 
 1. Neue Supabase-Migration `20261106110000_add_vehicle_listing_details_and_confirmations.sql` anwenden.
 2. Zuerst n8n-Nodes so aktualisieren, dass sie `contractVersion` 1 (fehlend) und 2 verarbeiten und v2-Callbacks korrekt senden. Bei diesem Schritt darf der Node keine alten V1-Felder aus bereits laufenden Executions entfernen; Identitäten müssen aus dem eingehenden Auftrag unverändert weitergereicht werden.
@@ -373,6 +427,7 @@ Serverseitige Variablen, ohne `NEXT_PUBLIC_`:
 | `N8N_VEHICLE_LISTING_WEBHOOK_URL` | HTTPS-Webhook nur für Inseratsvorbereitung; nicht die Ordneranlage-URL verwenden. |
 | `N8N_VEHICLE_LISTING_TOKEN` | Zufälliger Bearer-Token, identisch in Vercel und n8n Credential; nicht im Browser. |
 | `N8N_VEHICLE_LISTING_CALLBACK_BASE_URL` | Kanonischer HTTPS-Origin der WAW-Vercel-Anwendung, ohne Pfad oder abschließende Route. |
+| `N8N_VEHICLE_LISTING_CONTRACT_VERSION` | Rollout-Schalter. Erst nach Migration und kompatibler n8n-Umstellung exakt auf `3` setzen. Fehlt er oder ist er nicht `3`, startet WAW keine neuen Inseratsaufträge. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Bereits verwendeter serverseitiger Schlüssel; bleibt ausschließlich in Vercel. |
 
 Der Konfigurationscheck prüft genau diese drei neuen n8n-Werte: sie dürfen nicht leer sein, Webhook-URL und Callback-Origin müssen HTTPS verwenden und der Callback-Origin darf keinen Pfad außer `/` enthalten. Bei einer unvollständigen Konfiguration nennt die Oberfläche die betroffenen Variablennamen, aber keine Werte.
@@ -391,13 +446,13 @@ Der Startaufruf wartet höchstens 8 Sekunden auf n8n-Annahme; OCR und Generierun
 
 ## Deployment-Reihenfolge
 
-1. SQL-Migration `20261106100000_add_purchase_listing_preparation.sql` einmal im Supabase SQL Editor oder über den vorgesehenen Migrationsweg anwenden. Sie legt nur leere Tabellen/Funktionen an und startet keine Verarbeitung.
-2. Vercel-Variablen oben setzen und deployen.
-3. n8n-Workflow mit den beschriebenen Webhook-, Signed-Upload- und Callback-Schritten einrichten und zunächst mit einem Testankauf verwenden. Das Repository enthält keinen n8n-Workflow-Export; eine n8n-Einrichtung oder Aktivierung wurde nicht ausgeführt.
-4. In der Einkaufsakte eine vorhandene Testakte (z. B. „EK 2“) auswählen, Status prüfen, Vorschau bearbeiten und speichern. Vor einer späteren Veröffentlichung müssen Inhalte und Fotos von einem Mitarbeiter geprüft werden.
+1. In Supabase zuerst anhand des Migrationsstands prüfen, welche bestehenden Grundlagen (`20261106100000` und `20261106110000`) bereits angewendet wurden. Nur noch nicht angewendete Migrationen in ihrer Reihenfolge ausführen. Die neue Migration `20261106120000_add_purchase_listing_information_v3.sql` einmal danach anwenden. Sie erweitert den Job-Constraint auf Version 3, erlaubt die vorhandene sichere OCR-Bestätigungsfunktion für V3 und legt das row-locked Speichern des Formulars an. Keine Daten- oder OneDrive-Massenverarbeitung wird gestartet.
+2. n8n-Workflow rückwärtskompatibel auf v1/v2/v3 erweitern. V3-Annahme und Callback mit synthetischen Daten in einer getrennten Teststrecke prüfen. Das Repository enthält keinen Workflow-Export; n8n wurde hier nicht geändert.
+3. WAW-Code deployen, während `N8N_VEHICLE_LISTING_CONTRACT_VERSION` fehlt. In diesem Zustand lassen sich Angaben speichern, aber neue Aufträge bleiben gesperrt.
+4. Nach Bestätigung des aktiven n8n-V3-Workflows die serverseitige Vercel-Variable `N8N_VEHICLE_LISTING_CONTRACT_VERSION=3` setzen und neu deployen. Erst danach einen ausdrücklich ausgewählten Testankauf verwenden. Es gibt weiterhin keine Veröffentlichung bei mobile.de.
 
 ## Lokale Verifikation und offene Live-Prüfung
 
-Lokale Unit-/Contract-Tests prüfen stabile Quellrevision, Vorlagenregeln, Widerspruchserkennung, Annahmeantwort, Callback-Identitäten/Token/Bildreferenzen, Status bei fehlenden Fotos, Bild-MIME/Lesbarkeit und Lease-Ablauf.
+Lokale Unit-/Contract-Tests prüfen stabile Quellrevision, Vorlagenregeln, unbekannte gegenüber ausdrücklichem Nein, fehlende und widersprüchliche Angaben, F.1/F.2 und Einheiten, V3-Allowlist, nicht passende Mischerangaben, Annahmeantwort, Callback-Identitäten/Token/Bildreferenzen, Status bei fehlenden Fotos, Bild-MIME/Lesbarkeit und Lease-Ablauf.
 
-Nicht gegen Live-Vercel, Supabase Storage, OneDrive/Graph oder n8n ausgeführt: ein vollständiger End-to-End-Durchlauf und der tatsächlich aktive n8n-Vertrag. Vor Live-Test müssen Migration, Variablen und n8n-Workflow eingerichtet sein.
+Nicht gegen Live-Vercel, Supabase Storage, OneDrive/Graph oder n8n ausgeführt: ein vollständiger End-to-End-Durchlauf und der tatsächlich aktive n8n-Vertrag. Vor Live-Test müssen nur ausstehende Migrationen, die rückwärtskompatible n8n-V3-Änderung und danach die Rollout-Variable eingerichtet sein.

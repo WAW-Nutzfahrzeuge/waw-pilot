@@ -159,6 +159,10 @@ export function PurchaseDetail({
                 hasRegistration={purchase.documents.some((document) => document.document_type === "vehicle_registration" && document.status === "available" && Boolean(document.file_path))}
                 oneDriveReady={purchase.vehicleFolder?.status === "ready" && Boolean(purchase.vehicleFolder.images_folder_id && purchase.vehicleFolder.drive_id && purchase.vehicleFolder.folder_id)}
                 jobs={purchase.listingJobs}
+                vehicleType={purchase.vehicle?.vehicle_type ?? ""}
+                listingDetails={purchase.vehicle?.listing_details}
+                mileage={purchase.vehicle?.mileage ?? null}
+                salePriceNet={purchase.vehicle?.sale_price_net ?? null}
             />
 
             <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

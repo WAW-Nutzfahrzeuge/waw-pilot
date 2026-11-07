@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { AlertTriangle, ChevronDown, ChevronUp, FileCheck2, LoaderCircle, Save, Sparkles } from "lucide-react";
 
-import { confirmPurchaseListingSuggestions, startPurchaseListingPreparation, savePurchaseListingDraft } from "@/app/dashboard/ankauf/[purchaseId]/listing-actions";
+import { confirmPurchaseListingSuggestions, startPurchaseListingPreparation, savePurchaseListingDraft, savePurchaseListingInformation } from "@/app/dashboard/ankauf/[purchaseId]/listing-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { PurchaseListingJob } from "@/lib/purchases/purchase-detail-queries";
+import { VehicleListingDetailsFields } from "@/components/vehicles/vehicle-listing-details-fields";
 
 type Props = {
     purchaseId: string;
@@ -16,6 +17,10 @@ type Props = {
     hasRegistration: boolean;
     oneDriveReady: boolean;
     jobs: PurchaseListingJob[];
+    vehicleType: string;
+    listingDetails: unknown;
+    mileage: number | null;
+    salePriceNet: number | null;
 };
 
 const legacySuggestionFields = [
@@ -42,14 +47,19 @@ const openPointLabels: Record<string, string> = {
     location: "Fahrzeugstandort und Verfügbarkeit bestätigen", vehicleIdentity: "Fahrzeugidentität prüfen",
     technicalData: "Technische Fahrzeugdaten prüfen", bodyDetails: "Aufbauangaben prüfen",
     maintenanceHistory: "Wartungs- und Reparaturhistorie ergänzen",
+    salePrice: "Verkaufspreis ergänzen", availability: "Standort und Verfügbarkeit prüfen",
+    vehicleReadiness: "Fahrbereitschaft prüfen", currentDamageStatus: "Aktuelle Schäden/Mängel klären",
+    repairedDamageStatus: "Reparierte Vorschäden klären", maintenanceProof: "Wartungsnachweise klären",
+    bodyFunction: "Funktionsstatus des Aufbaus prüfen", waterSystem: "Wasseranlage prüfen",
 };
 
-export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasRegistration, oneDriveReady, jobs }: Props) {
+export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasRegistration, oneDriveReady, jobs, vehicleType, listingDetails, mileage, salePriceNet }: Props) {
     const router = useRouter();
     const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id ?? "");
     const job = jobs.find((item) => item.id === selectedJobId) ?? jobs[0] ?? null;
     const [message, setMessage] = useState("");
     const [isStarting, startTransition] = useTransition();
+    const detailsFormRef = useRef<HTMLFormElement>(null);
     const [now, setNow] = useState(0);
     const hasOpenItems = Boolean(job && ((job.missing_fields?.length ?? 0) > 0 || (job.conflicts?.length ?? 0) > 0));
     const active = job?.status === "queued" || job?.status === "processing";
@@ -69,9 +79,24 @@ export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasR
         return () => { cancelled = true; clearTimeout(timer); };
     }, [active, leaseExpired, router, job?.id]);
 
+    function saveDetails(event?: React.FormEvent<HTMLFormElement>) {
+        event?.preventDefault();
+        const form = detailsFormRef.current;
+        if (!form) return;
+        startTransition(async () => {
+            const result = await savePurchaseListingInformation(purchaseId, new FormData(form));
+            setMessage(result.message);
+            if (result.ok) router.refresh();
+        });
+    }
+
     function prepareAgain() {
         setMessage("");
         startTransition(async () => {
+            const form = detailsFormRef.current;
+            if (!form) return;
+            const saved = await savePurchaseListingInformation(purchaseId, new FormData(form));
+            if (!saved.ok) { setMessage(saved.message); return; }
             const result = await startPurchaseListingPreparation(purchaseId);
             setMessage(result.message);
             if (result.job?.id) setSelectedJobId(result.job.id);
@@ -84,11 +109,25 @@ export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasR
     return (
         <Card id="listing-preparation" className="scroll-mt-24 rounded-3xl border-cyan-100 bg-white/95 shadow-sm">
             <CardContent className="space-y-5 p-5">
+                <form ref={detailsFormRef} onSubmit={saveDetails} className="space-y-4">
+                    <div>
+                        <h2 className="text-lg font-extrabold text-slate-950">Angaben zum Inserat</h2>
+                        <p className="mt-1 text-sm text-slate-600">Diese Angaben werden vor der Vorbereitung gespeichert. Unbekannte Werte bleiben offen; die Steuerbehandlung wird nicht aus dem Einkauf abgeleitet.</p>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Aktueller Kilometerstand (km)<input name="listing_mileage" type="number" min="0" max="10000000" step="1" defaultValue={mileage ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Verkaufspreis netto (€)<input name="listing_salePriceNet" type="number" min="0" max="100000000" step="0.01" defaultValue={salePriceNet ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /><span className="block font-medium text-slate-500">Netto-Betrag; die zutreffende Steuerbehandlung wird beim Verkauf festgelegt.</span></label>
+                    </div>
+                    <VehicleListingDetailsFields namePrefix="listing_" vehicleType={vehicleType} value={listingDetails} title="Fahrzeug, Zustand, Ausstattung und Aufbau" />
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Button type="submit" variant="outline" disabled={isStarting} className="rounded-xl font-bold"><Save className="mr-2 size-4" />{isStarting ? "Speichert …" : "Angaben speichern"}</Button>
+                    </div>
+                </form>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex min-w-0 items-start gap-3">
                         <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-100 bg-cyan-50 text-cyan-700"><Sparkles className="size-5" /></div>
                         <div>
-                            <h2 className="font-extrabold text-slate-950">Inserat</h2>
+                            <h2 className="font-extrabold text-slate-950">Inserat vorbereiten</h2>
                             <p className="mt-1 text-sm text-slate-600">Entwurf aus bestätigten Fahrzeugdaten, Fahrzeugschein und OneDrive-Fahrzeugfotos vorbereiten.</p>
                             <p className="mt-1 text-xs font-semibold text-slate-400">{purchaseLabel} · Vorbereitung erstellt keine Veröffentlichung bei mobile.de.</p>
                         </div>
@@ -148,7 +187,7 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
 }) {
     const [title, setTitle] = useState(job.title ?? "");
     const [description, setDescription] = useState(job.description ?? "");
-    const suggestionFields = job.contract_version === 2 ? technicalSuggestionFields : legacySuggestionFields;
+    const suggestionFields = job.contract_version >= 2 ? technicalSuggestionFields : legacySuggestionFields;
     const [suggestions, setSuggestions] = useState<Record<string, string>>(() => normalizeSuggestions(job.extracted_suggestions, suggestionFields));
     const [imageIds, setImageIds] = useState<string[]>(job.selected_image_ids ?? []);
     const [approvedFields, setApprovedFields] = useState<string[]>([]);
@@ -213,11 +252,11 @@ function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {
                         return <label key={key} className="text-xs font-bold text-slate-600">{label}{conflict ? <span className="ml-1 text-amber-700">· Abweichung</span> : null}{accepted !== undefined ? <span className="ml-1 text-emerald-700">· bestätigt</span> : null}
                             <span className="mt-1 block truncate rounded-lg bg-white px-2 py-1 font-medium text-slate-500">Bestätigt: {confirmedValue === null || confirmedValue === undefined || confirmedValue === "" ? "—" : String(confirmedValue)}</span>
                             <input value={suggestions[key] ?? ""} onChange={(event) => setSuggestions((current) => ({ ...current, [key]: event.target.value }))} placeholder="Kein Vorschlag" className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium text-slate-900" />
-                            {job.contract_version === 2 && suggestions[key] ? <span className="mt-1 flex items-center gap-2 font-medium"><input type="checkbox" checked={approvedFields.includes(key)} onChange={(event) => setApprovedFields((current) => event.target.checked ? [...current, key] : current.filter((field) => field !== key))} />Diesen Wert ausdrücklich übernehmen</span> : null}
+                            {job.contract_version >= 2 && suggestions[key] ? <span className="mt-1 flex items-center gap-2 font-medium"><input type="checkbox" checked={approvedFields.includes(key)} onChange={(event) => setApprovedFields((current) => event.target.checked ? [...current, key] : current.filter((field) => field !== key))} />Diesen Wert ausdrücklich übernehmen</span> : null}
                         </label>;
                     })}
                 </div>
-                {job.contract_version === 2 && Object.keys(suggestions).some((field) => suggestions[field]) ? <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center">
+                {job.contract_version >= 2 && Object.keys(suggestions).some((field) => suggestions[field]) ? <div className="mt-4 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:items-center">
                     <Button type="button" variant="outline" disabled={!approvedFields.length || isConfirming || isDraftDirty} onClick={confirmSuggestions} className="font-bold">
                         {isConfirming ? "Werte werden übernommen …" : "Ausgewählte Vorschläge in Fahrzeugakte übernehmen"}
                     </Button>

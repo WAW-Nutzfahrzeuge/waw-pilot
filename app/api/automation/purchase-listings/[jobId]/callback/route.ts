@@ -31,7 +31,7 @@ export async function POST(request: Request, context: Context) {
 
     let currentSource;
     try {
-        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id, job.contract_version === 2 ? 2 : 1);
+        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id, job.contract_version === 3 ? 3 : job.contract_version === 2 ? 2 : 1);
     } catch {
         return automationError(409, "source_no_longer_available", "Die Quelldaten sind inzwischen nicht mehr vollständig verfügbar.");
     }

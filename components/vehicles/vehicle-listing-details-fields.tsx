@@ -9,9 +9,10 @@ type Props = {
     namePrefix: string;
     vehicleType: string;
     value?: unknown;
+    title?: string;
 };
 
-export function VehicleListingDetailsFields({ namePrefix, vehicleType, value }: Props) {
+export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, title = "Inseratsdaten (optional)" }: Props) {
     const details = normalizeVehicleListingDetails(value);
     const type = vehicleType.toLocaleLowerCase("de-DE");
     const isMixer = type.includes("mischer") || type.includes("betonmixer") || type.includes("betonmischer");
@@ -20,21 +21,29 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value }: 
     return (
         <section className="space-y-5 rounded-3xl border border-cyan-100 bg-cyan-50/40 p-4 md:p-5">
             <div>
-                <h3 className="text-lg font-extrabold text-slate-900">Inseratsdaten (optional)</h3>
+                <h3 className="text-lg font-extrabold text-slate-900">{title}</h3>
                 <p className="mt-1 text-sm leading-6 text-slate-600">Nur bestätigte Angaben eintragen. Einheiten sind ausdrücklich angegeben; es erfolgt keine automatische Umrechnung. Diese Felder sind keine Voraussetzung, um den Ankauf zu speichern.</p>
             </div>
 
             <FieldGroup title="Fahrzeugtechnik">
                 <NumberField namePrefix={namePrefix} name="enginePowerKw" label={vehicleListingDetailLabels.enginePowerKw} value={details.enginePowerKw} step="1" />
+                <TextField namePrefix={namePrefix} name="fuelType" label="Kraftstoff" value={details.fuelType} />
+                <NumberField namePrefix={namePrefix} name="engineDisplacementCc" label="Hubraum (cm³)" value={details.engineDisplacementCc} step="1" />
                 <TextField namePrefix={namePrefix} name="transmission" label={vehicleListingDetailLabels.transmission} value={details.transmission} />
                 <TextField namePrefix={namePrefix} name="emissionClass" label={vehicleListingDetailLabels.emissionClass} value={details.emissionClass} />
                 <TextField namePrefix={namePrefix} name="axleFormula" label={vehicleListingDetailLabels.axleFormula} value={details.axleFormula} />
+                <NumberField namePrefix={namePrefix} name="axleCount" label="Anzahl Achsen" value={details.axleCount} step="1" />
+                <NumberField namePrefix={namePrefix} name="drivenAxleCount" label="Anzahl angetriebener Achsen" value={details.drivenAxleCount} step="1" />
                 <TextField namePrefix={namePrefix} name="frontSuspension" label={vehicleListingDetailLabels.frontSuspension} value={details.frontSuspension} />
                 <TextField namePrefix={namePrefix} name="rearSuspension" label={vehicleListingDetailLabels.rearSuspension} value={details.rearSuspension} />
-                <NumberField namePrefix={namePrefix} name="grossVehicleWeightKg" label={vehicleListingDetailLabels.grossVehicleWeightKg} value={details.grossVehicleWeightKg} step="1" />
+                <NumberField namePrefix={namePrefix} name="permittedMassF1Kg" label="F.1 technisch zulässige Gesamtmasse (kg)" value={details.permittedMassF1Kg} step="1" />
+                <NumberField namePrefix={namePrefix} name="permittedMassF2Kg" label="F.2 zulässige Gesamtmasse im Zulassungsstaat (kg)" value={details.permittedMassF2Kg} step="1" />
                 <NumberField namePrefix={namePrefix} name="curbWeightKg" label={vehicleListingDetailLabels.curbWeightKg} value={details.curbWeightKg} step="1" />
                 <NumberField namePrefix={namePrefix} name="payloadKg" label={vehicleListingDetailLabels.payloadKg} value={details.payloadKg} step="1" />
                 <NumberField namePrefix={namePrefix} name="wheelbaseMm" label={vehicleListingDetailLabels.wheelbaseMm} value={details.wheelbaseMm} step="1" />
+                <NumberField namePrefix={namePrefix} name="lengthMm" label="Länge (mm)" value={details.lengthMm} step="1" />
+                <NumberField namePrefix={namePrefix} name="widthMm" label="Breite (mm)" value={details.widthMm} step="1" />
+                <NumberField namePrefix={namePrefix} name="heightMm" label="Höhe (mm)" value={details.heightMm} step="1" />
                 <TextField namePrefix={namePrefix} name="huUntil" label={vehicleListingDetailLabels.huUntil} value={details.huUntil} placeholder="2027-05" />
                 <TextField namePrefix={namePrefix} name="spUntil" label={vehicleListingDetailLabels.spUntil} value={details.spUntil} placeholder="2027-05" />
                 {isTractor ? <>
@@ -53,8 +62,15 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value }: 
                     <TextField namePrefix={namePrefix} name="mixerDrive" label={vehicleListingDetailLabels.mixerDrive} value={details.mixerDrive} />
                     <NumberField namePrefix={namePrefix} name="waterTankLiters" label={vehicleListingDetailLabels.waterTankLiters} value={details.waterTankLiters} step="1" />
                     <TextField namePrefix={namePrefix} name="bodyControls" label={vehicleListingDetailLabels.bodyControls} value={details.bodyControls} />
+                    <TextAreaField namePrefix={namePrefix} name="mixerDrumCondition" label="Trommelzustand / Verschleiß / Betonanhaftungen" value={details.mixerDrumCondition} />
+                    <TextAreaField namePrefix={namePrefix} name="waterSystemFunction" label="Wasseranlage und Funktion" value={details.waterSystemFunction} />
+                    <TextAreaField namePrefix={namePrefix} name="mixerRemoteControl" label="Bedienung / Fernbedienung" value={details.mixerRemoteControl} />
+                    <TextAreaField namePrefix={namePrefix} name="chuteExtensions" label="Rutschen und Verlängerungen" value={details.chuteExtensions} />
                 </> : null}
                 <TextAreaField namePrefix={namePrefix} name="includedAccessories" label={vehicleListingDetailLabels.includedAccessories} value={details.includedAccessories} />
+                <ChoiceField namePrefix={namePrefix} name="bodyFunctionStatus" label="Funktionsstatus Aufbau" value={details.bodyFunctionStatus} choices={[["unknown", "Unbekannt / nicht geprüft"], ["functional", "Funktionsfähig"], ["limited", "Eingeschränkt"], ["nonfunctional", "Ohne Funktion"]]} />
+                <TextAreaField namePrefix={namePrefix} name="bodyKnownIssues" label="Aufbauzustand und bekannte Mängel" value={details.bodyKnownIssues} />
+                <TextAreaField namePrefix={namePrefix} name="excludedItems" label="Ausdrücklich nicht enthalten" value={details.excludedItems} />
             </FieldGroup>
 
             <FieldGroup title="Ausstattung, Zustand und Historie">
@@ -62,15 +78,28 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value }: 
                 <TextAreaField namePrefix={namePrefix} name="vehicleCondition" label={vehicleListingDetailLabels.vehicleCondition} value={details.vehicleCondition} />
                 <TextAreaField namePrefix={namePrefix} name="bodyCondition" label={vehicleListingDetailLabels.bodyCondition} value={details.bodyCondition} />
                 <TextAreaField namePrefix={namePrefix} name="knownDamages" label={vehicleListingDetailLabels.knownDamages} value={details.knownDamages} />
+                <ChoiceField namePrefix={namePrefix} name="vehicleReadiness" label="Fahrbereitschaft" value={details.vehicleReadiness} choices={[["unknown", "Unbekannt / nicht geprüft"], ["ready", "Fahrbereit"], ["limited", "Eingeschränkt fahrbereit"], ["not_ready", "Nicht fahrbereit"]]} />
+                <TextAreaField namePrefix={namePrefix} name="engineFunction" label="Motorfunktion" value={details.engineFunction} />
+                <TextAreaField namePrefix={namePrefix} name="transmissionFunction" label="Getriebefunktion" value={details.transmissionFunction} />
+                <TextAreaField namePrefix={namePrefix} name="otherFunction" label="Sonstige Funktion" value={details.otherFunction} />
+                <TextAreaField namePrefix={namePrefix} name="cabinCondition" label="Fahrerhaus / Innenraum" value={details.cabinCondition} />
+                <TextAreaField namePrefix={namePrefix} name="tireCondition" label="Bereifung und Auffälligkeiten" value={details.tireCondition} />
+                <ChoiceField namePrefix={namePrefix} name="currentDamageStatus" label="Aktuelle Schäden / Mängel" value={details.currentDamageStatus} choices={damageChoices} />
+                <ChoiceField namePrefix={namePrefix} name="repairedDamageStatus" label="Reparierte Vorschäden" value={details.repairedDamageStatus} choices={damageChoices} />
+                <TextAreaField namePrefix={namePrefix} name="repairedDamageDescription" label="Reparierte Vorschäden – Beschreibung" value={details.repairedDamageDescription} />
+                <ChoiceField namePrefix={namePrefix} name="maintenanceProofStatus" label="Wartungsnachweise vorhanden" value={details.maintenanceProofStatus} choices={yesNoChoices} />
+                <TextAreaField namePrefix={namePrefix} name="publicHighlights" label="Besonderheiten / Highlights" value={details.publicHighlights} />
+                <ChoiceField namePrefix={namePrefix} name="featureAirConditioning" label="Klimaanlage" value={details.featureAirConditioning} choices={yesNoChoices} />
+                <ChoiceField namePrefix={namePrefix} name="featureCruiseControl" label="Tempomat" value={details.featureCruiseControl} choices={yesNoChoices} />
+                <ChoiceField namePrefix={namePrefix} name="featureCamera" label="Kamera" value={details.featureCamera} choices={yesNoChoices} />
+                <ChoiceField namePrefix={namePrefix} name="featurePto" label="Nebenantrieb" value={details.featurePto} choices={yesNoChoices} />
                 <TextAreaField namePrefix={namePrefix} name="maintenanceHistory" label={vehicleListingDetailLabels.maintenanceHistory} value={details.maintenanceHistory} />
                 <TextAreaField namePrefix={namePrefix} name="repairHistory" label={vehicleListingDetailLabels.repairHistory} value={details.repairHistory} />
             </FieldGroup>
 
             <FieldGroup title="Besichtigung und Verfügbarkeit">
-                <label className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-slate-700 md:col-span-2">
-                    <input type="checkbox" name={`${namePrefix}availabilityConfirmed`} defaultChecked={details.availabilityConfirmed} className="mt-1 size-4 accent-cyan-700" />
-                    Verfügbarkeit für Besichtigungen ist bestätigt
-                </label>
+                <ChoiceField namePrefix={namePrefix} name="availabilityStatus" label="Verfügbarkeit" value={details.availabilityStatus} choices={[["unknown", "Unbekannt"], ["immediate", "Sofort"], ["from_date", "Ab Datum"]]} />
+                <TextField namePrefix={namePrefix} name="availableFrom" label="Verfügbar ab (JJJJ-MM-TT)" value={details.availableFrom} placeholder="2026-12-01" />
                 <TextField namePrefix={namePrefix} name="vehicleLocation" label={vehicleListingDetailLabels.vehicleLocation} value={details.vehicleLocation} />
             </FieldGroup>
         </section>
@@ -91,6 +120,12 @@ function NumberField({ namePrefix, name, label, value, step, min = "0", max }: {
 
 function TextAreaField({ namePrefix, name, label, value }: { namePrefix: string; name: string; label: string; value: string | null }) {
     return <div className="space-y-1.5 sm:col-span-2"><Label htmlFor={`${namePrefix}${name}`} className="text-xs font-bold text-slate-700">{label}</Label><Textarea id={`${namePrefix}${name}`} name={`${namePrefix}${name}`} defaultValue={value ?? ""} maxLength={name === "equipment" || name === "knownDamages" || name === "maintenanceHistory" || name === "repairHistory" ? 2000 : 1200} rows={3} className="min-h-20 rounded-xl border-slate-200 bg-white" /></div>;
+}
+
+const yesNoChoices = [["unknown", "Unbekannt"], ["yes", "Ja"], ["no", "Nein"]] as const;
+const damageChoices = [["unknown", "Unbekannt / nicht geprüft"], ["none", "Keine bekannt"], ["known", "Bekannt / vorhanden"]] as const;
+function ChoiceField({ namePrefix, name, label, value, choices }: { namePrefix: string; name: string; label: string; value: string; choices: readonly (readonly [string, string])[] }) {
+    return <div className="space-y-1.5"><Label htmlFor={`${namePrefix}${name}`} className="text-xs font-bold text-slate-700">{label}</Label><select id={`${namePrefix}${name}`} name={`${namePrefix}${name}`} defaultValue={value} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm">{choices.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></div>;
 }
 
 export function isVehicleListingDetails(value: unknown): value is VehicleListingDetails {

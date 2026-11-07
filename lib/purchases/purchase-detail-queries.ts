@@ -90,6 +90,8 @@ type PurchaseCaseDetailQueryRow = {
         construction_year: number | null;
         first_registration: string | null;
         mileage: number | string | null;
+        sale_price_net: number | string | null;
+        listing_details: unknown;
         color: string | null;
         vehicle_category: string | null;
         purchase_price_net: number | string;
@@ -178,6 +180,8 @@ export type PurchaseCaseDetail = {
         construction_year: number | null;
         first_registration: string | null;
         mileage: number | null;
+        sale_price_net: number | null;
+        listing_details: unknown;
         color: string | null;
         vehicle_category: string | null;
         purchase_price_net: number;
@@ -286,6 +290,8 @@ export async function getPurchaseCaseDetail(
         construction_year,
         first_registration,
         mileage,
+        sale_price_net,
+        listing_details,
         color,
         vehicle_category,
         purchase_price_net,
@@ -479,6 +485,8 @@ export async function getPurchaseCaseDetail(
                 construction_year: vehicle.construction_year,
                 first_registration: vehicle.first_registration,
                 mileage: vehicle.mileage === null ? null : Number(vehicle.mileage),
+                sale_price_net: vehicle.sale_price_net === null ? null : Number(vehicle.sale_price_net),
+                listing_details: vehicle.listing_details,
                 color: vehicle.color,
                 vehicle_category: vehicle.vehicle_category,
                 purchase_price_net: Number(vehicle.purchase_price_net ?? 0),

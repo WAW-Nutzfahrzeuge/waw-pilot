@@ -4,9 +4,15 @@ import { timingSafeEqual } from "node:crypto";
 
 export const legacyListingTemplateVersion = "waw-mobile-listing-v1";
 export const listingTemplateVersion = "waw-mobile-listing-v2";
+export const listingTemplateVersionV3 = "waw-mobile-listing-v3";
 export const listingContractVersion = 2 as const;
+export const listingContractVersionV3 = 3 as const;
 export const listingJobStatuses = ["queued", "processing", "needs_input", "draft_ready", "failed"] as const;
 export type ListingJobStatus = (typeof listingJobStatuses)[number];
+
+export function isListingV3RolloutEnabled(value: unknown): boolean {
+    return typeof value === "string" && value.trim() === "3";
+}
 
 export type ListingConfirmedVehicleData = {
     manufacturer: string;
@@ -26,7 +32,31 @@ export type ListingConfirmedVehicleDataV2 = Omit<ListingConfirmedVehicleData, "p
     listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails;
 };
 
-export function toPublicListingVehicleData(vehicle: ListingConfirmedVehicleData & { id?: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails }) {
+const v2ListingDetailKeys = ["enginePowerKw", "transmission", "emissionClass", "cab", "retarder", "hydraulics", "axleFormula", "frontSuspension", "rearSuspension", "grossVehicleWeightKg", "curbWeightKg", "payloadKg", "wheelbaseMm", "huUntil", "spUntil", "bodyManufacturer", "bodyType", "bodyYear", "mixerNominalVolumeM3", "mixerDrive", "waterTankLiters", "bodyControls", "includedAccessories", "equipment", "vehicleCondition", "bodyCondition", "knownDamages", "maintenanceHistory", "repairHistory", "vehicleLocation", "availabilityConfirmed"] as const;
+
+export function listingDetailsForContract(details: import("@/lib/vehicles/listing-details").VehicleListingDetails, version: 2 | 3, vehicleType?: string) {
+    if (version === 3) {
+        const output = {
+            ...details,
+            grossVehicleWeightKg: null,
+            // The legacy flag described viewing availability, not sale availability.
+            availabilityConfirmed: details.availabilityStatus !== "unknown",
+        };
+        if (!/mischer|betonmischer/i.test(vehicleType ?? "")) {
+            output.mixerNominalVolumeM3 = null;
+            output.mixerDrive = null;
+            output.waterTankLiters = null;
+            output.mixerDrumCondition = null;
+            output.waterSystemFunction = null;
+            output.mixerRemoteControl = null;
+            output.chuteExtensions = null;
+        }
+        return output;
+    }
+    return Object.fromEntries(v2ListingDetailKeys.map((key) => [key, details[key]]));
+}
+
+export function toPublicListingVehicleData(vehicle: ListingConfirmedVehicleData & { id?: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails }, version: 2 | 3 = 2) {
     return {
         ...(vehicle.id ? { id: vehicle.id } : {}),
         manufacturer: vehicle.manufacturer,
@@ -38,7 +68,7 @@ export function toPublicListingVehicleData(vehicle: ListingConfirmedVehicleData 
         constructionYear: vehicle.constructionYear,
         mileage: vehicle.mileage,
         color: vehicle.color,
-        listingDetails: vehicle.listingDetails,
+        listingDetails: listingDetailsForContract(vehicle.listingDetails, version, vehicle.vehicleType),
     };
 }
 
@@ -47,10 +77,11 @@ export function stableListingRevision(value: unknown): string {
 }
 
 export function buildPurchaseListingSourceRevision(input: {
-    contractVersion: 1 | 2;
+    contractVersion: 1 | 2 | 3;
     purchase: { id: string; purchaseNumber: string | null; purchaseDate: string };
     vehicle: ListingConfirmedVehicleData & { id: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails };
     databaseListingDetails: unknown;
+    sellingPriceNet?: number | null;
     registration: { id: string; filePath: string; createdAt: string; fileSize: number | null };
     oneDrive: { driveId: string; folderId: string; imagesFolderId: string };
 }): string {
@@ -74,14 +105,23 @@ export function buildPurchaseListingSourceRevision(input: {
         oneDrive: input.oneDrive,
         templateVersion: legacyListingTemplateVersion,
     });
-    return stableListingRevision({
+    if (input.contractVersion === 2) return stableListingRevision({
         contractVersion: 2,
         purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
-        vehicle: toPublicListingVehicleData(input.vehicle),
+        vehicle: toPublicListingVehicleData(input.vehicle, 2),
         databaseListingDetails: input.databaseListingDetails,
         registration: input.registration,
         oneDrive: input.oneDrive,
         templateVersion: listingTemplateVersion,
+    });
+    return stableListingRevision({
+        contractVersion: 3,
+        purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
+        vehicle: toPublicListingVehicleData(input.vehicle, 3),
+        listingInformation: { sellingPriceNet: input.sellingPriceNet ?? null, details: listingDetailsForContract(input.vehicle.listingDetails, 3, input.vehicle.vehicleType) },
+        registration: input.registration,
+        oneDrive: input.oneDrive,
+        templateVersion: listingTemplateVersionV3,
     });
 }
 
@@ -168,8 +208,8 @@ export function validateWawPublicListingText(title: string, description: string,
     return true;
 }
 
-/** Version 2 is the central public-facing WAW listing style. */
-export function getWawListingTemplateV2(vehicle: ListingConfirmedVehicleDataV2): { title: string; description: string; openPoints: string[] } {
+/** Version 2 is retained as the central template builder for V2 and additive V3. */
+export function getWawListingTemplateV2(vehicle: ListingConfirmedVehicleDataV2, contractVersion: 2 | 3 = 2): { title: string; description: string; openPoints: string[] } {
     const details = vehicle.listingDetails;
     const isMixer = /beton.?mischer|mischer/i.test(vehicle.vehicleType);
     const isTractor = /sattelzugmaschine/i.test(vehicle.vehicleType);
@@ -198,33 +238,60 @@ export function getWawListingTemplateV2(vehicle: ListingConfirmedVehicleDataV2):
         bullet("Baujahr", vehicle.constructionYear == null ? null : String(vehicle.constructionYear)),
         bullet("Kilometerstand", vehicle.mileage == null ? null : `${vehicle.mileage} km`),
         bullet("Motorleistung", details.enginePowerKw == null ? null : `${details.enginePowerKw} kW`),
+        bullet("Kraftstoff", details.fuelType),
+        bullet("Hubraum", details.engineDisplacementCc == null ? null : `${details.engineDisplacementCc} cm³`),
         bullet("Getriebe", details.transmission), bullet("Schadstoffklasse", details.emissionClass),
-        bullet("Achsformel", details.axleFormula), bullet("Federung vorne", details.frontSuspension),
+        bullet("Achsformel", details.axleFormula), bullet("Anzahl Achsen", details.axleCount == null ? null : String(details.axleCount)),
+        bullet("Angetriebene Achsen", details.drivenAxleCount == null ? null : String(details.drivenAxleCount)), bullet("Federung vorne", details.frontSuspension),
         bullet("Federung hinten", details.rearSuspension),
-        bullet("Zulässiges Gesamtgewicht", details.grossVehicleWeightKg == null ? null : `${details.grossVehicleWeightKg} kg`),
+        contractVersion === 2 ? bullet("Zulässiges Gesamtgewicht", details.grossVehicleWeightKg == null ? null : `${details.grossVehicleWeightKg} kg`) : null,
+        bullet("F.1 technisch zulässige Gesamtmasse", details.permittedMassF1Kg == null ? null : `${details.permittedMassF1Kg} kg`),
+        bullet("F.2 zulässige Gesamtmasse im Zulassungsstaat", details.permittedMassF2Kg == null ? null : `${details.permittedMassF2Kg} kg`),
         bullet("Leergewicht", details.curbWeightKg == null ? null : `${details.curbWeightKg} kg`),
         bullet("Nutzlast", details.payloadKg == null ? null : `${details.payloadKg} kg`),
         bullet("Radstand", details.wheelbaseMm == null ? null : `${details.wheelbaseMm} mm`),
+        bullet("Länge", details.lengthMm == null ? null : `${details.lengthMm} mm`),
+        bullet("Breite", details.widthMm == null ? null : `${details.widthMm} mm`),
+        bullet("Höhe", details.heightMm == null ? null : `${details.heightMm} mm`),
         bullet("HU", details.huUntil), bullet("SP", details.spUntil), bullet("Farbe", vehicle.color),
     ].filter((x): x is string => Boolean(x));
     const bodyData = [
         bullet("Aufbauhersteller", details.bodyManufacturer), bullet("Aufbautyp", details.bodyType),
         bullet("Aufbaujahr", details.bodyYear == null ? null : String(details.bodyYear)),
-        bullet("Nennvolumen", details.mixerNominalVolumeM3 == null ? null : `${details.mixerNominalVolumeM3} m³`),
-        bullet("Mischerantrieb", details.mixerDrive), bullet("Wassertank", details.waterTankLiters == null ? null : `${details.waterTankLiters} Liter`),
-        bullet("Bedienung", details.bodyControls), bullet("Zubehör", details.includedAccessories),
+        bullet("Zubehör", details.includedAccessories),
+        bullet("Nicht enthalten", details.excludedItems),
+        bullet("Funktionsstatus Aufbau", details.bodyFunctionStatus === "functional" ? "funktionsfähig" : details.bodyFunctionStatus === "limited" ? "eingeschränkt" : details.bodyFunctionStatus === "nonfunctional" ? "ohne Funktion" : null),
+        bullet("Aufbauzustand und bekannte Mängel", details.bodyKnownIssues),
+        ...(isMixer ? [
+            bullet("Nennvolumen", details.mixerNominalVolumeM3 == null ? null : `${details.mixerNominalVolumeM3} m³`),
+            bullet("Mischerantrieb", details.mixerDrive), bullet("Wassertank", details.waterTankLiters == null ? null : `${details.waterTankLiters} Liter`),
+            bullet("Bedienung", details.bodyControls), bullet("Trommelzustand", details.mixerDrumCondition),
+            bullet("Wasseranlage", details.waterSystemFunction), bullet("Bedienung / Fernbedienung", details.mixerRemoteControl),
+            bullet("Rutschen und Verlängerungen", details.chuteExtensions),
+        ] : []),
     ].filter((x): x is string => Boolean(x));
     const equipment = typeof details.equipment === "string"
         ? details.equipment.split(/\r?\n+/).map((line) => clean(line)).filter((line): line is string => Boolean(line)).map((line) => `• ${line}`)
         : [];
+    for (const [label, state] of [["Klimaanlage", details.featureAirConditioning], ["Tempomat", details.featureCruiseControl], ["Kamera", details.featureCamera], ["Nebenantrieb", details.featurePto]] as const) {
+        if (state === "yes") equipment.push(`• ${label}`);
+    }
     const condition = [
         bullet("Fahrzeugzustand", details.vehicleCondition), bullet("Aufbauzustand", details.bodyCondition),
         bullet("Bekannte Schäden und Einschränkungen", details.knownDamages),
+        bullet("Reparierte Vorschäden", details.repairedDamageStatus === "none" ? "Keine bekannt" : details.repairedDamageStatus === "known" ? details.repairedDamageDescription : null),
+        bullet("Fahrbereitschaft", details.vehicleReadiness === "ready" ? "fahrbereit" : details.vehicleReadiness === "limited" ? "eingeschränkt fahrbereit" : details.vehicleReadiness === "not_ready" ? "nicht fahrbereit" : null),
+        bullet("Motorfunktion", details.engineFunction), bullet("Getriebefunktion", details.transmissionFunction),
+        bullet("Sonstige Funktion", details.otherFunction), bullet("Fahrerhaus / Innenraum", details.cabinCondition),
+        bullet("Bereifung und Auffälligkeiten", details.tireCondition),
         bullet("Wartungen", details.maintenanceHistory), bullet("Reparaturen", details.repairHistory),
     ].filter((x): x is string => Boolean(x));
     const contact = [
-        details.availabilityConfirmed ? bullet("Besichtigung", "Verfügbarkeit bestätigt") : null,
-        details.availabilityConfirmed ? bullet("Standort", details.vehicleLocation) : null,
+        details.availabilityStatus === "immediate" ? bullet("Verfügbarkeit", "sofort") : null,
+        details.availabilityStatus === "from_date" ? bullet("Verfügbarkeit ab", details.availableFrom) : null,
+        contractVersion === 2 && details.availabilityConfirmed && details.availabilityStatus === "unknown" ? bullet("Besichtigung", "Verfügbarkeit für Besichtigungen bestätigt") : null,
+        (contractVersion === 2 ? details.availabilityConfirmed : details.availabilityStatus !== "unknown") ? bullet("Standort", details.vehicleLocation) : null,
+        bullet("Besonderheiten", details.publicHighlights),
     ].filter((x): x is string => Boolean(x));
     const sections: string[] = [];
     const intro = baseTitle ? `${baseTitle}${vehicle.vehicleType ? ` als ${vehicle.vehicleType}` : ""}.` : "";
@@ -240,6 +307,10 @@ export function getWawListingTemplateV2(vehicle: ListingConfirmedVehicleDataV2):
         !details.equipment ? "equipment" : null,
         !details.huUntil && !details.spUntil ? "inspection" : null,
         !details.availabilityConfirmed ? "location" : null,
+        details.vehicleReadiness === "unknown" ? "vehicleReadiness" : null,
+        details.currentDamageStatus === "unknown" ? "currentDamageStatus" : null,
+        details.repairedDamageStatus === "unknown" ? "repairedDamageStatus" : null,
+        details.bodyFunctionStatus === "unknown" ? "bodyFunction" : null,
         ...(!vehicle.manufacturer || !vehicle.model ? ["vehicleIdentity"] : []),
     ].filter((x): x is string => Boolean(x));
     return { title, description: sections.join("\n\n").slice(0, 12000), openPoints };
@@ -384,7 +455,7 @@ export function validateListingCallback(body: unknown, expected: {
     }
     const contractVersion = expected.job.contract_version ?? 1;
     if ((contractVersion === 1 && value.contractVersion !== undefined && value.contractVersion !== 1) ||
-        (contractVersion === 2 && value.contractVersion !== 2)) return { ok: false as const, code: "contract_version_conflict" };
+        (contractVersion >= 2 && value.contractVersion !== contractVersion)) return { ok: false as const, code: "contract_version_conflict" };
     if (!["needs_input", "draft_ready", "failed"].includes(String(value.status))) return { ok: false as const, code: "invalid_status" };
     if (value.status === "failed") {
         const allowedErrorCodes = new Set(["ONEDRIVE_ACCESS_DENIED", "ONEDRIVE_TIMEOUT", "ONEDRIVE_FOLDER_MISSING", "REGISTRATION_UNREADABLE", "OCR_FAILED", "PROCESSING_TIMEOUT"]);
@@ -396,11 +467,13 @@ export function validateListingCallback(body: unknown, expected: {
     const conflicts = compareVehicleSuggestions(expected.job.confirmed_vehicle_data, suggestions);
     const allowedMissing = new Set(contractVersion === 1
         ? ["mileage", "condition", "equipment", "inspection", "photos"]
-        : ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory"]);
+        : contractVersion === 2
+            ? ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory"]
+            : ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory", "salePrice", "availability", "vehicleReadiness", "currentDamageStatus", "repairedDamageStatus", "maintenanceProof", "bodyFunction", "waterSystem"]);
     const missingFields = Array.isArray(value.missingFields) ? [...new Set(value.missingFields.filter((item): item is string => typeof item === "string" && allowedMissing.has(item)))] : [];
     const title = typeof value.title === "string" ? value.title.trim().slice(0, 180) : "";
     const description = typeof value.description === "string" ? value.description.slice(0, 12000) : "";
-    if (contractVersion === 2 && !validateWawPublicListingText(title, description, expected.job.confirmed_vehicle_data as unknown as Record<string, unknown>)) {
+    if (contractVersion >= 2 && !validateWawPublicListingText(title, description, expected.job.confirmed_vehicle_data as unknown as Record<string, unknown>)) {
         return { ok: false as const, code: "invalid_public_text" };
     }
     const imageIds = Array.isArray(value.selectedImageIds) ? value.selectedImageIds.filter((id): id is string => typeof id === "string") : [];
@@ -429,7 +502,7 @@ export function sanitizeListingSuggestions(value: unknown, contractVersion: numb
     const output: Record<string, string | number> = {};
     for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
         if (!allowed.has(key)) continue;
-        if (contractVersion === 2) {
+        if (contractVersion >= 2) {
             const numericLimits: Record<string, number> = {
                 constructionYear: 2100, enginePowerKw: 3000, grossVehicleWeightKg: 100000,
                 curbWeightKg: 100000, payloadKg: 100000, wheelbaseMm: 30000,

@@ -76,7 +76,6 @@ export async function updateVehicleAction(
     const mileage = getDecimalFormValue(formData, "mileage");
     const color = getStringFormValue(formData, "color");
     const vehicleCategory = getStringFormValue(formData, "vehicle_category");
-    const listingDetails = parseVehicleListingDetailsForm(formData, "listing_");
     const redirectTo = getSafeDashboardRedirectPath(
         getStringFormValue(formData, "redirect_to"),
         `/dashboard/vehicles/${vehicleId}?vehicleSaved=1`,
@@ -131,14 +130,13 @@ export async function updateVehicleAction(
         };
     }
 
-    if (!listingDetails.ok) return { success: false, message: listingDetails.message };
     if (firstRegistration && !/^\d{4}-\d{2}-\d{2}$/.test(firstRegistration)) {
         return { success: false, message: "Bitte die Erstzulassung als gültiges Datum eingeben." };
     }
 
     const { data: existingVehicle, error: loadError } = await supabase
         .from("vehicles")
-        .select("id, internal_number, manufacturer, model, show_damage_on_invoice")
+        .select("id, internal_number, manufacturer, model, show_damage_on_invoice, listing_details")
         .eq("id", vehicleId)
         .eq("company_id", companyId)
         .single();
@@ -151,6 +149,9 @@ export async function updateVehicleAction(
             }`,
         };
     }
+
+    const listingDetails = parseVehicleListingDetailsForm(formData, "listing_", existingVehicle.listing_details);
+    if (!listingDetails.ok) return { success: false, message: listingDetails.message };
 
     const { data: duplicateVinVehicle, error: duplicateVinError } = await supabase
         .from("vehicles")
