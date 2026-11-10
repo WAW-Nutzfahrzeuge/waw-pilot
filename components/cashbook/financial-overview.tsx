@@ -258,15 +258,29 @@ export function FinancialOverview({
                             : "Buchhaltungsvorbereitung und strukturierter CSV-Export. Keine automatische DATEV-Übertragung."
                     }
                     action={
-                        <Button
-                            asChild
-                            className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                        >
-                            <Link href="/dashboard/cashbook/new">
-                                <Plus className="mr-2 size-4" />
-                                Finanzvorgang erfassen
-                            </Link>
-                        </Button>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            {activeTab === "cash" ? (
+                                <Button
+                                    asChild
+                                    variant="outline"
+                                    className="rounded-2xl border-cyan-200 bg-white font-bold text-cyan-800 hover:bg-cyan-50"
+                                >
+                                    <Link href="/dashboard/cashbook/new?category=cash_bank_deposit">
+                                        <Banknote className="mr-2 size-4" />
+                                        Auf Bank einzahlen
+                                    </Link>
+                                </Button>
+                            ) : null}
+                            <Button
+                                asChild
+                                className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+                            >
+                                <Link href="/dashboard/cashbook/new">
+                                    <Plus className="mr-2 size-4" />
+                                    Finanzvorgang erfassen
+                                </Link>
+                            </Button>
+                        </div>
                     }
                 />
             </div>
@@ -325,9 +339,9 @@ export function FinancialOverview({
                             tone="danger"
                         />
                         <FinancialStatCard
-                            label="Endbestand"
+                            label="Noch in der Barkasse"
                             value={formatCurrency(cashSummary.endingBalance)}
-                            description={`${cashSummary.movementCount} Bewegungen`}
+                            description="Aktueller Bestand, unabhängig vom Zeitraumfilter"
                             icon={BookOpenCheck}
                             tone={cashSummary.endingBalance >= 0 ? "success" : "danger"}
                         />

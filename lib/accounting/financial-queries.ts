@@ -1,6 +1,10 @@
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { isCashBankTransfer } from "@/lib/accounting/financial-categories";
+import {
+    calculateCashRegisterTotals,
+    type CashBalanceEntry,
+} from "@/lib/accounting/cash-register-summary";
 
 export type FinancialEntryDirection = "in" | "out";
 export type FinancialEntryStatus = "active" | "voided" | "sync_error";
@@ -236,48 +240,65 @@ export async function getFinancialEntries(
     return ((data ?? []) as unknown as FinancialEntryQueryRow[]).map(mapFinancialEntry);
 }
 
+/** Loads the full cash movement history independently from the journal date filter. */
+export async function getCashRegisterBalanceEntries(): Promise<CashBalanceEntry[]> {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+    const pageSize = 1000;
+    const entries: CashBalanceEntry[] = [];
+
+    for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+            .from("financial_entries")
+            .select("is_cash_relevant, status, category_code, direction, amount, booking_date")
+            .eq("company_id", companyId)
+            .eq("is_cash_relevant", true)
+            .order("booking_date", { ascending: true })
+            .order("created_at", { ascending: true })
+            .range(offset, offset + pageSize - 1);
+
+        if (error) {
+            throw new Error(`Kassenbestand konnte nicht geladen werden: ${error.message}`);
+        }
+
+        const page = (data ?? []) as Array<Omit<CashBalanceEntry, "amount"> & { amount: number | string }>;
+        entries.push(...page.map((entry) => ({ ...entry, amount: Number(entry.amount) })));
+        if (page.length < pageSize) break;
+    }
+
+    return entries;
+}
+
 export async function getCashRegisterSummary(
     entries: FinancialEntryRow[],
+    balanceEntries: CashBalanceEntry[] = entries,
+    balanceThroughDate?: string | null,
 ): Promise<CashRegisterSummary> {
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const { data: cashRegister } = await supabase
+    const { data: cashRegister, error: cashRegisterError } = await supabase
         .from("cash_registers")
         .select("opening_balance")
         .eq("company_id", companyId)
         .eq("active", true)
         .maybeSingle();
 
-    const openingBalance = Number(cashRegister?.opening_balance ?? 0);
-    let income = 0;
-    let expenses = 0;
-    let bankDeposits = 0;
-    let movementCount = 0;
-
-    for (const entry of entries) {
-        if (!entry.is_cash_relevant || entry.status !== "active") {
-            continue;
-        }
-
-        movementCount += 1;
-
-        if (isCashBankTransfer(entry.category_code)) {
-            bankDeposits += entry.amount;
-        } else if (entry.direction === "in") {
-            income += entry.amount;
-        } else {
-            expenses += entry.amount;
-        }
+    if (cashRegisterError) {
+        throw new Error(`Anfangsbestand der Barkasse konnte nicht geladen werden: ${cashRegisterError.message}`);
     }
+
+    const openingBalance = Number(cashRegister?.opening_balance ?? 0);
+    const totals = calculateCashRegisterTotals({
+        openingBalance,
+        periodEntries: entries,
+        balanceEntries,
+        balanceThroughDate,
+    });
 
     return {
         openingBalance,
-        income,
-        expenses,
-        bankDeposits,
-        endingBalance: openingBalance + income - expenses - bankDeposits,
-        movementCount,
+        ...totals,
     };
 }
 

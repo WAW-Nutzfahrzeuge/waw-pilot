@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { FinancialOverview } from "@/components/cashbook/financial-overview";
 import { analyzeFinancialBackfill } from "@/lib/accounting/financial-backfill";
 import {
+    getCashRegisterBalanceEntries,
     getCashRegisterSummary,
     getFinancialEntries,
 } from "@/lib/accounting/financial-queries";
@@ -48,11 +49,11 @@ export default async function CashbookPage({ searchParams }: CashbookPageProps) 
     const dateTo = normalizeDateParam(resolvedSearchParams.to);
     const activeTab =
         resolvedSearchParams.tab === "accounting" ? "accounting" : "cash";
-    const entries = await getFinancialEntries({
-        from: dateFrom,
-        to: dateTo,
-    });
-    const cashSummary = await getCashRegisterSummary(entries);
+    const [entries, balanceEntries] = await Promise.all([
+        getFinancialEntries({ from: dateFrom, to: dateTo }),
+        activeTab === "cash" ? getCashRegisterBalanceEntries() : Promise.resolve([]),
+    ]);
+    const cashSummary = await getCashRegisterSummary(entries, balanceEntries);
     const role = await getCurrentUserRole();
     const isAdmin = role === "admin";
     const showBackfillLink = await hasPendingBackfillWork(isAdmin);

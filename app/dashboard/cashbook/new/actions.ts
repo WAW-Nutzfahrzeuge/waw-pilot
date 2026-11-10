@@ -2,7 +2,14 @@
 
 import { redirect } from "next/navigation";
 
-import { getFinancialCategoryLabel } from "@/lib/accounting/financial-categories";
+import {
+    getFinancialCategoryLabel,
+} from "@/lib/accounting/financial-categories";
+import { calculateCashRegisterBalance } from "@/lib/accounting/cash-register-summary";
+import type { CashDepositAllocationInput } from "@/lib/accounting/cash-deposit-allocations";
+import { getCashRegisterBalanceEntries } from "@/lib/accounting/financial-queries";
+import { getCurrentUserContext } from "@/lib/auth/current-user";
+import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { syncCashbookEntryFinancialEntry } from "@/lib/accounting/financial-sync";
 import { getCurrentCompanyId } from "@/lib/company";
 import { logActivity } from "@/lib/activity/activity-log";
@@ -37,6 +44,44 @@ function getNumberValue(formData: FormData, key: string): number | null {
     const numberValue = Number(normalizedValue);
 
     return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function parseCashDepositAllocations(value: FormDataEntryValue | null): CashDepositAllocationInput[] | null {
+    if (typeof value !== "string") return null;
+    try {
+        const parsed: unknown = JSON.parse(value);
+        if (!Array.isArray(parsed) || parsed.length === 0) return null;
+        return parsed.map((row) => {
+            if (!row || typeof row !== "object") throw new Error("invalid");
+            const item = row as Record<string, unknown>;
+            if (
+                item.type !== "sale_payment" &&
+                item.type !== "existing_cash_balance" &&
+                item.type !== "other_cash_income"
+            ) throw new Error("invalid");
+            if (typeof item.amount !== "number" || !Number.isFinite(item.amount) || item.amount <= 0) {
+                throw new Error("invalid");
+            }
+            if (
+                (item.type === "sale_payment" || item.type === "other_cash_income") &&
+                (typeof item.sourceFinancialEntryId !== "string" || !/^[0-9a-f-]{36}$/i.test(item.sourceFinancialEntryId))
+            ) throw new Error("invalid");
+            if (item.type === "existing_cash_balance" && item.sourceFinancialEntryId !== undefined) {
+                throw new Error("invalid");
+            }
+            if (item.note !== undefined && typeof item.note !== "string") throw new Error("invalid");
+            return {
+                type: item.type,
+                amount: Math.round(item.amount * 100) / 100,
+                ...(typeof item.sourceFinancialEntryId === "string"
+                    ? { sourceFinancialEntryId: item.sourceFinancialEntryId }
+                    : {}),
+                ...(typeof item.note === "string" ? { note: item.note.trim().slice(0, 300) } : {}),
+            } as CashDepositAllocationInput;
+        });
+    } catch {
+        return null;
+    }
 }
 
 function sanitizeFileName(fileName: string): string {
@@ -78,30 +123,24 @@ function getCategoryLabel(category: string): string {
 
 async function getCurrentCashBalance(companyId: string): Promise<number> {
     const supabase = createServerSupabaseClient();
-    const { data: cashRegister } = await supabase
+    const { data: cashRegister, error: cashRegisterError } = await supabase
         .from("cash_registers")
         .select("opening_balance")
         .eq("company_id", companyId)
         .eq("active", true)
         .maybeSingle();
 
-    const { data: cashEntries, error } = await supabase
-        .from("financial_entries")
-        .select("amount, direction")
-        .eq("company_id", companyId)
-        .eq("is_cash_relevant", true)
-        .eq("status", "active");
-
-    if (error) {
-        throw new Error("Der Kassenbestand konnte nicht berechnet werden.");
+    if (cashRegisterError) {
+        throw new Error("Der Anfangsbestand der Barkasse konnte nicht geladen werden.");
     }
 
-    const openingBalance = Number(cashRegister?.opening_balance ?? 0);
-
-    return (cashEntries ?? []).reduce((balance, entry) => {
-        const amount = Number(entry.amount);
-        return entry.direction === "in" ? balance + amount : balance - amount;
-    }, openingBalance);
+    try {
+        const cashEntries = await getCashRegisterBalanceEntries();
+        const openingBalance = Number(cashRegister?.opening_balance ?? 0);
+        return calculateCashRegisterBalance(openingBalance, cashEntries);
+    } catch {
+        throw new Error("Der Kassenbestand konnte nicht berechnet werden.");
+    }
 }
 
 async function createCashbookReceiptDocument({
@@ -236,6 +275,78 @@ export async function createCashbookEntryAction(
         };
     }
 
+    if (category === "cash_bank_deposit") {
+        const allocations = parseCashDepositAllocations(formData.get("cash_allocations"));
+        if (!allocations) {
+            return {
+                success: false,
+                message: "Bitte ordne den Einzahlungsbetrag Verkäufen, Bareinnahmen oder dem vorhandenen Kassenbestand vollständig zu.",
+            };
+        }
+        const allocatedCents = allocations.reduce((sum, allocation) => sum + Math.round(allocation.amount * 100), 0);
+        if (allocatedCents !== Math.round(amount * 100)) {
+            return {
+                success: false,
+                message: "Die Zuordnungen müssen zusammen genau dem Einzahlungsbetrag entsprechen.",
+            };
+        }
+        if (fileValue instanceof File && fileValue.size > 0) {
+            return {
+                success: false,
+                message: "Für eine Bankeinzahlung kann hier kein zusätzlicher Beleg hochgeladen werden.",
+            };
+        }
+
+        const user = await getCurrentUserContext();
+        if (user.companyId !== companyId) {
+            return { success: false, message: "Die Firmenzuordnung konnte nicht bestätigt werden." };
+        }
+
+        let depositId: string | null = null;
+        try {
+            const adminSupabase = createAutomationSupabaseClient();
+            const { data, error } = await adminSupabase.rpc("create_cash_bank_deposit_with_allocations", {
+                p_company_id: companyId,
+                p_amount: amount,
+                p_booking_date: bookingDate,
+                p_allocations: allocations,
+                p_created_by: user.authUserId,
+            });
+            if (error || typeof data !== "string") {
+                const message = error?.message ?? "";
+                if (message.includes("deposit exceeds available cash balance")) {
+                    return { success: false, message: "Die Einzahlung ist höher als der aktuell verfügbare Kassenbestand." };
+                }
+                if (message.includes("allocations must equal deposit amount")) {
+                    return { success: false, message: "Die Zuordnungen müssen zusammen genau dem Einzahlungsbetrag entsprechen." };
+                }
+                if (message.includes("allocation exceeds unassigned cash inflow")) {
+                    return { success: false, message: "Mindestens eine Zahlung wurde inzwischen bereits einer anderen Einzahlung zugeordnet. Bitte lade die Seite neu und prüfe die Auswahl." };
+                }
+                if (message.includes("selected cash inflow is unavailable")) {
+                    return { success: false, message: "Eine ausgewählte Barzahlung ist nicht mehr verfügbar. Bitte lade die Seite neu." };
+                }
+                throw new Error("Die Einzahlung samt Zuordnung konnte nicht gespeichert werden.");
+            }
+            depositId = data;
+            await syncCashbookEntryFinancialEntry({ companyId, cashbookEntryId: depositId });
+            await logActivity({
+                action: `Bareinzahlung auf Bank über ${amount.toLocaleString("de-DE", { style: "currency", currency: "EUR" })} mit Herkunftszuordnung erfasst`,
+                entityType: "cashbook",
+                entityId: depositId,
+            });
+        } catch (error) {
+            return {
+                success: false,
+                message: depositId
+                    ? "Die Einzahlung und Zuordnung wurden gespeichert, aber die Aktualisierung des Finanzjournals ist fehlgeschlagen. Bitte die Einzahlung nicht erneut erfassen und den Admin informieren."
+                    : error instanceof Error ? error.message : "Einzahlung konnte nicht abgeschlossen werden.",
+            };
+        }
+
+        redirect("/dashboard/cashbook?tab=cash");
+    }
+
     if (!description) {
         return {
             success: false,
@@ -251,13 +362,13 @@ export async function createCashbookEntryAction(
             if (targetCashBalance < 0) {
                 return {
                     success: false,
-                    message: `Diese Barausgabe würde den Kassenbestand auf ${targetCashBalance.toLocaleString(
+                    message: `${category === "cash_bank_deposit" ? "Diese Einzahlung" : "Diese Barausgabe"} würde den Kassenbestand auf ${targetCashBalance.toLocaleString(
                         "de-DE",
                         {
                             style: "currency",
                             currency: "EUR",
                         },
-                    )} senken. Bitte prüfe Anfangsbestand oder fehlende Bareinnahmen.`,
+                    )} senken. Bitte prüfe den verfügbaren Kassenbestand, Anfangsbestand oder fehlende Bareinnahmen.`,
                 };
             }
         } catch (error) {

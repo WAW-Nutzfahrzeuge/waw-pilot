@@ -21,9 +21,15 @@ export async function createAuthServerSupabaseClient() {
                 return cookieStore.getAll();
             },
             setAll(cookiesToSet) {
-                cookiesToSet.forEach(({ name, value, options }) => {
-                    cookieStore.set(name, value, options);
-                });
+                try {
+                    cookiesToSet.forEach(({ name, value, options }) => {
+                        cookieStore.set(name, value, options);
+                    });
+                } catch {
+                    // Server Components can read cookies but cannot write them.
+                    // Session refresh writes are handled by proxy.ts; Server
+                    // Actions and Route Handlers can still persist cookies here.
+                }
             },
         },
     });
