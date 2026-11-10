@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { LogOut } from "lucide-react";
 
 import type { UserRole } from "@/lib/auth/roles";
-import { getNavigationForRole } from "@/lib/navigation";
+import { getNavigationForRole, groupNavigationItems } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 type SidebarNavigationItem = ReturnType<typeof getNavigationForRole>["main"][number];
@@ -36,6 +36,7 @@ export function SidebarContent({
 }) {
     const pathname = usePathname();
     const navigation = getNavigationForRole(role);
+    const { ungrouped, sections } = groupNavigationItems(navigation.main);
 
     return (
         <>
@@ -67,20 +68,45 @@ export function SidebarContent({
             </Link>
 
             <div className="flex-1 overflow-y-auto px-3 py-5">
-                <nav className="space-y-1.5">
-                    {navigation.main.map((item) => {
-                        const isActive = isNavigationItemActive(pathname, item.href);
+                {ungrouped.length > 0 ? (
+                    <nav className="space-y-1.5">
+                        {ungrouped.map((item) => {
+                            const isActive = isNavigationItemActive(pathname, item.href);
 
-                        return (
-                            <SidebarNavItem
-                                key={item.href}
-                                item={item}
-                                isActive={isActive}
-                                onNavigate={onNavigate}
-                            />
-                        );
-                    })}
-                </nav>
+                            return (
+                                <SidebarNavItem
+                                    key={item.href}
+                                    item={item}
+                                    isActive={isActive}
+                                    onNavigate={onNavigate}
+                                />
+                            );
+                        })}
+                    </nav>
+                ) : null}
+
+                {sections.map((section) => (
+                    <div key={section.group} className="mt-6 first:mt-0">
+                        <p className="px-3.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+                            {section.label}
+                        </p>
+
+                        <nav className="mt-2 space-y-1.5">
+                            {section.items.map((item) => {
+                                const isActive = isNavigationItemActive(pathname, item.href);
+
+                                return (
+                                    <SidebarNavItem
+                                        key={item.href}
+                                        item={item}
+                                        isActive={isActive}
+                                        onNavigate={onNavigate}
+                                    />
+                                );
+                            })}
+                        </nav>
+                    </div>
+                ))}
 
                 <div className="mt-7 border-t border-white/10 pt-6">
                     <nav className="space-y-1.5">
