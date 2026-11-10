@@ -8,6 +8,7 @@ import type {
 } from "@/lib/purchases/purchase-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
+import { hasRequiredPurchaseDocuments } from "@/lib/purchases/purchase-document-requirements";
 
 export type PurchaseListingImage = {
     id: string;
@@ -422,6 +423,10 @@ export async function getPurchaseCaseDetail(
             created_at: document.created_at,
         }),
     );
+    const purchaseDocumentStatus = hasRequiredPurchaseDocuments({
+        vehicle,
+        documents,
+    }) ? "complete" : "missing";
 
     return {
         id: purchase.id,
@@ -439,7 +444,7 @@ export async function getPurchaseCaseDetail(
 
         status: purchase.status,
         payment_status: purchase.payment_status,
-        document_check_status: purchase.document_check_status,
+        document_check_status: purchaseDocumentStatus,
 
         notes: purchase.notes,
         created_at: purchase.created_at,

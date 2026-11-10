@@ -8,6 +8,7 @@ import { getCurrentCompanyId } from "@/lib/company";
 import { getOptionalCurrentUserContext } from "@/lib/auth/current-user";
 import { logActivity } from "@/lib/activity/activity-log";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { syncPurchaseDocumentStatus } from "@/lib/purchases/purchase-document-status-sync";
 import { translateVehicleDatabaseError } from "@/lib/vehicles/vehicle-save-errors";
 import {
     createPurchasePaymentAndSync,
@@ -196,6 +197,12 @@ export async function updatePurchaseCaseAction(
             )}`,
         };
     }
+
+    await syncPurchaseDocumentStatus({
+        companyId,
+        purchaseCaseId: purchaseId,
+        vehicleId,
+    });
 
     await logActivity({
         action: `Ankaufsakte ${purchaseNumber} für ${vehicleActivityName} aktualisiert`,

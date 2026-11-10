@@ -16,6 +16,7 @@ import {
     uploadPrivateDocumentFile,
 } from "@/lib/documents/private-document-upload";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { syncPurchaseDocumentStatus } from "@/lib/purchases/purchase-document-status-sync";
 
 type UploadPurchaseDocumentState = {
     success: boolean;
@@ -313,35 +314,11 @@ export async function uploadPurchaseDocumentAction(
         additionalFilePaths.push(storedPath);
     }
 
-    const { data: purchaseDocuments } = await supabase
-        .from("documents")
-        .select("document_type, status")
-        .eq("company_id", companyId)
-        .or(`purchase_case_id.eq.${purchaseId},vehicle_id.eq.${purchaseCase.vehicle_id}`);
-
-    const requiredDocumentTypes = [
-        "vehicle_registration",
-        "purchase_invoice",
-    ];
-
-    const hasAllRequiredDocuments = requiredDocumentTypes.every((requiredType) =>
-        (purchaseDocuments ?? []).some(
-            (document) =>
-                document.document_type === requiredType &&
-                document.status === "available",
-        ),
-    );
-
-    await supabase
-        .from("purchase_cases")
-        .update({
-            document_check_status: hasAllRequiredDocuments
-                ? "complete"
-                : "missing",
-            updated_at: new Date().toISOString(),
-        })
-        .eq("id", purchaseId)
-        .eq("company_id", companyId);
+    const hasAllRequiredDocuments = await syncPurchaseDocumentStatus({
+        companyId,
+        purchaseCaseId: purchaseId,
+        vehicleId: purchaseCase.vehicle_id,
+    });
 
     if (hasAllRequiredDocuments) {
         await logActivity({

@@ -7,6 +7,7 @@ import { revalidatePaths } from "@/lib/actions/revalidation";
 import { logActivity } from "@/lib/activity/activity-log";
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { syncPurchaseDocumentStatus } from "@/lib/purchases/purchase-document-status-sync";
 import {
     getDuplicateVinMessage,
     translateVehicleDatabaseError,
@@ -203,6 +204,23 @@ export async function updateVehicleAction(
             success: false,
             message: translateVehicleDatabaseError(updateError),
         };
+    }
+
+    const { data: linkedPurchases, error: linkedPurchasesError } = await supabase
+        .from("purchase_cases")
+        .select("id, vehicle_id")
+        .eq("company_id", companyId)
+        .eq("vehicle_id", vehicleId);
+    if (linkedPurchasesError) {
+        console.error("Purchase document status lookup after vehicle update failed", linkedPurchasesError);
+    } else {
+        await Promise.all((linkedPurchases ?? []).map((purchase) =>
+            syncPurchaseDocumentStatus({
+                companyId,
+                purchaseCaseId: purchase.id,
+                vehicleId: purchase.vehicle_id,
+            }),
+        ));
     }
 
     await logActivity({

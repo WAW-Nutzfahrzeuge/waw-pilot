@@ -24,6 +24,7 @@ import {
     maxPurchaseCreateUploadPayloadBytes,
 } from "@/lib/documents/upload-validation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { syncPurchaseDocumentStatus } from "@/lib/purchases/purchase-document-status-sync";
 import { normalizeVin } from "@/lib/vehicles/vin";
 import { parseVehicleListingDetailsForm } from "@/lib/vehicles/listing-details";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
@@ -336,35 +337,7 @@ async function updatePurchaseDocumentStatus({
     purchaseCaseId: string;
     vehicleId: string;
 }) {
-    const supabase = createServerSupabaseClient();
-    const { data: purchaseDocuments } = await supabase
-        .from("documents")
-        .select("document_type, status")
-        .eq("company_id", companyId)
-        .or(`purchase_case_id.eq.${purchaseCaseId},vehicle_id.eq.${vehicleId}`);
-
-    const requiredDocumentTypes: VehicleDocumentType[] = [
-        "vehicle_registration",
-        "purchase_invoice",
-    ];
-    const hasAllRequiredDocuments = requiredDocumentTypes.every((requiredType) =>
-        (purchaseDocuments ?? []).some(
-            (document) =>
-                document.document_type === requiredType &&
-                document.status === "available",
-        ),
-    );
-
-    await supabase
-        .from("purchase_cases")
-        .update({
-            document_check_status: hasAllRequiredDocuments
-                ? "complete"
-                : "missing",
-            updated_at: new Date().toISOString(),
-        })
-        .eq("id", purchaseCaseId)
-        .eq("company_id", companyId);
+    return syncPurchaseDocumentStatus({ companyId, purchaseCaseId, vehicleId });
 }
 
 async function cleanupFailedPurchaseCreate({

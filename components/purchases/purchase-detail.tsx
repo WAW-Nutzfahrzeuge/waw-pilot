@@ -44,6 +44,10 @@ import { AdminDeleteDialog } from "@/components/admin/admin-delete-dialog";
 import { deletePurchaseAdminAction } from "@/app/dashboard/admin-delete-actions";
 import { VehicleFolderCard } from "@/components/purchases/vehicle-folder-card";
 import { PurchaseListingPreparationCard } from "@/components/purchases/purchase-listing-preparation-card";
+import {
+    getRequiredPurchaseDocumentTypes,
+    isConstructionMachine,
+} from "@/lib/purchases/purchase-document-requirements";
 
 type PurchaseDetailProps = {
     purchase: PurchaseCaseDetailType;
@@ -52,25 +56,28 @@ type PurchaseDetailProps = {
     vehicleSaved?: boolean;
 };
 
-const purchaseRequiredDocuments = [
-    {
-        documentType: "vehicle_registration",
-        label: "Fahrzeugschein",
-        required: false,
-    },
-    {
-        documentType: "purchase_invoice",
-        label: "Einkaufsrechnung",
-        required: false,
-    },
-];
-
 export function PurchaseDetail({
                                    purchase,
                                    canAdminDelete = false,
                                    sellerSaved = false,
                                    vehicleSaved = false,
                                }: PurchaseDetailProps) {
+    const requiredDocumentTypes = new Set(
+        getRequiredPurchaseDocumentTypes(purchase.vehicle),
+    );
+    const purchaseRequiredDocuments = [
+        {
+            documentType: "vehicle_registration",
+            label: "Fahrzeugschein",
+            required: requiredDocumentTypes.has("vehicle_registration"),
+        },
+        {
+            documentType: "purchase_invoice",
+            label: "Einkaufsrechnung",
+            required: requiredDocumentTypes.has("purchase_invoice"),
+        },
+    ];
+    const isConstructionMachinePurchase = isConstructionMachine(purchase.vehicle);
     const primaryDocumentTypes = purchaseRequiredDocuments.map(
         (document) => document.documentType,
     );
@@ -352,7 +359,9 @@ export function PurchaseDetail({
                             <SectionTitle
                                 icon={FileText}
                                 title="Ankaufsdokumente"
-                                description="Fahrzeugschein und Einkaufsrechnung mit Ankauf und Fahrzeug verknüpfen."
+                                description={isConstructionMachinePurchase
+                                    ? "Bei Baumaschinen genügt die Einkaufsrechnung. Ein Fahrzeugschein kann optional hinterlegt werden."
+                                    : "Fahrzeugschein und Einkaufsrechnung mit Ankauf und Fahrzeug verknüpfen."}
                             />
 
                             <div className="mt-5 space-y-4">
@@ -374,8 +383,10 @@ export function PurchaseDetail({
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         {existingDocument ? (
                                                             <CheckCircle2 className="size-5 text-emerald-700" />
-                                                        ) : (
+                                                        ) : requiredDocument.required ? (
                                                             <FileWarning className="size-5 text-amber-700" />
+                                                        ) : (
+                                                            <FileText className="size-5 text-slate-400" />
                                                         )}
 
                                                         <p className="font-extrabold text-slate-950">

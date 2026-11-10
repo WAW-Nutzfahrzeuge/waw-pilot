@@ -450,7 +450,7 @@ export function PurchaseForm({
                             <SectionTitle
                                 icon={FileText}
                                 title="4. Dokumente hochladen"
-                                description="Fahrzeugschein und Einkaufsrechnung werden mit Ankauf und Fahrzeug verknüpft."
+                                description="Bei Baumaschinen genügt die Einkaufsrechnung; ein Fahrzeugschein kann optional hinterlegt werden."
                             />
                             <VehicleDocumentUploadFields
                                 maxFileSizeBytes={maxPurchaseCreateUploadPayloadBytes}
