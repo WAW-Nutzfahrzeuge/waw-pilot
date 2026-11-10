@@ -1147,10 +1147,9 @@ function buildSaleDetail(sale: SaleDetailQueryRow): SaleDetail {
         ) {
             pendingAutomationDocumentsByType.set(document.document_type, document);
         }
-        if (
-            document.status !== "available" &&
-            !(document.status === "needs_review" && document.source === "generated")
-        ) {
+        // Use the same rule as the sales overview: a generated unsigned
+        // template is not a fulfilled signed-return requirement.
+        if (!isRequiredDocumentAvailable(document)) {
             continue;
         }
         if (!availableDocumentsByType.has(document.document_type)) {
