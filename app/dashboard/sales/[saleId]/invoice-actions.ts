@@ -1258,8 +1258,10 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
     await logActivity({
         action:
             invoices.length > 0
-                ? `Zusätzliche Vereinbarung gespeichert und ${invoices.length} Rechnungs-PDF${invoices.length === 1 ? "" : "s"} neu erzeugt`
-                : "Zusätzliche Vereinbarung gespeichert",
+                ? `${invoiceNotes ? "Zusätzliche Vereinbarung" : "Rechnungsoptionen"} gespeichert und ${invoices.length} Rechnungs-PDF${invoices.length === 1 ? "" : "s"} neu erzeugt`
+                : invoiceNotes
+                  ? "Zusätzliche Vereinbarung gespeichert"
+                  : "Rechnungsoptionen gespeichert",
         entityType: "sale",
         entityId: saleId,
     });

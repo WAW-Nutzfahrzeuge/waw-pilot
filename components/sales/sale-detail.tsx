@@ -411,8 +411,8 @@ export async function SaleDetail({
 
             {invoiceNotesSaved ? (
                 <FlashMessage
-                    message="Zusätzliche Vereinbarung gespeichert."
-                    description="Die vorhandenen Rechnungs-PDFs wurden mit dem neuen Rechnungstext neu erzeugt."
+                    message="Rechnungsangaben gespeichert."
+                    description="Der Vereinbarungstext und die gewählten AGB-/Unterschriftsoptionen wurden übernommen. Die vorhandenen Rechnungs-PDFs wurden neu erzeugt."
                 />
             ) : null}
 
@@ -891,7 +891,9 @@ export async function SaleDetail({
                                     initialIncludeSignatureStamp={sale.invoices.some(
                                         (invoice) => invoice.include_signature_stamp,
                                     )}
-                                    initialIncludeTermsPdf={false}
+                                    initialIncludeTermsPdf={sale.invoices.some(
+                                        (invoice) => invoice.include_terms_pdf,
+                                    )}
                                 />
 
                                 <InvoiceAgreementForm

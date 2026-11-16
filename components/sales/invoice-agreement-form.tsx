@@ -81,6 +81,11 @@ export function InvoiceAgreementForm({
                     placeholder="z. B. Sondervereinbarung, Abholbedingung oder ergänzender Rechnungstext..."
                     className="min-h-24 rounded-2xl border-slate-200 bg-white font-medium"
                 />
+                <p className="text-xs font-medium leading-5 text-slate-500">
+                    Optional: Auch ohne Vereinbarungstext speichert der Button die
+                    oben gewählten Rechnungsoptionen und erstellt die vorhandenen
+                    Rechnungs-PDFs neu.
+                </p>
             </div>
 
             <div className="mt-4 flex justify-end">
