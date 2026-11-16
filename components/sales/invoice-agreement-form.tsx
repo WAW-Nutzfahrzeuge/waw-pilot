@@ -1,6 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { Loader2, RefreshCcw } from "lucide-react";
 
 import { updateSaleInvoiceNotesAction } from "@/app/dashboard/sales/[saleId]/invoice-actions";
 import { Button } from "@/components/ui/button";
@@ -89,13 +91,30 @@ export function InvoiceAgreementForm({
             </div>
 
             <div className="mt-4 flex justify-end">
-                <Button
-                    type="submit"
-                    className="rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
-                >
-                    Vereinbarung speichern & PDF neu erstellen
-                </Button>
+                <InvoiceAgreementSubmitButton />
             </div>
         </form>
+    );
+}
+
+function InvoiceAgreementSubmitButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <Button
+            type="submit"
+            disabled={pending}
+            aria-busy={pending}
+            className="min-w-64 rounded-2xl bg-cyan-700 font-bold text-white hover:bg-cyan-800"
+        >
+            {pending ? (
+                <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+                <RefreshCcw className="mr-2 size-4" />
+            )}
+            {pending
+                ? "Rechnungs-PDFs werden neu erstellt …"
+                : "Vereinbarung speichern & PDF neu erstellen"}
+        </Button>
     );
 }
