@@ -684,8 +684,7 @@ export function InvoicesOverview({
                                                 {invoice.customer_name}
                                             </p>
                                             <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                {formatDate(invoice.invoice_date)} · fällig{" "}
-                                                {formatDate(invoice.due_date)}
+                                                {formatDate(invoice.invoice_date)}
                                             </p>
                                         </div>
 
@@ -893,9 +892,6 @@ export function InvoicesOverview({
                                         <td className="px-5 py-5">
                                             <p className="text-sm font-semibold text-slate-700">
                                                 {formatDate(invoice.invoice_date)}
-                                            </p>
-                                            <p className="mt-1 text-xs font-medium text-slate-500">
-                                                Fällig: {formatDate(invoice.due_date)}
                                             </p>
                                         </td>
 

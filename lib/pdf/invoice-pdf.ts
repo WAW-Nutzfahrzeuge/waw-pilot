@@ -1238,7 +1238,7 @@ export async function generateInvoicePdf(
 
     drawText(
         page,
-        `Rechnungs-Datum: ${formatDate(data.invoiceDate)} | Fällig: ${formatDate(data.dueDate)}`,
+        `Rechnungs-Datum: ${formatDate(data.invoiceDate)}`,
         leftBoxTextX,
         507,
         {
