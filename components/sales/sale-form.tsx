@@ -156,7 +156,7 @@ export function SaleForm({
     const [includeTermsPdf, setIncludeTermsPdf] = useState(false);
     const [createInvoice, setCreateInvoice] = useState(true);
     const [invoiceType, setInvoiceType] = useState<"standard" | "proforma">(
-        "standard",
+        "proforma",
     );
     const isProformaSelected = createInvoice && invoiceType === "proforma";
     const requiresExportDetails = effectiveSaleType === "eu";
@@ -957,10 +957,10 @@ export function SaleForm({
                                 <ModeTabs
                                     name="invoice_type"
                                     value={invoiceType}
-                                    firstValue="standard"
-                                    secondValue="proforma"
-                                    firstLabel="Rechnung"
-                                    secondLabel="Proforma-Rechnung"
+                                    firstValue="proforma"
+                                    secondValue="standard"
+                                    firstLabel="Proforma-Rechnung"
+                                    secondLabel="Rechnung"
                                     onChange={setInvoiceType}
                                 />
                                 <p className="text-sm font-medium leading-6 text-slate-600">
