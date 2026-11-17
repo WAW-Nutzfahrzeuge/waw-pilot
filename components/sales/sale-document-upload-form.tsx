@@ -11,7 +11,10 @@ import {
 import { DocumentCropDialog } from "@/components/documents/document-crop-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { isConvertibleVehicleDocumentImage } from "@/lib/documents/client-image-compression";
+import {
+    convertVehicleDocumentImageToPdf,
+    isConvertibleVehicleDocumentImage,
+} from "@/lib/documents/client-image-compression";
 import {
     documentAcceptMimeTypes,
     getDirectSaleDocumentTooLargeMessage,
@@ -26,6 +29,8 @@ type SaleDocumentUploadFormProps = {
     documentType: string;
     documentLabel: string;
     isCustomDocument?: boolean;
+    allowMultipleFiles?: boolean;
+    compressImagesAsPdf?: boolean;
     existingDocumentId?: string | null;
     existingFileName?: string | null;
 };
@@ -50,6 +55,8 @@ export function SaleDocumentUploadForm({
                                            documentType,
     documentLabel,
     isCustomDocument = false,
+    allowMultipleFiles = false,
+    compressImagesAsPdf = false,
                                            existingDocumentId = null,
                                            existingFileName = null,
                                        }: SaleDocumentUploadFormProps) {
@@ -77,19 +84,33 @@ export function SaleDocumentUploadForm({
         }
     }, [cropOpen]);
 
-    function uploadFile(file: File) {
+    function uploadFiles(files: File[]) {
         const formElement = formRef.current;
 
-        if (!formElement) return;
+        if (!formElement || isPending) return;
 
-        if (!isAllowedDocumentFile(file)) {
-            setErrorMessage(getUnsupportedDocumentTypeMessage());
+        if (files.length === 0) {
+            setErrorMessage("Bitte wähle mindestens eine Datei aus.");
             setSelectedFileName(null);
             return;
         }
 
-        if (file.size > maxDirectSaleDocumentFileSizeBytes) {
-            setErrorMessage(getDirectSaleDocumentTooLargeMessage());
+        const unsupportedFile = files.find((file) => !isAllowedDocumentFile(file));
+        if (unsupportedFile) {
+            setErrorMessage(
+                `${unsupportedFile.name}: ${getUnsupportedDocumentTypeMessage()}`,
+            );
+            setSelectedFileName(null);
+            return;
+        }
+
+        const oversizedFile = files.find(
+            (file) => file.size > maxDirectSaleDocumentFileSizeBytes,
+        );
+        if (oversizedFile) {
+            setErrorMessage(
+                `${oversizedFile.name}: ${getDirectSaleDocumentTooLargeMessage()}`,
+            );
             setSelectedFileName(null);
             return;
         }
@@ -104,79 +125,121 @@ export function SaleDocumentUploadForm({
 
         setErrorMessage(null);
         setSuccessMessage(null);
-        setSelectedFileName(file.name);
+        setSelectedFileName(
+            files.length === 1 ? files[0].name : `${files.length} Dateien ausgewählt`,
+        );
         setIsUploading(true);
 
         void (async () => {
+            let uploadedCount = 0;
+            const failures: string[] = [];
+            const supabase = createBrowserSupabaseClient();
+
             try {
-                const uploadInput = {
-                    saleId,
-                    documentType,
-                    documentLabel: resolvedDocumentLabel,
-                    existingDocumentId,
-                    originalFileName: file.name,
-                    mimeType: file.type || "application/octet-stream",
-                    fileSize: file.size,
-                };
-                const preparedUpload = await prepareSaleDocumentUploadAction(uploadInput);
-                const supabase = createBrowserSupabaseClient();
-                const { error: uploadError } = await supabase.storage
-                    .from(preparedUpload.bucket)
-                    .uploadToSignedUrl(
-                        preparedUpload.path,
-                        preparedUpload.token,
-                        file,
-                        {
-                            contentType: file.type || "application/octet-stream",
-                            upsert: false,
-                        },
-                    );
+                for (const file of files) {
+                    try {
+                        const preparedFile =
+                            compressImagesAsPdf &&
+                            isConvertibleVehicleDocumentImage(file)
+                                ? await convertVehicleDocumentImageToPdf(file, {
+                                      maxSizeBytes: maxDirectSaleDocumentFileSizeBytes,
+                                  })
+                                : file;
 
-                if (uploadError) {
-                    throw new Error(
-                        "Datei konnte nicht in den privaten Speicher hochgeladen werden. Bitte versuche es erneut.",
-                    );
+                        if (preparedFile.size > maxDirectSaleDocumentFileSizeBytes) {
+                            throw new Error(getDirectSaleDocumentTooLargeMessage());
+                        }
+
+                        const uploadInput = {
+                            saleId,
+                            documentType,
+                            documentLabel: resolvedDocumentLabel,
+                            // A batch always creates separate documents; it must
+                            // never replace the same existing record repeatedly.
+                            existingDocumentId:
+                                files.length > 1 ? null : existingDocumentId,
+                            originalFileName: preparedFile.name,
+                            mimeType: preparedFile.type || "application/octet-stream",
+                            fileSize: preparedFile.size,
+                        };
+                        const preparedUpload =
+                            await prepareSaleDocumentUploadAction(uploadInput);
+                        const { error: uploadError } = await supabase.storage
+                            .from(preparedUpload.bucket)
+                            .uploadToSignedUrl(
+                                preparedUpload.path,
+                                preparedUpload.token,
+                                preparedFile,
+                                {
+                                    contentType:
+                                        preparedFile.type || "application/octet-stream",
+                                    upsert: false,
+                                },
+                            );
+
+                        if (uploadError) {
+                            throw new Error(
+                                "Datei konnte nicht in den privaten Speicher hochgeladen werden. Bitte versuche es erneut.",
+                            );
+                        }
+
+                        await finalizeSaleDocumentUploadAction({
+                            ...uploadInput,
+                            path: preparedUpload.path,
+                        });
+                        uploadedCount += 1;
+                    } catch (error) {
+                        if (isNextRedirectError(error)) throw error;
+                        failures.push(
+                            `${file.name}: ${error instanceof Error ? error.message : "Upload fehlgeschlagen."}`,
+                        );
+                    }
                 }
 
-                await finalizeSaleDocumentUploadAction({
-                    ...uploadInput,
-                    path: preparedUpload.path,
-                });
+                if (uploadedCount > 0) {
+                    setSuccessMessage(
+                        uploadedCount === 1 && hasExistingDocument && files.length === 1
+                            ? "Dokument wurde erfolgreich ersetzt."
+                            : `${uploadedCount} ${uploadedCount === 1 ? "Dokument wurde" : "Dokumente wurden"} erfolgreich hochgeladen.`,
+                    );
+                    startRefreshTransition(() => router.refresh());
+                }
 
-                setSuccessMessage(
-                    hasExistingDocument
-                        ? "Dokument wurde erfolgreich ersetzt."
-                        : "Dokument wurde erfolgreich hochgeladen.",
-                );
-                setSelectedFileName(null);
-                if (fileInputRef.current) fileInputRef.current.value = "";
-                startRefreshTransition(() => router.refresh());
+                if (failures.length > 0) {
+                    setErrorMessage(
+                        failures.length === 1
+                            ? failures[0]
+                            : `${failures.length} Dateien konnten nicht hochgeladen werden. ${failures[0]}`,
+                    );
+                }
             } catch (error) {
-                if (isNextRedirectError(error)) {
-                    throw error;
-                }
-
+                if (isNextRedirectError(error)) throw error;
                 setErrorMessage(
                     error instanceof Error
                         ? error.message
                         : "Datei konnte nicht hochgeladen werden.",
                 );
-                setSelectedFileName(null);
             } finally {
+                setSelectedFileName(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
                 setIsUploading(false);
             }
         })();
     }
 
-    function handleFileChange() {
-        const file = fileInputRef.current?.files?.[0] ?? null;
+    function uploadFile(file: File) {
+        uploadFiles([file]);
+    }
 
-        if (!(file instanceof File) || file.size === 0) {
-            setErrorMessage("Bitte wähle eine Datei aus.");
+    function handleFileChange() {
+        const files = Array.from(fileInputRef.current?.files ?? []);
+
+        if (files.length === 0 || files.some((file) => file.size === 0)) {
+            setErrorMessage("Bitte wähle eine gültige Datei aus.");
             return;
         }
 
-        uploadFile(file);
+        uploadFiles(files);
     }
 
     function handleCropFileChange() {
@@ -272,12 +335,16 @@ export function SaleDocumentUploadForm({
                 <span className="min-w-0 flex-1">
                     <span className="block text-sm font-extrabold text-slate-950">
                         {isPending
-                            ? "Datei wird hochgeladen..."
+                            ? compressImagesAsPdf
+                                ? "Dateien werden komprimiert und hochgeladen..."
+                                : "Datei wird hochgeladen..."
                             : hasExistingDocument
                                 ? "Dokument ersetzen"
                                 : selectedFileName
                                     ? "Datei wird vorbereitet..."
-                                    : "Datei auswählen"}
+                                    : allowMultipleFiles
+                                        ? "Dateien auswählen"
+                                        : "Datei auswählen"}
                     </span>
 
                     <span className="mt-1 block truncate text-xs font-semibold text-slate-500">
@@ -285,7 +352,10 @@ export function SaleDocumentUploadForm({
                             ? selectedFileName ?? "Bitte kurz warten"
                             : hasExistingDocument
                                 ? displayFileName ?? "Aktuell gespeicherte Datei ersetzen"
-                                : selectedFileName ?? "PDF, PNG, JPG oder WEBP"}
+                                : selectedFileName ??
+                                  (allowMultipleFiles
+                                      ? "Mehrere Dateien · JPG/PNG werden platzsparend als PDF gespeichert"
+                                      : "PDF, PNG, JPG oder WEBP")}
                     </span>
                 </span>
 
@@ -299,7 +369,11 @@ export function SaleDocumentUploadForm({
                             : "h-10 shrink-0 rounded-xl bg-slate-950 px-3 text-xs font-extrabold text-white transition hover:bg-slate-800 whitespace-nowrap"
                     }
                 >
-                    {hasExistingDocument ? "Ersetzen" : "Hochladen"}
+                    {hasExistingDocument
+                        ? "Ersetzen"
+                        : allowMultipleFiles
+                          ? "Dateien hinzufügen"
+                          : "Hochladen"}
                 </Button>
 
                 <input
@@ -308,6 +382,7 @@ export function SaleDocumentUploadForm({
                     name="file"
                     type="file"
                     accept={documentAcceptMimeTypes}
+                    multiple={allowMultipleFiles}
                     className="sr-only"
                     disabled={isPending}
                     onChange={handleFileChange}

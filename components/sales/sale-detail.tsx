@@ -1250,6 +1250,9 @@ export async function SaleDetail({
                                                     const isExistingOption =
                                                         requiredDocument.document?.document_type ===
                                                         uploadOption.documentType;
+                                                    const replacesExistingUpload =
+                                                        isExistingOption &&
+                                                        requiredDocument.document?.source === "uploaded";
 
                                                     return (
                                                         <SaleDocumentUploadForm
@@ -1273,9 +1276,30 @@ export async function SaleDetail({
                                                                       )
                                                                     : null
                                                             }
+                                                                allowMultipleFiles={
+                                                                    uploadOption.documentType === saleCommercialRegisterDocumentType &&
+                                                                    !replacesExistingUpload
+                                                                }
+                                                                compressImagesAsPdf={
+                                                                    uploadOption.documentType === saleCommercialRegisterDocumentType
+                                                                }
                                                         />
                                                     );
                                                 })}
+                                                {requiredDocument.uploadOptions.some(
+                                                    (uploadOption) =>
+                                                        uploadOption.documentType === saleCommercialRegisterDocumentType,
+                                                ) &&
+                                                requiredDocument.document?.document_type === saleCommercialRegisterDocumentType &&
+                                                requiredDocument.document.source === "uploaded" ? (
+                                                    <SaleDocumentUploadForm
+                                                        saleId={sale.id}
+                                                        documentType={saleCommercialRegisterDocumentType}
+                                                        documentLabel="Weitere Handelsregisterseiten oder Dateien"
+                                                        allowMultipleFiles
+                                                        compressImagesAsPdf
+                                                    />
+                                                ) : null}
                                             </div>
                                         ) : (
                                             <div className="mt-4 border-t-2 border-slate-900/20 pt-4">
@@ -1293,7 +1317,24 @@ export async function SaleDetail({
                                                         sale.sale_number,
                                                         sale.invoices,
                                                     )}
+                                                    allowMultipleFiles={
+                                                        requiredDocument.documentType === saleCommercialRegisterDocumentType &&
+                                                        requiredDocument.document?.source !== "uploaded"
+                                                    }
+                                                    compressImagesAsPdf={
+                                                        requiredDocument.documentType === saleCommercialRegisterDocumentType
+                                                    }
                                                 />
+                                                {requiredDocument.documentType === saleCommercialRegisterDocumentType &&
+                                                requiredDocument.document?.source === "uploaded" ? (
+                                                    <SaleDocumentUploadForm
+                                                        saleId={sale.id}
+                                                        documentType={saleCommercialRegisterDocumentType}
+                                                        documentLabel="Weitere Handelsregisterseiten oder Dateien"
+                                                        allowMultipleFiles
+                                                        compressImagesAsPdf
+                                                    />
+                                                ) : null}
                                             </div>
                                         )}
                                     </div>
@@ -1344,6 +1385,7 @@ export async function SaleDetail({
                                                     documentLabel="Handelsregisterauszug"
                                                     existingDocumentId={document.id}
                                                     existingFileName={document.file_name}
+                                                    compressImagesAsPdf
                                                 />
                                             ) : null}
                                             {document.source === "automation_return" && canAdminDelete && ["pending", "needs_review"].includes(reviewStatus ?? "") ? (
@@ -1361,6 +1403,8 @@ export async function SaleDetail({
                                     saleId={sale.id}
                                     documentType={saleCommercialRegisterDocumentType}
                                     documentLabel="Handelsregisterauszug"
+                                    allowMultipleFiles
+                                    compressImagesAsPdf
                                 />
                             </div>
                         </CardContent>
