@@ -896,7 +896,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
                       RegenerateInvoiceOptionsRow,
                       "include_terms_pdf"
                   >),
-                  include_terms_pdf: true,
+                  include_terms_pdf: false,
               }
             : null;
         invoiceError = fallback.error;
@@ -912,7 +912,7 @@ export async function regenerateSaleInvoicePdfAction(formData: FormData) {
 
     if (
         Boolean(invoiceData.include_signature_stamp) !== includeSignatureStamp ||
-        (invoiceData.include_terms_pdf !== false) !== includeTermsPdf
+        (invoiceData.include_terms_pdf === true) !== includeTermsPdf
     ) {
         const invoiceUpdate = await supabase
             .from("invoices")
@@ -1214,7 +1214,7 @@ export async function updateSaleInvoiceNotesAction(formData: FormData) {
     for (const invoice of invoices) {
         if (
             Boolean(invoice.include_signature_stamp) !== includeSignatureStamp ||
-            (invoice.include_terms_pdf !== false) !== includeTermsPdf
+            (invoice.include_terms_pdf === true) !== includeTermsPdf
         ) {
             const invoiceUpdate = await supabase
                 .from("invoices")

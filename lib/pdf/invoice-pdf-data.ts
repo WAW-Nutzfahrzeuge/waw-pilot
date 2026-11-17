@@ -258,7 +258,7 @@ function withInvoiceFallbackFields(row: unknown): InvoiceQueryResult {
         correction_reason_code: null,
         correction_reason_text: null,
         customer_visible_reason: null,
-        include_terms_pdf: true,
+        include_terms_pdf: false,
     };
 }
 
@@ -346,7 +346,7 @@ export async function getInvoicePdfData(
                 Boolean(invoice.include_signature_stamp),
             )),
         },
-        termsAttached: invoice.include_terms_pdf !== false,
+        termsAttached: invoice.include_terms_pdf === true,
         company: {
             legalName: company.legal_name,
             street: company.street,
