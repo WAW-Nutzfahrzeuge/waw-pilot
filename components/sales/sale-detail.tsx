@@ -888,9 +888,7 @@ export async function SaleDetail({
                                         sale.include_damage_notes_on_invoice
                                     }
                                     hasSignatureStampAssets={sale.has_signature_stamp_assets}
-                                    initialIncludeSignatureStamp={sale.invoices.some(
-                                        (invoice) => invoice.include_signature_stamp,
-                                    )}
+                                    initialIncludeSignatureStamp={sale.has_signature_stamp_assets}
                                     initialIncludeTermsPdf={false}
                                 />
 

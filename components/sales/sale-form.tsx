@@ -79,6 +79,7 @@ type SaleFormProps = {
     customers: CustomerRow[];
     vehicles: VehicleRow[];
     companyVatId: string | null;
+    hasSignatureStampAssets?: boolean;
     defaultVehicleId?: string | null;
     defaultCustomerId?: string | null;
 };
@@ -103,6 +104,7 @@ export function SaleForm({
                              customers,
                              vehicles,
                              companyVatId,
+                             hasSignatureStampAssets = false,
                              defaultVehicleId = null,
                              defaultCustomerId = null,
                          }: SaleFormProps) {
@@ -988,6 +990,8 @@ export function SaleForm({
                                 type="checkbox"
                                 name="include_signature_stamp"
                                 value="yes"
+                                defaultChecked={hasSignatureStampAssets}
+                                disabled={!hasSignatureStampAssets}
                                 className="mt-1 size-4 rounded border-slate-300 text-cyan-700"
                             />
                             <div>
@@ -999,6 +1003,11 @@ export function SaleForm({
                                     Unterschrift und den Firmenstempel in die automatisch
                                     erzeugte Rechnung ein.
                                 </p>
+                                {!hasSignatureStampAssets ? (
+                                    <p className="mt-1 text-xs font-bold leading-5 text-amber-700">
+                                        Bitte hinterlege zuerst die gemeinsame Unterschrift- und Stempeldatei in den Einstellungen.
+                                    </p>
+                                ) : null}
                             </div>
                         </label>
 

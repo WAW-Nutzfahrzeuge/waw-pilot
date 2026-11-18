@@ -56,7 +56,7 @@ export function SaleInvoiceTypeActions({
                                            allowDamageNotesOnInvoice = false,
                                            includeDamageNotesOnInvoice = false,
                                            hasSignatureStampAssets = false,
-                                           initialIncludeSignatureStamp = false,
+                                           initialIncludeSignatureStamp = hasSignatureStampAssets,
                                            initialIncludeTermsPdf = false,
                                        }: SaleInvoiceTypeActionsProps) {
     const hasDamageNotes = Boolean(damageNotes?.trim());

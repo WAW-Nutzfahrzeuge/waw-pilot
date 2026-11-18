@@ -25,6 +25,9 @@ export default async function NewSalePage({ searchParams }: NewSalePageProps) {
             customers={customers}
             vehicles={vehicles}
             companyVatId={company.vat_id}
+            hasSignatureStampAssets={Boolean(
+                company.signature_image_path || company.stamp_image_path,
+            )}
             defaultVehicleId={defaultVehicleId}
             defaultCustomerId={customerId ?? null}
         />
