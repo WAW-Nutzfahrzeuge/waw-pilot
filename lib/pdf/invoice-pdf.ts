@@ -62,6 +62,7 @@ export type InvoicePdfData = {
     };
 
     customer: {
+        type: "company" | "private";
         name: string;
         street: string | null;
         postalCode: string | null;
@@ -794,7 +795,7 @@ function getPaymentAndTaxLines(data: InvoicePdfData): string[] {
         "Delivery terms: EXW (Ex Works) according to Incoterms",
         "Das KFZ wird unter Ausschluss jeder Gewährleistung, so wie es steht, verkauft. | Sold without warranty or guarantee .",
     ];
-    if (data.saleType === "eu") {
+    if (data.saleType === "eu" && data.customer.type === "company") {
         return [
             ...baseLines,
             "",

@@ -368,6 +368,7 @@ export async function getInvoicePdfData(
             bankAccountHolder: company.bank_account_holder,
         },
         customer: {
+            type: customer.type,
             name: getCustomerName(customer),
             street: customer.street,
             postalCode: customer.postal_code,
