@@ -9,6 +9,7 @@ type CustomersPageProps = {
         customerCreated?: string;
         createdCustomerId?: string;
         savedCustomerId?: string;
+        type?: string;
     }>;
 };
 
@@ -21,6 +22,12 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     return (
         <CustomersOverview
             customers={customers}
+            customerTypeFilter={
+                resolvedSearchParams.type === "company" ||
+                resolvedSearchParams.type === "private"
+                    ? resolvedSearchParams.type
+                    : "all"
+            }
             customerSaved={resolvedSearchParams.customerSaved === "1"}
             customerCreated={resolvedSearchParams.customerCreated === "1"}
             highlightedCustomerId={

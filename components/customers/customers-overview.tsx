@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 
 type CustomersOverviewProps = {
     customers: CustomerRow[];
+    customerTypeFilter: "all" | "company" | "private";
     customerSaved?: boolean;
     customerCreated?: boolean;
     highlightedCustomerId?: string;
@@ -23,6 +24,7 @@ type CustomersOverviewProps = {
 
 export function CustomersOverview({
     customers,
+    customerTypeFilter,
     customerSaved = false,
     customerCreated = false,
     highlightedCustomerId,
@@ -78,18 +80,24 @@ export function CustomersOverview({
                     value={customers.length}
                     description="alle Kontakte"
                     icon={Users}
+                    href="/dashboard/customers"
+                    active={customerTypeFilter === "all"}
                 />
                 <CustomerStatCard
                     label="Firmen"
                     value={companyCustomers}
                     description="gewerbliche Kunden"
                     icon={Building2}
+                    href="/dashboard/customers?type=company"
+                    active={customerTypeFilter === "company"}
                 />
                 <CustomerStatCard
                     label="Privatkunden"
                     value={privateCustomers}
                     description="private Kontakte"
                     icon={User}
+                    href="/dashboard/customers?type=private"
+                    active={customerTypeFilter === "private"}
                 />
                 <CustomerStatCard
                     label="Verknüpfte Fahrzeuge"
@@ -100,7 +108,11 @@ export function CustomersOverview({
             </section>
 
             <CustomersListPanel
-                customers={customers}
+                customers={
+                    customerTypeFilter === "all"
+                        ? customers
+                        : customers.filter((customer) => customer.type === customerTypeFilter)
+                }
                 highlightedCustomerId={highlightedCustomerId}
             />
         </div>
@@ -112,14 +124,18 @@ type CustomerStatCardProps = {
     value: string | number;
     description: string;
     icon: typeof Users;
+    href: string;
+    active: boolean;
 };
 
 function CustomerStatCard({
-                              label,
-                              value,
-                              description,
-                              icon: Icon,
-                          }: CustomerStatCardProps) {
+    label,
+    value,
+    description,
+    icon: Icon,
+    href,
+    active,
+}: CustomerStatCardProps) {
     return (
         <CompactStatCard
             label={label}
@@ -127,6 +143,8 @@ function CustomerStatCard({
             description={description}
             icon={Icon}
             tone="info"
+            href={href}
+            className={active ? "ring-2 ring-cyan-600 ring-offset-2" : undefined}
         />
     );
 }
