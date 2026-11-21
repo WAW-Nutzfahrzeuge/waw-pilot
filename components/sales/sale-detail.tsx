@@ -73,6 +73,7 @@ import { deleteSaleAdminAction } from "@/app/dashboard/admin-delete-actions";
 import { requiresEndUseDeclaration } from "@/src/modules/documents/domain/policies/end-use-declaration-policy";
 import { isSaleCustomDocument, saleCustomDocumentType } from "@/lib/sales/sale-custom-documents";
 import { SaleIdentifierCopy } from "@/components/sales/sale-identifier-copy";
+import { SaleTypeEditDialog } from "@/components/sales/sale-type-edit-dialog";
 import { AutomationReturnReviewForm } from "@/components/sales/automation-return-review-form";
 import { ReclassifySaleCustomDocumentForm } from "@/components/sales/reclassify-sale-custom-document-form";
 import { saleCommercialRegisterDocumentType } from "@/lib/sales/sale-fixed-document-types";
@@ -116,6 +117,8 @@ type SaleDetailProps = {
     correctionError?: string | null;
     recordSaved?: string | null;
     recordError?: string | null;
+    saleTypeSaved?: boolean;
+    saleTypeError?: string | null;
     backHref?: "/dashboard/sales" | "/dashboard/invoices";
 };
 
@@ -205,6 +208,8 @@ export async function SaleDetail({
                                correctionError = null,
                                recordSaved = null,
                                recordError = null,
+                               saleTypeSaved = false,
+                               saleTypeError = null,
                                backHref = "/dashboard/sales",
                            }: SaleDetailProps) {
     const missingRequirementLabels = [
@@ -320,6 +325,9 @@ export async function SaleDetail({
                                 }
                             />
                         ) : null}
+                        {sale.status === "cancelled" ? null : (
+                            <SaleTypeEditDialog sale={sale} />
+                        )}
                         <DownloadSaleFileButton saleId={sale.id} />
                         <Button
                             asChild
@@ -608,6 +616,22 @@ export async function SaleDetail({
                         {getRecordErrorMessage(recordError)}
                     </p>
                 </div>
+            ) : null}
+
+            {saleTypeSaved ? (
+                <FlashMessage
+                    message="Verkaufstyp wurde aktualisiert."
+                    description="Steuerbeträge und nicht versendete Rechnungs-PDFs wurden aktualisiert. Pflichtdokumente werden nach dem neuen Verkaufstyp berechnet; vorhandene Dokumente bleiben erhalten."
+                />
+            ) : null}
+
+            {saleTypeError ? (
+                <FlashMessage
+                    tone="danger"
+                    durationMs={9000}
+                    message="Verkaufstyp konnte nicht geändert werden."
+                    description={getSaleTypeErrorMessage(saleTypeError)}
+                />
             ) : null}
 
             <section className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -1980,6 +2004,31 @@ function getRecordErrorMessage(value: string): string {
     };
 
     return messages[decodedValue] ?? decodedValue;
+}
+
+function getSaleTypeErrorMessage(value: string): string {
+    const messages: Record<string, string> = {
+        invalidType: "Bitte wähle Inland, EU oder Drittlandexport.",
+        confirmationRequired: "Bitte bestätige die Auswirkungen des Verkaufstypwechsels.",
+        saleNotFound: "Der Verkauf wurde nicht gefunden oder gehört nicht zu deiner Firma.",
+        cancelled: "Bei einem stornierten Verkauf kann der Verkaufstyp nicht geändert werden.",
+        customerNotFound: "Der Käufer konnte nicht eindeutig geladen werden.",
+        dependenciesCouldNotBeChecked: "Zahlungen, Rückzahlungen und Rechnungsstatus konnten nicht sicher geprüft werden. Es wurde nichts geändert.",
+        invoiceAlreadySent: "Mindestens eine Rechnung wurde bereits versendet, an DATEV übertragen oder umgewandelt. Bitte verwende den Korrektur- oder Stornoprozess.",
+        paymentsExist: "Zu diesem Verkauf gibt es bereits eine Zahlung oder eine Kassenbuch-/Finanzbuchung. Diese bleibt unverändert; bitte kläre die Steuerfolgen über den Korrektur- oder Stornoprozess.",
+        refundsExist: "Zu diesem Verkauf ist bereits eine Rückzahlung erfasst. Bitte verwende den Korrektur- oder Stornoprozess.",
+        correctionExists: "Zu diesem Verkauf existiert bereits eine Storno- oder Korrekturrechnung. Der Typ kann nicht direkt geändert werden.",
+        euCompanyVatIdMissing: "Für einen EU-Verkauf an eine Firma muss zuerst eine USt-ID beim Käufer hinterlegt werden.",
+        invalidSaleAmount: "Der Netto-Rechnungsbetrag ist ungültig. Es wurde nichts geändert.",
+        invalidInvoiceAmount: "Mindestens ein Rechnungsbetrag ist ungültig. Es wurde nichts geändert.",
+        concurrentChange: "Der Verkauf wurde gleichzeitig geändert. Bitte lade die Akte neu und versuche es erneut.",
+        atomicUpdateFailed: "Der Verkaufstyp konnte nicht sicher geändert werden. Es wurde nichts geändert. Bitte lade die Akte neu oder wende dich an den Administrator.",
+        invoiceUpdateFailed: "Die Rechnungsbeträge konnten nicht sicher aktualisiert werden. Bitte lade die Akte neu oder wende dich an den Administrator.",
+        zugferdInvalidationFailed: "Der Verkaufstyp wurde aktualisiert, aber eine vorhandene E-Rechnung konnte nicht als veraltet markiert werden. Bitte keine E-Rechnung versenden und wende dich an den Administrator.",
+        pdfRefreshFailed: "Der Verkaufstyp und die Steuerbeträge wurden gespeichert, aber mindestens ein Rechnungs-PDF konnte nicht aktualisiert werden. Bitte prüfe die Rechnung und generiere das PDF vor dem Versand erneut.",
+    };
+
+    return messages[value] ?? "Bitte prüfe den Rechnungs- und Zahlungsstatus und versuche es erneut.";
 }
 
 function SectionTitle({

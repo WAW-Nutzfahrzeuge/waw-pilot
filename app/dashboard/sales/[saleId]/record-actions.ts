@@ -13,6 +13,7 @@ import {
 import { generateAndStoreInvoicePdf } from "@/lib/pdf/invoice-storage";
 import type { SaleType } from "@/lib/sales/sale-queries";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { isValidPhoneNumber } from "@/lib/validation/phone";
 import {
     getDuplicateVinMessage,
@@ -420,6 +421,219 @@ export async function updateSaleCustomerAction(formData: FormData) {
     ]);
 
     redirectWithSaleMessage(saleId, { recordSaved: "customer" });
+}
+
+export async function updateSaleTypeAction(formData: FormData) {
+    const supabase = createServerSupabaseClient();
+    const companyId = getCurrentCompanyId();
+    const saleId = getStringFormValue(formData, "sale_id");
+    const nextSaleType = getStringFormValue(formData, "sale_type");
+
+    if (!saleId) throw new Error("Verkauf fehlt.");
+    if (
+        nextSaleType !== "inland" &&
+        nextSaleType !== "eu" &&
+        nextSaleType !== "export_third_country"
+    ) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "invalidType" });
+    }
+    if (getStringFormValue(formData, "confirm_sale_type_change") !== "yes") {
+        redirectWithSaleMessage(saleId, { saleTypeError: "confirmationRequired" });
+    }
+
+    const { data: sale, error: saleError } = await supabase
+        .from("sales")
+        .select("id, sale_type, status, payment_status, datev_status, net_amount, vat_rate, vat_amount, gross_amount, buyer_customer_id")
+        .eq("id", saleId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+    if (saleError || !sale) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "saleNotFound" });
+    }
+    if (sale.status === "cancelled") {
+        redirectWithSaleMessage(saleId, { saleTypeError: "cancelled" });
+    }
+    if ((sale.sale_type ?? "inland") === nextSaleType) {
+        redirectWithSaleMessage(saleId, { saleTypeSaved: "1" });
+    }
+
+    const [customerResult, invoicesResult, paymentsResult, refundsResult, cashbookResult, financialEntriesResult] = await Promise.all([
+        supabase
+            .from("customers")
+            .select("id, type, country, vat_id")
+            .eq("id", sale.buyer_customer_id)
+            .eq("company_id", companyId)
+            .maybeSingle(),
+        supabase
+            .from("invoices")
+            .select("id, invoice_number, invoice_type, status, payment_status, datev_status, email_sent_at, zugferd_email_sent_at, zugferd_file_path, zugferd_validation_status, pdf_document_id, net_amount, vat_rate, vat_amount, gross_amount, correction_of_invoice_id, root_invoice_id")
+            .eq("sale_id", saleId)
+            .eq("company_id", companyId),
+        supabase
+            .from("sale_payments")
+            .select("id")
+            .eq("sale_id", saleId)
+            .eq("company_id", companyId)
+            .eq("is_voided", false),
+        supabase
+            .from("sale_refunds")
+            .select("id")
+            .eq("sale_id", saleId)
+            .eq("company_id", companyId)
+            .eq("is_voided", false),
+        supabase
+            .from("cashbook_entries")
+            .select("id")
+            .eq("sale_id", saleId)
+            .eq("company_id", companyId),
+        supabase
+            .from("financial_entries")
+            .select("id")
+            .eq("sale_id", saleId)
+            .eq("company_id", companyId),
+    ]);
+
+    if (customerResult.error || !customerResult.data) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "customerNotFound" });
+    }
+    if (invoicesResult.error || paymentsResult.error || refundsResult.error || cashbookResult.error || financialEntriesResult.error) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "dependenciesCouldNotBeChecked" });
+    }
+
+    const invoices = invoicesResult.data ?? [];
+    const hasInvoiceHistory = invoices.some(
+        (invoice) =>
+            invoice.status !== "created" ||
+            invoice.payment_status !== "open" ||
+            invoice.datev_status === "sent" ||
+            Boolean(invoice.email_sent_at) ||
+            Boolean(invoice.zugferd_email_sent_at) ||
+            Boolean(invoice.correction_of_invoice_id) ||
+            Boolean(invoice.root_invoice_id),
+    );
+
+    if (sale.datev_status === "sent" || hasInvoiceHistory) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "invoiceAlreadySent" });
+    }
+    if (
+        sale.payment_status !== "open" ||
+        (paymentsResult.data?.length ?? 0) > 0 ||
+        (cashbookResult.data?.length ?? 0) > 0 ||
+        (financialEntriesResult.data?.length ?? 0) > 0
+    ) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "paymentsExist" });
+    }
+    if ((refundsResult.data?.length ?? 0) > 0) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "refundsExist" });
+    }
+    if (
+        invoices.some(
+            (invoice) =>
+                !["standard", "proforma", "down_payment"].includes(invoice.invoice_type),
+        )
+    ) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "correctionExists" });
+    }
+    if (
+        nextSaleType === "eu" &&
+        customerResult.data.type === "company" &&
+        !customerResult.data.vat_id?.trim()
+    ) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "euCompanyVatIdMissing" });
+    }
+
+    const taxConfiguration = getSaleTaxConfiguration({
+        buyerType: customerResult.data.type,
+        deliveryType: nextSaleType as SaleType,
+        billingCountry: customerResult.data.country,
+    });
+    const nextVatRate = taxConfiguration.defaultVatRate;
+    const netAmount = Number(sale.net_amount);
+    if (!Number.isFinite(netAmount) || netAmount < 0) {
+        redirectWithSaleMessage(saleId, { saleTypeError: "invalidSaleAmount" });
+    }
+    const authSupabase = await createAuthServerSupabaseClient();
+    const { error: typeChangeError } = await authSupabase.rpc("change_sale_type_safely", {
+        p_company_id: companyId,
+        p_sale_id: saleId,
+        p_expected_sale_type: sale.sale_type,
+        p_next_sale_type: nextSaleType,
+        p_vat_rate: nextVatRate,
+    });
+
+    if (typeChangeError) {
+        const errorMessage = typeChangeError.message ?? "";
+        const errorKey = errorMessage.includes("ACCOUNTING_RECORDS_EXIST")
+            ? "paymentsExist"
+            : errorMessage.includes("REFUNDS_EXIST")
+              ? "refundsExist"
+            : errorMessage.includes("INVALID_AMOUNT")
+              ? "invalidInvoiceAmount"
+            : errorMessage.includes("INVOICE_HISTORY")
+              ? "invoiceAlreadySent"
+              : errorMessage.includes("CONCURRENT")
+                ? "concurrentChange"
+                : errorMessage.includes("EU_VAT_ID_REQUIRED")
+                  ? "euCompanyVatIdMissing"
+                  : errorMessage.includes("CANCELLED")
+                    ? "cancelled"
+                    : errorMessage.includes("CUSTOMER_NOT_FOUND") || errorMessage.includes("NOT_FOUND")
+                      ? "saleNotFound"
+                      : "atomicUpdateFailed";
+        redirectWithSaleMessage(saleId, { saleTypeError: errorKey });
+    }
+
+    try {
+        for (const invoice of invoices) {
+            if (!invoice.pdf_document_id) continue;
+            const storedPdf = await generateAndStoreInvoicePdf(invoice.id);
+            const { error: documentUpdateError } = await supabase
+                .from("documents")
+                .update({
+                    status: "available",
+                    file_name: storedPdf.fileName,
+                    file_path: storedPdf.filePath,
+                    file_size: storedPdf.fileSize,
+                    mime_type: "application/pdf",
+                })
+                .eq("id", invoice.pdf_document_id)
+                .eq("company_id", companyId);
+            if (documentUpdateError) throw documentUpdateError;
+        }
+    } catch {
+        await logActivity({
+            action: `Verkaufstyp auf ${nextSaleType} geändert; mindestens ein Rechnungs-PDF muss erneut geprüft werden`,
+            entityType: "sale",
+            entityId: saleId,
+        });
+        revalidatePaths([
+            `/dashboard/sales/${saleId}`,
+            "/dashboard/sales",
+            "/dashboard/invoices",
+            "/dashboard/documents",
+            "/dashboard/accounting",
+            "/dashboard",
+            "/dashboard/activities",
+        ]);
+        redirectWithSaleMessage(saleId, { saleTypeError: "pdfRefreshFailed" });
+    }
+
+    await logActivity({
+        action: `Verkaufstyp von ${sale.sale_type} auf ${nextSaleType} geändert; Steuerbeträge neu berechnet`,
+        entityType: "sale",
+        entityId: saleId,
+    });
+    revalidatePaths([
+        `/dashboard/sales/${saleId}`,
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/documents",
+        "/dashboard/accounting",
+        "/dashboard",
+        "/dashboard/activities",
+    ]);
+    redirectWithSaleMessage(saleId, { saleTypeSaved: "1" });
 }
 
 export async function updateSaleVehicleAction(formData: FormData) {
