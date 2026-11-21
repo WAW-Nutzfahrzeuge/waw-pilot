@@ -124,8 +124,8 @@ type CustomerStatCardProps = {
     value: string | number;
     description: string;
     icon: typeof Users;
-    href: string;
-    active: boolean;
+    href?: string;
+    active?: boolean;
 };
 
 function CustomerStatCard({
