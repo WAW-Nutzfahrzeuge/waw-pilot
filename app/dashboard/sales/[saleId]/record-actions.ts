@@ -30,7 +30,7 @@ function getEmailLanguage(formData: FormData): EmailLanguage {
     return normalizeEmailLanguage(getStringFormValue(formData, "preferred_language"));
 }
 
-function redirectWithSaleMessage(saleId: string, params: Record<string, string>) {
+function redirectWithSaleMessage(saleId: string, params: Record<string, string>): never {
     const searchParams = new URLSearchParams(params);
 
     redirect(`/dashboard/sales/${saleId}?${searchParams.toString()}`);
