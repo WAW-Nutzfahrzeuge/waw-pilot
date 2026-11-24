@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin-delete/admin-delete-policies";
 import { getCurrentUserContext } from "@/lib/auth/current-user";
 import { getCurrentCompanyId } from "@/lib/company";
+import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import {
     finalizeStagedPrivateDocumentDeletes,
     restoreStagedPrivateDocumentFiles,
@@ -309,7 +310,13 @@ async function runAdminHardDelete({
             operationId,
         });
 
-        const { error } = await supabase.rpc(rpcName, {
+        // Vehicle deletion uses an admin-checked SECURITY DEFINER RPC. Call it
+        // with the authenticated session JWT, not the public anon-key client,
+        // so auth.uid() and the authenticated EXECUTE grant are available.
+        const rpcClient = subject === "vehicle"
+            ? await createAuthServerSupabaseClient()
+            : supabase;
+        const { error } = await rpcClient.rpc(rpcName, {
             p_company_id: companyId,
             [rpcIdParam]: targetId,
             p_actor_auth_user_id: context.authUserId,
