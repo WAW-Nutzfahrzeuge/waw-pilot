@@ -40,6 +40,7 @@ export type SendEmailCommand = {
     subject: string;
     bodyHtml: string;
     bodyText?: string | null;
+    includeCompanySignature?: boolean;
     documentAttachments?: SendEmailAttachmentCommand[];
     resolvedAttachments?: SendEmailResolvedAttachmentCommand[];
     relations?: SendEmailRelationCommand[];

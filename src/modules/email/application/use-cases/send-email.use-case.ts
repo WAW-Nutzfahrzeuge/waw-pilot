@@ -16,6 +16,8 @@ import type { EmailAuditPort } from "@/src/modules/email/application/ports/email
 import type { EmailProviderPort } from "@/src/modules/email/application/ports/email-provider.port";
 import type { EmailRepositoryPort } from "@/src/modules/email/application/ports/email-repository.port";
 import type { EmailActivityPort } from "@/src/modules/email/application/ports/email-activity.port";
+import type { CompanyEmailSignatureReaderPort } from "@/src/modules/email/application/ports/company-email-signature-reader.port";
+import { companyEmailSignaturePlainText, removeStandardEmailClosing } from "@/lib/email/company-email-signature";
 
 export class SendEmailUseCase {
     private readonly recipientService = new EmailRecipientService();
@@ -27,6 +29,7 @@ export class SendEmailUseCase {
         private readonly provider: EmailProviderPort,
         private readonly audit: EmailAuditPort,
         private readonly activity: EmailActivityPort,
+        private readonly companyEmailSignatureReader: CompanyEmailSignatureReaderPort,
     ) {}
 
     async execute(command: SendEmailCommand): Promise<EmailMessageDto> {
@@ -86,6 +89,20 @@ export class SendEmailUseCase {
             });
         }
 
+        const companySignature = command.includeCompanySignature
+            ? await this.companyEmailSignatureReader.read(command.companyId)
+            : null;
+        const originalBodyText = command.bodyText ?? command.bodyHtml.replace(/<[^>]+>/g, " ");
+        const baseBody = companySignature?.includesClosing
+            ? removeStandardEmailClosing(command.bodyHtml, originalBodyText)
+            : { html: command.bodyHtml, text: originalBodyText };
+        const bodyHtml = companySignature
+            ? `${baseBody.html}<div style="margin-top:16px">${companySignature.html}</div>`
+            : command.bodyHtml;
+        const bodyText = companySignature
+            ? `${baseBody.text.trim()}\n\n${companyEmailSignaturePlainText(companySignature.html)}`.trim()
+            : command.bodyText;
+
         const domainAttachments = resolvedAttachments.map((attachment) =>
             EmailAttachment.create(
                 {
@@ -101,14 +118,25 @@ export class SendEmailUseCase {
         );
 
         this.attachmentPolicy.assertWithinTotalLimit(domainAttachments);
+        if (companySignature) {
+            const inlineDomainAttachments = companySignature.inlineAttachments.map((attachment) =>
+                EmailAttachment.create({
+                    fileName: attachment.filename,
+                    mimeType: attachment.contentType,
+                    fileSizeBytes: attachment.content.byteLength,
+                    attachmentType: "inline_signature",
+                }, emailAttachmentLimits.maxFileSizeBytes),
+            );
+            this.attachmentPolicy.assertWithinTotalLimit([...domainAttachments, ...inlineDomainAttachments]);
+        }
 
         const message = new EmailMessage({
             companyId: command.companyId,
             contextType: command.contextType,
             contextId: command.contextId ?? null,
             subject: command.subject,
-            bodyHtml: command.bodyHtml,
-            bodyText: command.bodyText ?? null,
+            bodyHtml,
+            bodyText: bodyText ?? null,
             recipients,
             attachments: domainAttachments,
             status: "DRAFT",
@@ -124,6 +152,8 @@ export class SendEmailUseCase {
             })
             : await this.repository.createSendingMessage({
                 ...command,
+                bodyHtml,
+                bodyText,
                 status: "SENDING",
                 attachments: resolvedAttachments.map((attachment, index) => ({
                     documentId: attachment.documentId.length > 0 ? attachment.documentId : null,
@@ -170,13 +200,16 @@ export class SendEmailUseCase {
                     .filter((recipient) => recipient.kind === "bcc")
                     .map((recipient) => recipient.email.value),
                 subject: command.subject,
-                text: command.bodyText ?? command.bodyHtml.replace(/<[^>]+>/g, " "),
-                html: command.bodyHtml,
-                attachments: resolvedAttachments.map((attachment) => ({
-                    filename: attachment.fileName,
-                    content: attachment.content,
-                    contentType: attachment.mimeType,
-                })),
+                text: bodyText ?? bodyHtml.replace(/<[^>]+>/g, " "),
+                html: bodyHtml,
+                attachments: [
+                    ...resolvedAttachments.map((attachment) => ({
+                        filename: attachment.fileName,
+                        content: attachment.content,
+                        contentType: attachment.mimeType,
+                    })),
+                    ...(companySignature?.inlineAttachments ?? []),
+                ],
                 idempotencyKey: command.idempotencyKey,
             });
 

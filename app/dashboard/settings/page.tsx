@@ -13,6 +13,10 @@ type SettingsPageProps = {
         termsUploaded?: string;
         termsRemoved?: string;
         termsUploadError?: string;
+        emailSignatureSaved?: string;
+        emailSignatureAssetUploaded?: string;
+        emailSignatureAssetRemoved?: string;
+        emailSignatureError?: string;
     }>;
 };
 
@@ -34,6 +38,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             termsUploaded={resolvedSearchParams.termsUploaded === "1"}
             termsRemoved={resolvedSearchParams.termsRemoved === "1"}
             termsUploadError={resolvedSearchParams.termsUploadError}
+            emailSignatureSaved={resolvedSearchParams.emailSignatureSaved === "1"}
+            emailSignatureAssetUploaded={resolvedSearchParams.emailSignatureAssetUploaded === "1"}
+            emailSignatureAssetRemoved={resolvedSearchParams.emailSignatureAssetRemoved === "1"}
+            emailSignatureError={resolvedSearchParams.emailSignatureError}
         />
     );
 }

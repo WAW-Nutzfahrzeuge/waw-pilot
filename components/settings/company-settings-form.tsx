@@ -48,6 +48,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient-default";
+import { CompanyEmailSignatureCard } from "@/components/settings/company-email-signature-card";
 
 type CompanySettingsFormProps = {
     company: CompanySettings;
@@ -59,6 +60,10 @@ type CompanySettingsFormProps = {
     termsUploaded?: boolean;
     termsRemoved?: boolean;
     termsUploadError?: string;
+    emailSignatureSaved?: boolean;
+    emailSignatureAssetUploaded?: boolean;
+    emailSignatureAssetRemoved?: boolean;
+    emailSignatureError?: string;
 };
 
 function createInitialState(company: CompanySettings): UpdateCompanySettingsState {
@@ -106,6 +111,10 @@ export function CompanySettingsForm({
     termsUploaded = false,
     termsRemoved = false,
     termsUploadError,
+    emailSignatureSaved = false,
+    emailSignatureAssetUploaded = false,
+    emailSignatureAssetRemoved = false,
+    emailSignatureError,
 }: CompanySettingsFormProps) {
     const [state, formAction, isPending] = useActionState(
         updateCompanySettingsAction,
@@ -505,6 +514,14 @@ export function CompanySettingsForm({
                     <CompanyAssetUploadCard imagePath={company.signature_image_path} />
                 </CardContent>
             </Card>
+
+            <CompanyEmailSignatureCard
+                company={company}
+                saved={emailSignatureSaved}
+                uploaded={emailSignatureAssetUploaded}
+                removed={emailSignatureAssetRemoved}
+                error={emailSignatureError}
+            />
 
             <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                 <CardContent className="space-y-5 p-5">

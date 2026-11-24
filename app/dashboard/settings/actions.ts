@@ -18,6 +18,14 @@ import { isValidBic, isValidIban, normalizeBic, normalizeIban } from "@/lib/sett
 import { createAuthServerSupabaseClient } from "@/lib/supabase/auth-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { DEFAULT_DATEV_INVOICE_UPLOAD_EMAIL } from "@/lib/email/datev-recipient-default";
+import {
+    extractCompanyEmailSignatureContentIds,
+    isValidEmailSignatureContentId,
+    sanitizeCompanyEmailSignatureHtml,
+} from "@/lib/email/company-email-signature";
+import { getCurrentUserContext } from "@/lib/auth/current-user";
+import sharp from "sharp";
+import { randomUUID } from "node:crypto";
 
 export type UpdateCompanySettingsState = {
     success: boolean;
@@ -156,6 +164,153 @@ function redirectWithAssetUploadError(errorCode: string): never {
 
 function redirectWithTermsUploadError(errorCode: string): never {
     redirect(`/dashboard/settings?termsUploadError=${encodeURIComponent(errorCode)}`);
+}
+
+function redirectWithEmailSignatureError(errorCode: string): never {
+    redirect(`/dashboard/settings?emailSignatureError=${encodeURIComponent(errorCode)}`);
+}
+
+type EmailSignatureAssetRecord = {
+    contentId: string;
+    filePath: string;
+    fileName: string;
+    mimeType: string;
+    fileSizeBytes: number;
+};
+
+function parseEmailSignatureAssets(value: unknown): EmailSignatureAssetRecord[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is EmailSignatureAssetRecord => Boolean(
+        item && typeof item === "object" &&
+        isValidEmailSignatureContentId((item as EmailSignatureAssetRecord).contentId) &&
+        typeof (item as EmailSignatureAssetRecord).filePath === "string" &&
+        typeof (item as EmailSignatureAssetRecord).fileName === "string" &&
+        (item as EmailSignatureAssetRecord).mimeType === "image/png" &&
+        Number.isSafeInteger((item as EmailSignatureAssetRecord).fileSizeBytes),
+    ));
+}
+
+async function requireEmailSignatureSettingsAccess() {
+    const user = await getCurrentUserContext();
+    const companyId = getCurrentCompanyId();
+    if (user.companyId !== companyId) throw new Error("ACCESS_DENIED");
+    return { user, companyId };
+}
+
+export async function saveCompanyEmailSignatureAction(formData: FormData) {
+    const { companyId } = await requireEmailSignatureSettingsAccess();
+    const supabase = createServerSupabaseClient();
+    const rawHtml = formData.get("email_signature_html");
+    if (typeof rawHtml === "string" && rawHtml.length > 100_000) redirectWithEmailSignatureError("tooLong");
+    const originalHtml = typeof rawHtml === "string" ? rawHtml : "";
+    const sanitizedHtml = sanitizeCompanyEmailSignatureHtml(originalHtml);
+    const includesClosing = formData.get("email_signature_includes_closing") === "yes";
+
+    const { data: current, error: loadError } = await supabase.from("companies")
+        .select("email_signature_assets").eq("id", companyId).maybeSingle();
+    if (loadError || !current) redirectWithEmailSignatureError("saveFailed");
+
+    const assets = parseEmailSignatureAssets(current.email_signature_assets);
+    const missingContentIds = extractCompanyEmailSignatureContentIds(sanitizedHtml).filter((id) => !assets.some((asset) => asset.contentId === id));
+    if (missingContentIds.length > 0) redirectWithEmailSignatureError("missingImage");
+
+    const { error } = await supabase.from("companies").update({
+        email_signature_html: originalHtml,
+        email_signature_includes_closing: includesClosing,
+        updated_at: new Date().toISOString(),
+    }).eq("id", companyId);
+    if (error) redirectWithEmailSignatureError("saveFailed");
+    revalidateCompanySettingsPaths();
+    redirect("/dashboard/settings?emailSignatureSaved=1");
+}
+
+export async function uploadCompanyEmailSignatureAssetAction(formData: FormData) {
+    const { companyId } = await requireEmailSignatureSettingsAccess();
+    const supabase = createServerSupabaseClient();
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size <= 0) redirectWithEmailSignatureError("missingFile");
+    if (file.size > 4 * 1024 * 1024) redirectWithEmailSignatureError("fileTooLarge");
+    if (!isAllowedImageAssetFile(file)) redirectWithEmailSignatureError("unsupportedType");
+
+    const { data: company, error: companyError } = await supabase.from("companies")
+        .select("email_signature_assets").eq("id", companyId).maybeSingle();
+    if (companyError || !company) redirectWithEmailSignatureError("saveFailed");
+    const assets = parseEmailSignatureAssets(company.email_signature_assets);
+    if (assets.length >= 8) redirectWithEmailSignatureError("tooManyImages");
+    if (assets.reduce((total, asset) => total + asset.fileSizeBytes, 0) + file.size > 3 * 1024 * 1024) {
+        redirectWithEmailSignatureError("totalTooLarge");
+    }
+
+    let imageBytes: Buffer;
+    let imageFormat = "";
+    try {
+        const input = Buffer.from(await file.arrayBuffer());
+        const metadata = await sharp(input, { failOn: "error" }).metadata();
+        imageFormat = metadata.format ?? "";
+        imageBytes = await sharp(input, { failOn: "error" })
+            .rotate()
+            .resize({ width: 1200, height: 800, fit: "inside", withoutEnlargement: true })
+            .png({ compressionLevel: 9 })
+            .toBuffer();
+    } catch (error) {
+        void error;
+        redirectWithEmailSignatureError("invalidImage");
+    }
+    if (!["png", "jpeg", "webp"].includes(imageFormat)) redirectWithEmailSignatureError("unsupportedType");
+    if (imageBytes.byteLength <= 0 || imageBytes.byteLength > 2 * 1024 * 1024) redirectWithEmailSignatureError("fileTooLarge");
+
+    const contentId = `waw-${randomUUID().replaceAll("-", "")}`;
+    const safeName = sanitizeFileName(file.name.replace(/\.[^.]+$/, "")) || "signaturbild";
+    const fileName = `${safeName}.png`;
+    const filePath = `company-assets/${companyId}/email-signature/${contentId}.png`;
+    const { error: uploadError } = await supabase.storage.from("documents").upload(filePath, imageBytes, {
+        contentType: "image/png",
+        upsert: false,
+    });
+    if (uploadError) redirectWithEmailSignatureError("uploadFailed");
+
+    const nextAssets = [...assets, { contentId, filePath, fileName, mimeType: "image/png", fileSizeBytes: imageBytes.byteLength }];
+    const { error: updateError } = await supabase.from("companies").update({
+        email_signature_assets: nextAssets,
+        updated_at: new Date().toISOString(),
+    }).eq("id", companyId);
+    if (updateError) {
+        await supabase.storage.from("documents").remove([filePath]);
+        console.error("[settings] email signature metadata update failed", { companyId, contentId, code: updateError.code ?? null });
+        redirectWithEmailSignatureError("saveFailed");
+    }
+    revalidateCompanySettingsPaths();
+    redirect("/dashboard/settings?emailSignatureAssetUploaded=1");
+}
+
+export async function removeCompanyEmailSignatureAssetAction(formData: FormData) {
+    const { companyId } = await requireEmailSignatureSettingsAccess();
+    const supabase = createServerSupabaseClient();
+    const contentId = getStringValue(formData, "content_id");
+    if (!isValidEmailSignatureContentId(contentId)) redirectWithEmailSignatureError("invalidAsset");
+    const { data: company, error } = await supabase.from("companies")
+        .select("email_signature_html, email_signature_assets").eq("id", companyId).maybeSingle();
+    if (error || !company) redirectWithEmailSignatureError("saveFailed");
+    const assets = parseEmailSignatureAssets(company.email_signature_assets);
+    const asset = assets.find((item) => item.contentId === contentId);
+    if (!asset) redirectWithEmailSignatureError("invalidAsset");
+    if (extractCompanyEmailSignatureContentIds(String(company.email_signature_html ?? "")).includes(contentId)) {
+        redirectWithEmailSignatureError("imageInUse");
+    }
+
+    const nextAssets = assets.filter((item) => item.contentId !== contentId);
+    const { error: updateError } = await supabase.from("companies").update({
+        email_signature_assets: nextAssets,
+        updated_at: new Date().toISOString(),
+    }).eq("id", companyId);
+    if (updateError) redirectWithEmailSignatureError("saveFailed");
+    const { error: removeError } = await supabase.storage.from("documents").remove([asset.filePath]);
+    if (removeError) {
+        console.error("[settings] email signature storage cleanup failed", { companyId, contentId, code: removeError.name ?? null });
+        redirectWithEmailSignatureError("cleanupFailed");
+    }
+    revalidateCompanySettingsPaths();
+    redirect("/dashboard/settings?emailSignatureAssetRemoved=1");
 }
 
 export async function updateCompanySettingsAction(

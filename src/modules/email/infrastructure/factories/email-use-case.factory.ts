@@ -6,6 +6,7 @@ import { SupabaseEmailRepository } from "@/src/modules/email/infrastructure/pers
 import { ResendEmailProvider } from "@/src/modules/email/infrastructure/providers/resend/resend-email.provider";
 import { SupabaseEmailAuditAdapter } from "@/src/modules/email/infrastructure/logging/supabase-email-audit.adapter";
 import { EmailActivityAdapter } from "@/src/modules/email/infrastructure/logging/email-activity.adapter";
+import { SupabaseCompanyEmailSignatureReader } from "@/src/modules/email/infrastructure/attachments/supabase-company-email-signature.reader";
 
 export async function createSendEmailUseCase(): Promise<SendEmailUseCase> {
     const supabase = await createAuthServerSupabaseClient();
@@ -17,6 +18,7 @@ export async function createSendEmailUseCase(): Promise<SendEmailUseCase> {
         new ResendEmailProvider(),
         new SupabaseEmailAuditAdapter(supabase),
         new EmailActivityAdapter(),
+        new SupabaseCompanyEmailSignatureReader(supabase),
     );
 }
 

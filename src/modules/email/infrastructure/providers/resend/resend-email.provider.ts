@@ -24,6 +24,7 @@ export class ResendEmailProvider implements EmailProviderPort {
                     filename: attachment.filename,
                     content: attachment.content,
                     contentType: attachment.contentType,
+                    contentId: attachment.contentId,
                 })),
                 idempotencyKey: request.idempotencyKey,
             });

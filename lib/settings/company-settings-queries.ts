@@ -2,6 +2,9 @@ import { unstable_noStore as noStore } from "next/cache";
 
 import { getCurrentCompanyId } from "@/lib/company";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { renderCompanyEmailSignaturePreview, type CompanyEmailSignatureAsset } from "@/lib/email/company-email-signature";
+
+export type CompanyEmailSignatureAssetView = CompanyEmailSignatureAsset;
 
 export type CompanySettings = {
     id: string;
@@ -32,6 +35,10 @@ export type CompanySettings = {
     terms_pdf_mime_type: string | null;
     terms_pdf_size: number | null;
     terms_pdf_uploaded_at: string | null;
+    email_signature_html: string;
+    email_signature_preview_html: string;
+    email_signature_includes_closing: boolean;
+    email_signature_assets: CompanyEmailSignatureAssetView[];
 };
 
 export async function getCompanySettings(): Promise<CompanySettings> {
@@ -71,7 +78,10 @@ export async function getCompanySettings(): Promise<CompanySettings> {
             terms_pdf_filename,
             terms_pdf_mime_type,
             terms_pdf_size,
-            terms_pdf_uploaded_at
+            terms_pdf_uploaded_at,
+            email_signature_html,
+            email_signature_includes_closing,
+            email_signature_assets
         `,
         )
         .eq("id", companyId)
@@ -85,5 +95,28 @@ export async function getCompanySettings(): Promise<CompanySettings> {
         );
     }
 
-    return data as CompanySettings;
+    const rawAssets = Array.isArray(data.email_signature_assets) ? data.email_signature_assets : [];
+    const assets = await Promise.all(rawAssets.map(async (item) => {
+        if (!item || typeof item !== "object") return null;
+        const asset = item as Record<string, unknown>;
+        if (typeof asset.contentId !== "string" || typeof asset.filePath !== "string" || typeof asset.fileName !== "string" || typeof asset.fileSizeBytes !== "number") return null;
+        const { data: signed } = await supabase.storage.from("documents").createSignedUrl(asset.filePath, 600);
+        return {
+            contentId: asset.contentId,
+            filePath: asset.filePath,
+            fileName: asset.fileName,
+            mimeType: "image/png" as const,
+            fileSizeBytes: asset.fileSizeBytes,
+            ...(signed?.signedUrl ? { previewUrl: signed.signedUrl } : {}),
+        };
+    }));
+    const emailSignatureAssets = assets.filter((asset): asset is CompanyEmailSignatureAssetView => Boolean(asset));
+    const signatureHtml = typeof data.email_signature_html === "string" ? data.email_signature_html : "";
+    return {
+        ...data,
+        email_signature_html: signatureHtml,
+        email_signature_includes_closing: data.email_signature_includes_closing === true,
+        email_signature_assets: emailSignatureAssets,
+        email_signature_preview_html: renderCompanyEmailSignaturePreview(signatureHtml, emailSignatureAssets),
+    } as CompanySettings;
 }

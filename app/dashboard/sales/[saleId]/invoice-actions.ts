@@ -1384,6 +1384,7 @@ export async function sendSaleInvoiceEmailAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
+            includeCompanySignature: true,
             resolvedAttachments: [
                 {
                     fileName: invoiceFileName,
@@ -1792,6 +1793,7 @@ export async function sendZugferdInvoiceEmailAction(formData: FormData) {
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: template.html,
+            includeCompanySignature: true,
             resolvedAttachments: [
                 {
                     fileName: new ExportFileNamePolicy().createDocumentFileName({

@@ -66,6 +66,7 @@ export async function sendDatevInvoice(
             contextType: "INVOICE",
             contextId: invoice.id,
             templateKey: "invoice.send.datev",
+            includeCompanySignature: false,
             senderName: sender.senderName,
             senderEmail: sender.senderEmail,
             toRecipients: [{ email: recipientEmail, name: "DATEV" }],

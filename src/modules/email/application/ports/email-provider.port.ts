@@ -2,6 +2,7 @@ export type EmailProviderAttachment = {
     filename: string;
     content: Buffer;
     contentType: string;
+    contentId?: string;
 };
 
 export type EmailProviderRequest = {

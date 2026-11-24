@@ -4,6 +4,7 @@ type EmailAttachment = {
     filename: string;
     content: Buffer;
     contentType?: string;
+    contentId?: string;
 };
 
 type SendEmailParams = {
@@ -102,6 +103,7 @@ export async function sendEmailWithResend({
                 filename: attachment.filename,
                 content: attachment.content.toString("base64"),
                 content_type: attachment.contentType,
+                content_id: attachment.contentId,
             })),
         }),
     });

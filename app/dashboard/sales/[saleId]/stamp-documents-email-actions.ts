@@ -288,6 +288,7 @@ export async function sendStampDocumentsEmailAction(
             subject: safeSubject,
             bodyText: safeBody,
             bodyHtml: toHtml(safeBody),
+            includeCompanySignature: true,
             documentAttachments: selectedAttachments.map((attachment) => ({
                 documentId: attachment.documentId,
                 attachmentType: attachment.attachmentType,
@@ -443,6 +444,7 @@ export async function sendEndUseDeclarationEmailAction(
             subject: template.subject,
             bodyText: template.text,
             bodyHtml: toHtml(template.text),
+            includeCompanySignature: true,
             documentAttachments: [
                 {
                     documentId: declaration.id,
