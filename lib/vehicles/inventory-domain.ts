@@ -1,8 +1,9 @@
-export type InventoryStockStatus = "in_stock" | "reserved" | "sold";
+export type InventoryStockStatus = "in_stock" | "reserved" | "sold" | "cancelled";
 
 export type InventoryStockDateRow = {
     purchaseDate: string | null;
     saleDate: string | null;
+    status?: InventoryStockStatus;
 };
 
 export type InventoryValueRow = {
@@ -123,6 +124,7 @@ export function wasVehicleInInventoryPeriod({
     fromDate: string;
     toDate: string;
 }): boolean {
+    if (row.status === "cancelled") return true;
     if (!fromDate && !toDate) return true;
     if (!row.purchaseDate) return false;
 

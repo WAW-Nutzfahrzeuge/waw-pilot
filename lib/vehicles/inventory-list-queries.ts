@@ -36,7 +36,7 @@ export type InventoryListRow = {
 
     rawProfitNet: number | null;
 
-    status: "in_stock" | "reserved" | "sold";
+    status: "in_stock" | "reserved" | "sold" | "cancelled";
 };
 
 type VehicleQueryRow = {
@@ -51,6 +51,7 @@ type VehicleQueryRow = {
     purchase_price_net: number | string | null;
     additional_costs_net: number | string | null;
     status: "in_stock" | "reserved" | "sold";
+    purchase_cancelled_at: string | null;
     created_at: string;
     seller_customer_id: string | null;
 };
@@ -169,6 +170,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
             purchase_price_net,
             additional_costs_net,
             status,
+            purchase_cancelled_at,
             created_at,
             seller_customer_id
         `,
@@ -414,7 +416,7 @@ export async function getInventoryListRows(): Promise<InventoryListRow[]> {
 
             rawProfitNet,
 
-            status: vehicle.status,
+            status: vehicle.purchase_cancelled_at ? "cancelled" : vehicle.status,
         };
     });
 }

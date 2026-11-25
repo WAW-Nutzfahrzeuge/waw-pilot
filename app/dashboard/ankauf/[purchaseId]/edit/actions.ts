@@ -118,7 +118,7 @@ export async function updatePurchaseCaseAction(
             .maybeSingle(),
         supabase
             .from("vehicles")
-            .select("internal_number, manufacturer, model, status")
+            .select("internal_number, manufacturer, model, status, purchase_cancelled_at")
             .eq("id", vehicleId)
             .eq("company_id", companyId)
             .maybeSingle(),
@@ -139,10 +139,12 @@ export async function updatePurchaseCaseAction(
         };
     }
 
-    if (vehicleData.status === "sold" || existingVehiclePurchase) {
+    if (vehicleData.status === "sold" || existingVehiclePurchase || vehicleData.purchase_cancelled_at) {
         return {
             success: false,
-            message: "Dieses Fahrzeug ist bereits verkauft oder mit einem anderen Ankauf verknüpft.",
+            message: vehicleData.purchase_cancelled_at
+                ? "Dieses Fahrzeug ist storniert und kann nicht erneut angekauft werden."
+                : "Dieses Fahrzeug ist bereits verkauft oder mit einem anderen Ankauf verknüpft.",
         };
     }
 

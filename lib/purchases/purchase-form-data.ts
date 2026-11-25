@@ -91,6 +91,7 @@ export async function getPurchaseFormData(): Promise<PurchaseFormData> {
                 "id, internal_number, manufacturer, model, vehicle_type, vin, construction_year, status",
             )
             .eq("company_id", companyId)
+            .is("purchase_cancelled_at", null)
             .order("created_at", { ascending: false }),
 
         supabase

@@ -310,10 +310,10 @@ async function runAdminHardDelete({
             operationId,
         });
 
-        // Vehicle deletion uses an admin-checked SECURITY DEFINER RPC. Call it
+        // Admin hard-delete RPCs use authenticated SECURITY DEFINER wrappers. Call them
         // with the authenticated session JWT, not the public anon-key client,
         // so auth.uid() and the authenticated EXECUTE grant are available.
-        const rpcClient = subject === "vehicle"
+        const rpcClient = subject === "vehicle" || subject === "purchase"
             ? await createAuthServerSupabaseClient()
             : supabase;
         const { error } = await rpcClient.rpc(rpcName, {
@@ -415,6 +415,7 @@ export async function deletePurchaseAdminAction(
     revalidatePaths([
         "/dashboard/ankauf",
         "/dashboard/vehicles",
+        "/dashboard/vehicles/bestandsliste",
         "/dashboard/documents",
         "/dashboard/cashbook",
         "/dashboard/activities",

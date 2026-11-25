@@ -146,6 +146,7 @@ export async function getVehicles(): Promise<VehicleRow[]> {
     `,
         )
         .eq("company_id", companyId)
+        .is("purchase_cancelled_at", null)
         .order("created_at", { ascending: false });
 
     if (error) {
@@ -267,11 +268,13 @@ export async function getVehicleDashboardSummary(): Promise<VehicleDashboardSumm
         supabase
             .from("vehicles")
             .select("id, status, purchase_price_net")
-            .eq("company_id", companyId),
+            .eq("company_id", companyId)
+            .is("purchase_cancelled_at", null),
         supabase
             .from("vehicles")
             .select("id, internal_number, manufacturer, model, status, created_at")
             .eq("company_id", companyId)
+            .is("purchase_cancelled_at", null)
             .order("created_at", { ascending: false })
             .limit(4),
     ]);
@@ -370,7 +373,8 @@ export async function getCurrentInventoryValueNet(): Promise<number> {
         .from("vehicles")
         .select("status, purchase_price_net")
         .eq("company_id", companyId)
-        .in("status", ["in_stock", "reserved"]);
+        .in("status", ["in_stock", "reserved"])
+        .is("purchase_cancelled_at", null);
 
     if (error) {
         throw new Error(`Aktueller Bestandswert konnte nicht geladen werden: ${error.message}`);
@@ -391,7 +395,8 @@ export async function getVehicleReportSummary(): Promise<VehicleReportSummary> {
     const { data, error } = await supabase
         .from("vehicles")
         .select("status, purchase_price_net")
-        .eq("company_id", companyId);
+        .eq("company_id", companyId)
+        .is("purchase_cancelled_at", null);
 
     if (error) {
         throw new Error(`Fahrzeug-Auswertung konnte nicht geladen werden: ${error.message}`);
@@ -458,6 +463,7 @@ export async function getSellableVehicles(): Promise<VehicleRow[]> {
         )
         .eq("company_id", companyId)
         .in("status", ["in_stock", "reserved"])
+        .is("purchase_cancelled_at", null)
         .order("created_at", { ascending: false });
 
     if (error) {

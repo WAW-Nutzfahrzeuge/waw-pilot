@@ -1012,7 +1012,7 @@ export async function createSaleAction(
 
     const { data: vehicleData, error: vehicleLoadError } = await supabase
         .from("vehicles")
-        .select("id, internal_number, manufacturer, model, status, damage_notes, show_damage_on_invoice")
+        .select("id, internal_number, manufacturer, model, status, purchase_cancelled_at, damage_notes, show_damage_on_invoice")
         .eq("id", vehicleId)
         .eq("company_id", companyId)
         .single();
@@ -1029,6 +1029,19 @@ export async function createSaleAction(
             message: `Fahrzeug konnte nicht geladen werden: ${
                 vehicleLoadError?.message ?? "Nicht gefunden"
             }`,
+        };
+    }
+
+    if (vehicleData.purchase_cancelled_at) {
+        await cleanupInlineSaleCreation({
+            supabase,
+            companyId,
+            createdVehicleId: createdInlineVehicleId,
+            createdCustomerId: createdInlineCustomerId,
+        });
+        return {
+            success: false,
+            message: "Dieses Fahrzeug ist storniert und kann nicht verkauft werden.",
         };
     }
 

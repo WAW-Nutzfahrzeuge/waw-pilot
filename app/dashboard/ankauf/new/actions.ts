@@ -601,7 +601,7 @@ async function resolveVehicleId({
         const [{ data: vehicle }, { data: existingPurchase }] = await Promise.all([
             supabase
                 .from("vehicles")
-                .select("id, internal_number, manufacturer, model, status")
+                .select("id, internal_number, manufacturer, model, status, purchase_cancelled_at")
                 .eq("company_id", companyId)
                 .eq("id", vehicleId)
                 .maybeSingle(),
@@ -618,10 +618,12 @@ async function resolveVehicleId({
             return { success: false as const, message: "Das Fahrzeug wurde nicht gefunden." };
         }
 
-        if (vehicle.status === "sold" || existingPurchase) {
+        if (vehicle.status === "sold" || existingPurchase || vehicle.purchase_cancelled_at) {
             return {
                 success: false as const,
-                message: "Dieses Fahrzeug ist bereits verkauft oder mit einem Ankauf verknüpft.",
+                message: vehicle.purchase_cancelled_at
+                    ? "Dieses Fahrzeug ist storniert und kann nicht erneut angekauft werden."
+                    : "Dieses Fahrzeug ist bereits verkauft oder mit einem Ankauf verknüpft.",
             };
         }
 

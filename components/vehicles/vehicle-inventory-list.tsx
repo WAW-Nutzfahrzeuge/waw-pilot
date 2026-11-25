@@ -66,6 +66,7 @@ function getStatusLabel(status: InventoryListRow["status"]): string {
     if (status === "in_stock") return "Bestand";
     if (status === "reserved") return "Reserviert";
     if (status === "sold") return "Verkauft";
+    if (status === "cancelled") return "Storniert";
 
     return status;
 }
@@ -73,6 +74,10 @@ function getStatusLabel(status: InventoryListRow["status"]): string {
 function getStatusClassName(status: InventoryListRow["status"]): string {
     if (status === "sold") {
         return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+    }
+
+    if (status === "cancelled") {
+        return "bg-red-50 text-red-700 ring-red-200";
     }
 
     if (status === "reserved") {
@@ -164,7 +169,11 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
             if (!matchesSearch) return false;
 
             return wasVehicleInInventoryPeriod({
-                row,
+                row: {
+                    purchaseDate: row.purchaseDate,
+                    saleDate: row.saleDate,
+                    status: row.status,
+                },
                 fromDate,
                 toDate,
             });
@@ -179,12 +188,15 @@ export function VehicleInventoryList({ rows }: VehicleInventoryListProps) {
             status: row.status,
             purchaseNetAmount: row.purchaseNetAmount,
         }));
+        const activeFinancialRows = filteredRows.filter((row) => row.status !== "cancelled");
         const hasDateFilter = Boolean(fromDate || toDate);
         const totalInventoryValueNet = hasDateFilter
-            ? calculateHistoricalInventoryValueNet(inventoryValueRows)
+            ? calculateHistoricalInventoryValueNet(
+                  inventoryValueRows.filter((row) => row.status !== "cancelled"),
+              )
             : calculateInventoryValueNet(inventoryValueRows);
 
-        for (const row of filteredRows) {
+        for (const row of activeFinancialRows) {
             totalPurchaseNet += row.purchaseNetAmount;
             totalSaleNet += row.saleNetAmount ?? 0;
             totalRawProfitNet += row.rawProfitNet ?? 0;
