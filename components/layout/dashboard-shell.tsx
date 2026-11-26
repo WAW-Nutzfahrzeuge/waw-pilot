@@ -14,13 +14,13 @@ export async function DashboardShell({ children }: DashboardShellProps) {
     const role = await getCurrentUserRole();
 
     return (
-        <div className="min-h-screen bg-transparent">
+        <div className="min-h-screen bg-transparent lg:h-dvh lg:min-h-0 lg:overflow-hidden">
             <IdleLogoutWatcher />
             <AppSidebar role={role} />
             <MobileHeader role={role} />
 
-            <main className="min-h-screen lg:pl-72">
-                <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 md:px-6 lg:px-8 lg:py-7">
+            <main className="dashboard-main-scroll min-h-screen lg:ml-72 lg:h-dvh lg:min-h-0 lg:overflow-auto">
+                <div dir="ltr" className="dashboard-main-content mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 md:px-6 lg:px-8 lg:py-7">
                     {children}
                 </div>
             </main>

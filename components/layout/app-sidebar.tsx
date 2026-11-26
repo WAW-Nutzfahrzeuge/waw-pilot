@@ -67,7 +67,7 @@ export function SidebarContent({
                 </div>
             </Link>
 
-            <div className="flex-1 overflow-y-auto px-3 py-5">
+            <div className="app-sidebar-scroll flex-1 overflow-y-auto px-3 py-5">
                 {ungrouped.length > 0 ? (
                     <nav className="space-y-1.5">
                         {ungrouped.map((item) => {

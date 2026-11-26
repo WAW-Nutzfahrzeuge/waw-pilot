@@ -153,6 +153,62 @@
     scroll-behavior: smooth;
   }
 
+  /* Keep scrollbars consistent across browsers and operating systems. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(100 116 139 / 55%) transparent;
+  }
+
+  .dashboard-main-scroll,
+  .app-sidebar-scroll {
+    scrollbar-gutter: stable;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background: rgb(100 116 139 / 55%);
+    background-clip: padding-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgb(71 85 105 / 78%);
+    background-clip: padding-box;
+  }
+
+  .app-sidebar-scroll {
+    scrollbar-color: rgb(148 163 184 / 48%) transparent;
+  }
+
+  .app-sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 42%);
+    background-clip: padding-box;
+  }
+
+  .app-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgb(203 213 225 / 72%);
+    background-clip: padding-box;
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-main-scroll {
+      direction: rtl;
+    }
+
+    .dashboard-main-scroll > .dashboard-main-content {
+      direction: ltr;
+    }
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
     background-image:
