@@ -62,7 +62,10 @@ function getVehicleDocumentDisplayFileName(
 type VehicleDetailProps = {
     vehicle: VehicleDetailType;
     canAdminDelete?: boolean;
-    adminDeleteDependencyPreview?: VehicleDeleteDependencyCounts;
+    adminDeleteDependencyPreview?: VehicleDeleteDependencyCounts & {
+        purchaseReferences?: { id: string; number: string | null }[];
+        saleReferences?: { id: string; number: string | null }[];
+    };
     vehicleSaved?: boolean;
     vehicleDocumentUploaded?: boolean;
     vehicleDocumentDeleted?: boolean;
@@ -116,7 +119,15 @@ export function VehicleDetail({
         },
     );
     const vehicleDeleteDependencies = [
-        ...adminDeleteBlockers,
+        ...(adminDeleteDependencyPreview?.purchaseReferences ?? []).map((purchase) =>
+            `Ankauf ${purchase.number ?? "ohne Nummer"} (ID: ${purchase.id})`,
+        ),
+        ...(adminDeleteDependencyPreview?.saleReferences ?? []).map((sale) =>
+            `Verkauf ${sale.number ?? "ohne Nummer"} (ID: ${sale.id})`,
+        ),
+        ...adminDeleteBlockers.filter((item) =>
+            !item.includes("Ankauf") && !item.includes("Verkauf"),
+        ),
         vehicle.documents.length > 0
             ? `${vehicle.documents.length} Dokument${
                 vehicle.documents.length === 1 ? "" : "e"
@@ -174,8 +185,14 @@ export function VehicleDetail({
                                 action={deleteVehicleAdminAction}
                                 dependentItems={vehicleDeleteDependencies}
                                 disabledReason={
-                                    adminDeleteBlockers.length > 0
+                                    adminDeleteBlockers.length > 0 &&
+                                    !(adminDeleteDependencyPreview?.purchases || adminDeleteDependencyPreview?.sales)
                                         ? "Dieses Fahrzeug hat kritische Relationen und kann erst gelöscht werden, wenn diese fachlich entfernt wurden."
+                                        : null
+                                }
+                                relatedDeletionDescription={
+                                    adminDeleteDependencyPreview?.purchases || adminDeleteDependencyPreview?.sales
+                                        ? "Zugeordnete Ankäufe und Verkäufe samt ihren verknüpften Daten ebenfalls endgültig löschen. Verkäufe mit finaler Rechnung, Korrektur oder Rückzahlung können nicht auf diesem Weg gelöscht werden."
                                         : null
                                 }
                             />

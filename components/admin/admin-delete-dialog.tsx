@@ -28,6 +28,8 @@ type AdminDeleteDialogProps = {
     ) => Promise<AdminDeleteActionState>;
     dependentItems?: string[];
     disabledReason?: string | null;
+    relatedDeletionDescription?: string | null;
+    relatedDeletionInputName?: string;
 };
 
 export function AdminDeleteDialog({
@@ -37,8 +39,11 @@ export function AdminDeleteDialog({
     action,
     dependentItems = [],
     disabledReason = null,
+    relatedDeletionDescription = null,
+    relatedDeletionInputName = "delete_related_records",
 }: AdminDeleteDialogProps) {
     const [open, setOpen] = useState(false);
+    const [deleteRelatedRecords, setDeleteRelatedRecords] = useState(false);
     const [state, formAction, isPending] = useActionState(
         action,
         initialAdminDeleteActionState,
@@ -89,6 +94,18 @@ export function AdminDeleteDialog({
                         </div>
                     ) : null}
 
+                    {relatedDeletionDescription ? (
+                        <label className="flex cursor-pointer gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold leading-6 text-red-950">
+                            <input
+                                type="checkbox"
+                                checked={deleteRelatedRecords}
+                                onChange={(event) => setDeleteRelatedRecords(event.target.checked)}
+                                className="mt-1 size-4 shrink-0 accent-red-700"
+                            />
+                            <span>{relatedDeletionDescription}</span>
+                        </label>
+                    ) : null}
+
                     {state.message ? (
                         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">
                             {state.message}
@@ -101,6 +118,13 @@ export function AdminDeleteDialog({
                             name={hiddenInputName}
                             value={hiddenInputValue}
                         />
+                        {relatedDeletionDescription ? (
+                            <input
+                                type="hidden"
+                                name={relatedDeletionInputName}
+                                value={deleteRelatedRecords ? "1" : "0"}
+                            />
+                        ) : null}
 
                         <DialogFooter className="mt-5">
                             <DialogClose asChild>
@@ -111,7 +135,7 @@ export function AdminDeleteDialog({
                             <Button
                                 type="submit"
                                 variant="destructive"
-                                disabled={isPending || isBlocked}
+                                disabled={isPending || isBlocked || Boolean(relatedDeletionDescription && !deleteRelatedRecords)}
                             >
                                 {isPending ? (
                                     <Loader2 className="mr-2 size-4 animate-spin" />

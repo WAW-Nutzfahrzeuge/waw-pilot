@@ -197,6 +197,48 @@ async function assertSaleCanBeHardDeleted({
     }
 }
 
+async function assertSaleCanBeCascadeDeleted({
+    supabase,
+    companyId,
+    saleId,
+}: {
+    supabase: SupabaseServerClient;
+    companyId: string;
+    saleId: string;
+}): Promise<void> {
+    await assertSaleCanBeHardDeleted({ supabase, companyId, saleId });
+
+    const [{ data: invoices, error: invoicesError }, refundsResult] = await Promise.all([
+        supabase
+            .from("invoices")
+            .select("correction_of_invoice_id, root_invoice_id, invoice_type")
+            .eq("company_id", companyId)
+            .eq("sale_id", saleId),
+        supabase
+            .from("sale_refunds")
+            .select("id", { count: "exact", head: true })
+            .eq("company_id", companyId)
+            .eq("sale_id", saleId),
+    ]);
+
+    if (invoicesError || refundsResult.error) {
+        throw new Error("Rechnungskorrekturen und Rückzahlungen konnten nicht geprüft werden.");
+    }
+
+    const hasCorrection = (invoices ?? []).some((invoice) =>
+        invoice.correction_of_invoice_id ||
+        invoice.root_invoice_id ||
+        invoice.invoice_type === "cancellation_invoice" ||
+        invoice.invoice_type === "credit_note",
+    );
+
+    if (hasCorrection || (refundsResult.count ?? 0) > 0) {
+        throw new Error(
+            "Der verknüpfte Verkauf hat Rechnungskorrekturen oder Rückzahlungen. Bitte kläre diese zuerst fachlich, bevor Fahrzeug und Verkauf gelöscht werden.",
+        );
+    }
+}
+
 async function getPurchaseStoragePaths({
     supabase,
     companyId,
@@ -283,6 +325,52 @@ async function getVehicleStoragePaths({
     ]);
 }
 
+async function getVehicleCascadeStoragePaths({
+    supabase,
+    companyId,
+    vehicleId,
+}: {
+    supabase: SupabaseServerClient;
+    companyId: string;
+    vehicleId: string;
+}): Promise<string[]> {
+    const [vehicleResult, purchasesResult, salesResult] = await Promise.all([
+        getVehicleStoragePaths({ supabase, companyId, vehicleId }),
+        supabase
+            .from("purchase_cases")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("vehicle_id", vehicleId),
+        supabase
+            .from("sales")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("vehicle_id", vehicleId),
+    ]);
+
+    if (purchasesResult.error || salesResult.error) {
+        throw new Error("Verknüpfte Ankäufe und Verkäufe konnten nicht geprüft werden.");
+    }
+
+    const purchaseIds = (purchasesResult.data ?? []).map((row) => row.id);
+    const saleIds = (salesResult.data ?? []).map((row) => row.id);
+
+    for (const saleId of saleIds) {
+        await assertSaleCanBeCascadeDeleted({ supabase, companyId, saleId });
+    }
+
+    const [purchasePaths, salePaths] = await Promise.all([
+        Promise.all(purchaseIds.map((purchaseId) => getPurchaseStoragePaths({ supabase, companyId, purchaseId }))),
+        Promise.all(saleIds.map((saleId) => getSaleStoragePaths({ supabase, companyId, saleId }))),
+    ]);
+
+    return Array.from(new Set([
+        ...vehicleResult,
+        ...purchasePaths.flat(),
+        ...salePaths.flat(),
+    ]));
+}
+
 async function runAdminHardDelete({
     subject,
     targetId,
@@ -292,7 +380,7 @@ async function runAdminHardDelete({
 }: {
     subject: AdminDeleteSubject;
     targetId: string;
-    rpcName: "admin_delete_sale" | "admin_delete_purchase_case" | "admin_delete_vehicle";
+    rpcName: "admin_delete_sale" | "admin_delete_purchase_case" | "admin_delete_vehicle" | "admin_delete_vehicle_with_relations";
     rpcIdParam: "p_sale_id" | "p_purchase_id" | "p_vehicle_id";
     storagePaths: string[];
 }): Promise<void> {
@@ -432,6 +520,7 @@ export async function deleteVehicleAdminAction(
     void _previousState;
 
     const vehicleId = getFormId(formData, "vehicle_id");
+    const deleteRelatedRecords = formData.get("delete_related_records") === "1";
 
     if (!vehicleId) {
         return { success: false, message: "Fahrzeug fehlt." };
@@ -442,12 +531,16 @@ export async function deleteVehicleAdminAction(
 
         const supabase = createServerSupabaseClient();
         const companyId = getCurrentCompanyId();
-        const storagePaths = await getVehicleStoragePaths({ supabase, companyId, vehicleId });
+        const storagePaths = deleteRelatedRecords
+            ? await getVehicleCascadeStoragePaths({ supabase, companyId, vehicleId })
+            : await getVehicleStoragePaths({ supabase, companyId, vehicleId });
 
         await runAdminHardDelete({
             subject: "vehicle",
             targetId: vehicleId,
-            rpcName: "admin_delete_vehicle",
+            rpcName: deleteRelatedRecords
+                ? "admin_delete_vehicle_with_relations"
+                : "admin_delete_vehicle",
             rpcIdParam: "p_vehicle_id",
             storagePaths,
         });
@@ -457,6 +550,11 @@ export async function deleteVehicleAdminAction(
 
     revalidatePaths([
         "/dashboard/vehicles",
+        "/dashboard/vehicles/bestandsliste",
+        "/dashboard/ankauf",
+        "/dashboard/sales",
+        "/dashboard/invoices",
+        "/dashboard/cashbook",
         "/dashboard/documents",
         "/dashboard/activities",
         "/dashboard",

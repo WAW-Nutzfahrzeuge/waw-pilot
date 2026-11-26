@@ -7,6 +7,8 @@ export type VehicleAdminDeleteDependencyPreview = {
     invoices: number;
     cashbookEntries: number;
     financialEntries: number;
+    purchaseReferences: { id: string; number: string | null }[];
+    saleReferences: { id: string; number: string | null }[];
 };
 
 async function getCount<T>(
@@ -28,24 +30,18 @@ export async function getVehicleAdminDeleteDependencyPreview(
     const supabase = createServerSupabaseClient();
     const companyId = getCurrentCompanyId();
 
-    const [purchases, sales, invoices, cashbookEntries, financialEntries] =
+    const [purchaseResult, saleResult, invoices, cashbookEntries, financialEntries] =
         await Promise.all([
-            getCount(
-                supabase
+            supabase
                     .from("purchase_cases")
-                    .select("id", { count: "exact", head: true })
+                    .select("id, purchase_number")
                     .eq("company_id", companyId)
                     .eq("vehicle_id", vehicleId),
-                "Ankaufs-Abhängigkeiten konnten nicht geprüft werden.",
-            ),
-            getCount(
-                supabase
+            supabase
                     .from("sales")
-                    .select("id", { count: "exact", head: true })
+                    .select("id, sale_number")
                     .eq("company_id", companyId)
                     .eq("vehicle_id", vehicleId),
-                "Verkaufs-Abhängigkeiten konnten nicht geprüft werden.",
-            ),
             getCount(
                 supabase
                     .from("invoices")
@@ -72,11 +68,18 @@ export async function getVehicleAdminDeleteDependencyPreview(
             ),
         ]);
 
+    if (purchaseResult.error) throw new Error("Ankaufs-Abhängigkeiten konnten nicht geprüft werden.");
+    if (saleResult.error) throw new Error("Verkaufs-Abhängigkeiten konnten nicht geprüft werden.");
+    const purchaseReferences = (purchaseResult.data ?? []) as { id: string; purchase_number: string | null }[];
+    const saleReferences = (saleResult.data ?? []) as { id: string; sale_number: string | null }[];
+
     return {
-        purchases,
-        sales,
+        purchases: purchaseReferences.length,
+        sales: saleReferences.length,
         invoices,
         cashbookEntries,
         financialEntries,
+        purchaseReferences: purchaseReferences.map(({ id, purchase_number }) => ({ id, number: purchase_number })),
+        saleReferences: saleReferences.map(({ id, sale_number }) => ({ id, number: sale_number })),
     };
 }
