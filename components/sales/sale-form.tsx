@@ -127,7 +127,7 @@ export function SaleForm({
         useState<NewCustomerType>("company");
     const [newCustomerVatId, setNewCustomerVatId] = useState("");
     const [newCustomerCity, setNewCustomerCity] = useState("");
-    const [newCustomerCountry, setNewCustomerCountry] = useState("");
+    const [newCustomerCountry, setNewCustomerCountry] = useState("Deutschland");
     const [newCustomerPreferredLanguage, setNewCustomerPreferredLanguage] =
         useState<EmailLanguage>("de");
     const [newVehicleDamageNotes, setNewVehicleDamageNotes] = useState("");
@@ -723,24 +723,20 @@ export function SaleForm({
                     </CardContent>
                 </Card>
 
-                {effectiveSaleType === "export_third_country" ? null : (
+                {requiresExportDetails ? (
                 <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
                         <SectionTitle
                             icon={Globe2}
-                            title="4. Export / EU-Lieferung"
-                            description={
-                                requiresExportDetails
-                                    ? "Pflichtangaben für Gelangensbestätigung und Verbringungsnachweis."
-                                    : "Optionale Angaben für Gelangensbestätigung und Verbringungsnachweis."
-                            }
+                            title="4. EU-Lieferung"
+                            description="Pflichtangaben für Gelangensbestätigung und Verbringungsnachweis."
                         />
 
                         <div className="grid gap-4 md:grid-cols-2">
                             <FormField
                                 label="Zielort / Empfangsort"
                                 name="export_destination_city"
-                                required={requiresExportDetails}
+                                required
                                 value={exportDestinationCity}
                                 onChange={(event) => {
                                     setDestinationCityManuallyChanged(true);
@@ -752,7 +748,7 @@ export function SaleForm({
                             <FormField
                                 label="Zielland / Empfangsland"
                                 name="export_destination_country"
-                                required={requiresExportDetails}
+                                required
                                 value={exportDestinationCountry}
                                 onChange={(event) => {
                                     setDestinationCountryManuallyChanged(true);
@@ -876,7 +872,7 @@ export function SaleForm({
                         </div>
                     </CardContent>
                 </Card>
-                )}
+                ) : null}
 
                 <Card className="rounded-3xl border-slate-200 bg-white/90 shadow-sm">
                     <CardContent className="space-y-5 p-5">
