@@ -69,6 +69,39 @@ test("hidden vehicle-type fields are preserved and contradictory damage input is
     assert.equal(parseVehicleListingDetailsForm(contradictory, "listing_").ok, false);
 });
 
+test("compact form preserves collapsed legacy details and unknown damage stays unknown", () => {
+    const existing = {
+        ...emptyVehicleListingDetails,
+        mixerNominalVolumeM3: 8,
+        bodyKnownIssues: "Hydraulik undicht",
+        currentDamageStatus: "unknown" as const,
+        priceType: "on_request" as const,
+        descriptionAdditionalDetails: "Wartung belegt",
+    };
+    const form = new FormData();
+    form.set("listing_listingVehicleClass", "heavy_truck");
+    form.set("listing_priceType", "on_request");
+    form.set("listing_currentDamageStatus", "unknown");
+    form.set("listing_descriptionAdditionalDetails", "Neue Stichpunkte");
+    const result = parseVehicleListingDetailsForm(form, "listing_", existing);
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.equal(result.value.currentDamageStatus, "unknown");
+    assert.equal(result.value.priceType, "on_request");
+    assert.equal(result.value.descriptionAdditionalDetails, "Neue Stichpunkte");
+    assert.equal(result.value.mixerNominalVolumeM3, 8);
+    assert.equal(result.value.bodyKnownIssues, "Hydraulik undicht");
+});
+
+test("additional description text is bounded and choice fields are validated", () => {
+    const badChoice = new FormData();
+    badChoice.set("listing_priceType", "free");
+    assert.equal(parseVehicleListingDetailsForm(badChoice, "listing_").ok, false);
+    const longText = new FormData();
+    longText.set("listing_descriptionAdditionalDetails", "x".repeat(4001));
+    assert.equal(parseVehicleListingDetailsForm(longText, "listing_").ok, false);
+});
+
 test("separate F.1/F.2 values and dimensions validate without unit conversion", () => {
     const form = new FormData();
     form.set("listing_permittedMassF1Kg", "32000");

@@ -167,6 +167,10 @@ export function PurchaseDetail({
                 oneDriveReady={purchase.vehicleFolder?.status === "ready" && Boolean(purchase.vehicleFolder.images_folder_id && purchase.vehicleFolder.drive_id && purchase.vehicleFolder.folder_id)}
                 jobs={purchase.listingJobs}
                 vehicleType={purchase.vehicle?.vehicle_type ?? ""}
+                manufacturer={purchase.vehicle?.manufacturer ?? ""}
+                model={purchase.vehicle?.model ?? ""}
+                vehicleCategory={purchase.vehicle?.vehicle_category ?? ""}
+                firstRegistration={purchase.vehicle?.first_registration ?? null}
                 listingDetails={purchase.vehicle?.listing_details}
                 mileage={purchase.vehicle?.mileage ?? null}
                 salePriceNet={purchase.vehicle?.sale_price_net ?? null}

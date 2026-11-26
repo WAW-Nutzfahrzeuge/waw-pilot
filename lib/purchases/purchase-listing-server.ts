@@ -79,7 +79,7 @@ export function getListingAutomationConfig() {
     });
 }
 
-export async function loadPurchaseListingSource(companyId: string, purchaseId: string, contractVersion: 1 | 2 | 3 = 2): Promise<ListingSource> {
+export async function loadPurchaseListingSource(companyId: string, purchaseId: string, contractVersion: 1 | 2 | 3 | 4 = 2): Promise<ListingSource> {
     const supabase = createAutomationSupabaseClient({ requestTimeoutMs: 12_000 });
     const { data: purchase, error: purchaseError } = await supabase
         .from("purchase_cases")
@@ -131,6 +131,7 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
         vehicle: { id: v.id, ...confirmed, listingDetails },
         databaseListingDetails: v.listing_details ?? {},
         sellingPriceNet: v.sale_price_net === null ? null : Number(v.sale_price_net),
+        vehicleCategory: v.vehicle_category ?? null,
         registration: { id: document.id, filePath: document.file_path, createdAt: document.created_at, fileSize: document.file_size },
         oneDrive: { driveId: folder.drive_id, folderId: folder.folder_id, imagesFolderId: folder.images_folder_id },
     });

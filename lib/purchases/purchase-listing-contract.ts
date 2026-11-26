@@ -5,13 +5,18 @@ import { timingSafeEqual } from "node:crypto";
 export const legacyListingTemplateVersion = "waw-mobile-listing-v1";
 export const listingTemplateVersion = "waw-mobile-listing-v2";
 export const listingTemplateVersionV3 = "waw-mobile-listing-v3";
+export const listingTemplateVersionV4 = "waw-mobile-listing-v4";
 export const listingContractVersion = 2 as const;
 export const listingContractVersionV3 = 3 as const;
+export const listingContractVersionV4 = 4 as const;
 export const listingJobStatuses = ["queued", "processing", "needs_input", "draft_ready", "failed"] as const;
 export type ListingJobStatus = (typeof listingJobStatuses)[number];
 
 export function isListingV3RolloutEnabled(value: unknown): boolean {
     return typeof value === "string" && value.trim() === "3";
+}
+export function isListingV4RolloutEnabled(value: unknown): boolean {
+    return typeof value === "string" && value.trim() === "4";
 }
 
 export type ListingConfirmedVehicleData = {
@@ -34,10 +39,12 @@ export type ListingConfirmedVehicleDataV2 = Omit<ListingConfirmedVehicleData, "p
 
 const v2ListingDetailKeys = ["enginePowerKw", "transmission", "emissionClass", "cab", "retarder", "hydraulics", "axleFormula", "frontSuspension", "rearSuspension", "grossVehicleWeightKg", "curbWeightKg", "payloadKg", "wheelbaseMm", "huUntil", "spUntil", "bodyManufacturer", "bodyType", "bodyYear", "mixerNominalVolumeM3", "mixerDrive", "waterTankLiters", "bodyControls", "includedAccessories", "equipment", "vehicleCondition", "bodyCondition", "knownDamages", "maintenanceHistory", "repairHistory", "vehicleLocation", "availabilityConfirmed"] as const;
 
-export function listingDetailsForContract(details: import("@/lib/vehicles/listing-details").VehicleListingDetails, version: 2 | 3, vehicleType?: string) {
-    if (version === 3) {
-        const output = {
-            ...details,
+export function listingDetailsForContract(details: import("@/lib/vehicles/listing-details").VehicleListingDetails, version: 2 | 3 | 4, vehicleType?: string): Record<string, unknown> {
+    if (version >= 3) {
+        const v3Details = Object.fromEntries(Object.entries(details).filter(([key]) =>
+            !["listingVehicleClass", "priceType", "descriptionAdditionalDetails"].includes(key)));
+        const output: Record<string, unknown> = {
+            ...(version === 4 ? details : v3Details),
             grossVehicleWeightKg: null,
             // The legacy flag described viewing availability, not sale availability.
             availabilityConfirmed: details.availabilityStatus !== "unknown",
@@ -56,7 +63,7 @@ export function listingDetailsForContract(details: import("@/lib/vehicles/listin
     return Object.fromEntries(v2ListingDetailKeys.map((key) => [key, details[key]]));
 }
 
-export function toPublicListingVehicleData(vehicle: ListingConfirmedVehicleData & { id?: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails }, version: 2 | 3 = 2) {
+export function toPublicListingVehicleData(vehicle: ListingConfirmedVehicleData & { id?: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails }, version: 2 | 3 | 4 = 2): Omit<ListingConfirmedVehicleData, "purchaseNotes" | "damageNotes"> & { id?: string; listingDetails: Record<string, unknown> } {
     return {
         ...(vehicle.id ? { id: vehicle.id } : {}),
         manufacturer: vehicle.manufacturer,
@@ -77,11 +84,12 @@ export function stableListingRevision(value: unknown): string {
 }
 
 export function buildPurchaseListingSourceRevision(input: {
-    contractVersion: 1 | 2 | 3;
+    contractVersion: 1 | 2 | 3 | 4;
     purchase: { id: string; purchaseNumber: string | null; purchaseDate: string };
     vehicle: ListingConfirmedVehicleData & { id: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails };
     databaseListingDetails: unknown;
     sellingPriceNet?: number | null;
+    vehicleCategory?: string | null;
     registration: { id: string; filePath: string; createdAt: string; fileSize: number | null };
     oneDrive: { driveId: string; folderId: string; imagesFolderId: string };
 }): string {
@@ -114,7 +122,7 @@ export function buildPurchaseListingSourceRevision(input: {
         oneDrive: input.oneDrive,
         templateVersion: listingTemplateVersion,
     });
-    return stableListingRevision({
+    if (input.contractVersion === 3) return stableListingRevision({
         contractVersion: 3,
         purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
         vehicle: toPublicListingVehicleData(input.vehicle, 3),
@@ -122,6 +130,21 @@ export function buildPurchaseListingSourceRevision(input: {
         registration: input.registration,
         oneDrive: input.oneDrive,
         templateVersion: listingTemplateVersionV3,
+    });
+    return stableListingRevision({
+        contractVersion: 4,
+        purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
+        vehicle: { ...toPublicListingVehicleData(input.vehicle, 4), vehicleCategory: input.vehicleCategory ?? input.vehicle.vehicleCategory },
+        listingInformation: {
+            priceType: input.vehicle.listingDetails.priceType,
+            sellingPrice: input.vehicle.listingDetails.priceType === "fixed" && input.sellingPriceNet !== null && input.sellingPriceNet !== undefined
+                ? { amount: input.sellingPriceNet, basis: "net", currency: "EUR" } : null,
+            descriptionAdditionalDetails: input.vehicle.listingDetails.descriptionAdditionalDetails,
+        },
+        databaseListingDetails: input.databaseListingDetails,
+        registration: input.registration,
+        oneDrive: input.oneDrive,
+        templateVersion: listingTemplateVersionV4,
     });
 }
 
@@ -208,7 +231,7 @@ export function validateWawPublicListingText(title: string, description: string,
     return true;
 }
 
-/** Version 2 is retained as the central template builder for V2 and additive V3. */
+/** Version 2 is retained as the central template builder for V2 and additive V3/V4. */
 export function getWawListingTemplateV2(vehicle: ListingConfirmedVehicleDataV2, contractVersion: 2 | 3 = 2): { title: string; description: string; openPoints: string[] } {
     const details = vehicle.listingDetails;
     const isMixer = /beton.?mischer|mischer/i.test(vehicle.vehicleType);
@@ -469,7 +492,9 @@ export function validateListingCallback(body: unknown, expected: {
         ? ["mileage", "condition", "equipment", "inspection", "photos"]
         : contractVersion === 2
             ? ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory"]
-            : ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory", "salePrice", "availability", "vehicleReadiness", "currentDamageStatus", "repairedDamageStatus", "maintenanceProof", "bodyFunction", "waterSystem"]);
+        : contractVersion === 3
+            ? ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory", "salePrice", "availability", "vehicleReadiness", "currentDamageStatus", "repairedDamageStatus", "maintenanceProof", "bodyFunction", "waterSystem"]
+            : ["mileage", "condition", "equipment", "inspection", "photos", "location", "vehicleIdentity", "technicalData", "bodyDetails", "maintenanceHistory", "salePrice", "availability", "vehicleReadiness", "currentDamageStatus", "repairedDamageStatus", "maintenanceProof", "bodyFunction", "waterSystem", "vehicleClass", "vehicleCategory", "priceType", "descriptionDetails"]);
     const missingFields = Array.isArray(value.missingFields) ? [...new Set(value.missingFields.filter((item): item is string => typeof item === "string" && allowedMissing.has(item)))] : [];
     const title = typeof value.title === "string" ? value.title.trim().slice(0, 180) : "";
     const description = typeof value.description === "string" ? value.description.slice(0, 12000) : "";

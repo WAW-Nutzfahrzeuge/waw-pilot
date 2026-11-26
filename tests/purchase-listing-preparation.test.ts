@@ -11,6 +11,7 @@ import {
     getWawListingTemplateV2,
     inspectListingImageBytes,
     isListingV3RolloutEnabled,
+    isListingV4RolloutEnabled,
     isListingJobLeaseExpired,
     isSupportedListingImageMime,
     isValidListingAutomationToken,
@@ -39,6 +40,12 @@ test("contract v3 remains closed until explicitly enabled for an updated n8n wor
     assert.equal(isListingV3RolloutEnabled("2"), false);
     assert.equal(isListingV3RolloutEnabled("3"), true);
     assert.equal(isListingV3RolloutEnabled(" 3 "), true);
+});
+
+test("contract v4 requires an explicit rollout switch", () => {
+    assert.equal(isListingV4RolloutEnabled(undefined), false);
+    assert.equal(isListingV4RolloutEnabled("3"), false);
+    assert.equal(isListingV4RolloutEnabled(" 4 "), true);
 });
 
 test("WAW listing template uses known facts only and leaves missing sales facts open", () => {
@@ -124,6 +131,37 @@ test("v3 does not reinterpret legacy viewing confirmation as sale availability",
     const v2 = getWawListingTemplateV2({ ...vehicle, listingDetails }, 2);
     assert.doesNotMatch(v3.description, /Verfügbarkeit für Besichtigungen bestätigt|Standort: Hamburg/);
     assert.match(v2.description, /Verfügbarkeit für Besichtigungen bestätigt/);
+});
+
+test("v3 does not receive compact v4 fields; v4 revision includes them without leaking inquiry prices", () => {
+    const listingDetails = {
+        ...emptyVehicleListingDetails,
+        listingVehicleClass: "tractor_unit" as const,
+        priceType: "on_request" as const,
+        descriptionAdditionalDetails: "Bestätigte Wartung, Schaden rechts",
+        currentDamageStatus: "unknown" as const,
+        permittedMassF2Kg: 18000,
+    };
+    const v3 = toPublicListingVehicleData({ ...vehicle, listingDetails }, 3);
+    assert.equal("descriptionAdditionalDetails" in v3.listingDetails, false);
+    assert.equal("priceType" in v3.listingDetails, false);
+    const v4 = toPublicListingVehicleData({ ...vehicle, listingDetails }, 4);
+    assert.equal(v4.listingDetails.permittedMassF2Kg, 18000);
+    assert.equal(v4.listingDetails.currentDamageStatus, "unknown");
+    assert.equal((v4.listingDetails as Record<string, unknown>).descriptionAdditionalDetails, "Bestätigte Wartung, Schaden rechts");
+    assert.equal((v4.listingDetails as Record<string, unknown>).listingVehicleClass, "tractor_unit");
+
+    const source = {
+        purchase: { id: "purchase", purchaseNumber: "EK-1", purchaseDate: "2026-01-01" },
+        vehicle: { ...vehicle, id: "vehicle", listingDetails },
+        databaseListingDetails: listingDetails,
+        sellingPriceNet: 6000,
+        registration: { id: "document", filePath: "private/path", createdAt: "2026-01-01", fileSize: 10 },
+        oneDrive: { driveId: "drive", folderId: "folder", imagesFolderId: "images" },
+    };
+    const first = buildPurchaseListingSourceRevision({ ...source, contractVersion: 4 });
+    assert.notEqual(first, buildPurchaseListingSourceRevision({ ...source, contractVersion: 4, vehicle: { ...source.vehicle, listingDetails: { ...listingDetails, descriptionAdditionalDetails: "Anderer Text" } }, databaseListingDetails: { ...listingDetails, descriptionAdditionalDetails: "Anderer Text" } }));
+    assert.notEqual(first, buildPurchaseListingSourceRevision({ ...source, contractVersion: 4, vehicle: { ...source.vehicle, listingDetails: { ...listingDetails, priceType: "fixed" } } }));
 });
 
 test("vehicle registration conflicts are identified without replacing confirmed values", () => {
@@ -228,6 +266,12 @@ test("legacy v1 callbacks remain accepted while v2 requires its own version and 
         assert.deepEqual(v3.result.suggestions, { vin: "WDB123", enginePowerKw: 330, firstRegistration: "2021-01-01" });
         assert.deepEqual(v3.result.missingFields, ["salePrice", "waterSystem"]);
     }
+    const v4 = validateListingCallback({ ...base, contractVersion: 4, title: "Mercedes-Benz Actros 1845", missingFields: ["priceType", "descriptionDetails", "unknownInternalField"], extractedSuggestions: { vin: "WDB123", ownerName: "Private Person" } }, { job: { ...commonJob, contract_version: 4 }, dispatchToken: "lease", imageIds: new Set(["image"]) });
+    assert.equal(v4.ok, true);
+    if (v4.ok && v4.result.status !== "failed") {
+        assert.deepEqual(v4.result.suggestions, { vin: "WDB123" });
+        assert.deepEqual(v4.result.missingFields, ["priceType", "descriptionDetails"]);
+    }
     assert.deepEqual(validateListingCallback({ ...base, contractVersion: 1 }, { job: { ...commonJob, contract_version: 2 }, dispatchToken: "lease", imageIds: new Set(["image"]) }), { ok: false, code: "contract_version_conflict" });
     assert.deepEqual(validateListingCallback({ ...base, contractVersion: 2, title: "Actros 1845" }, { job: { ...commonJob, contract_version: 2 }, dispatchToken: "lease", imageIds: new Set(["image"]) }), { ok: false, code: "invalid_public_text" });
 });
@@ -269,6 +313,7 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     const details = readFileSync("lib/vehicles/listing-details.ts", "utf8");
     const newMigration = readFileSync("supabase/migrations/20261106110000_add_vehicle_listing_details_and_confirmations.sql", "utf8");
     const v3Migration = readFileSync("supabase/migrations/20261106120000_add_purchase_listing_information_v3.sql", "utf8");
+    const v4Migration = readFileSync("supabase/migrations/20261126120000_purchase_listing_compact_v4.sql", "utf8");
     assert.match(migration, /purchase_listing_jobs_active_revision_uidx/);
     assert.match(migration, /claim_purchase_listing_job/);
     assert.match(migration, /lease_expires_at/);
@@ -281,7 +326,7 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(action, /AbortSignal\.timeout\(8_000\)/);
     assert.match(callback, /eq\("manual_revision", 0\)/);
     assert.match(callback, /eq\("dispatch_token", dispatchToken\)/);
-    assert.match(callback, /job\.contract_version === 3 \? 3 : job\.contract_version === 2 \? 2 : 1/);
+    assert.match(callback, /job\.contract_version === 4 \? 4 : job\.contract_version === 3 \? 3 : job\.contract_version === 2 \? 2 : 1/);
     assert.match(callback, /eq\("source_revision", job\.source_revision\)/);
     assert.match(imageApi, /createSignedUploadUrl/);
     assert.equal(imageApi.includes("companies/${companyId}/purchase-listings/${jobId}/${imageId}"), true);
@@ -298,5 +343,9 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(ui, /savePurchaseListingInformation\(purchaseId, new FormData\(form\)\)/);
     assert.match(v3Migration, /sellingPriceNet/);
     assert.match(details, /payloadKg/);
+    assert.match(v4Migration, /contract_version in \(1, 2, 3, 4\)/);
+    assert.match(v4Migration, /p_expected_first_registration date/);
+    assert.match(action, /isListingV4RolloutEnabled/);
+    assert.match(ui, /Zusätzliche Angaben für die Beschreibung/);
     assert.doesNotMatch(action, /purchaseNotes: source\.vehicle|damageNotes: source\.vehicle/);
 });

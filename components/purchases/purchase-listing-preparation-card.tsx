@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { PurchaseListingJob } from "@/lib/purchases/purchase-detail-queries";
 import { VehicleListingDetailsFields } from "@/components/vehicles/vehicle-listing-details-fields";
+import { normalizeVehicleListingDetails } from "@/lib/vehicles/listing-details";
 
 type Props = {
     purchaseId: string;
@@ -18,6 +19,10 @@ type Props = {
     oneDriveReady: boolean;
     jobs: PurchaseListingJob[];
     vehicleType: string;
+    manufacturer: string;
+    model: string;
+    vehicleCategory: string;
+    firstRegistration: string | null;
     listingDetails: unknown;
     mileage: number | null;
     salePriceNet: number | null;
@@ -53,7 +58,7 @@ const openPointLabels: Record<string, string> = {
     bodyFunction: "Funktionsstatus des Aufbaus prüfen", waterSystem: "Wasseranlage prüfen",
 };
 
-export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasRegistration, oneDriveReady, jobs, vehicleType, listingDetails, mileage, salePriceNet }: Props) {
+export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasRegistration, oneDriveReady, jobs, vehicleType, manufacturer, model, vehicleCategory, firstRegistration, listingDetails, mileage, salePriceNet }: Props) {
     const router = useRouter();
     const [selectedJobId, setSelectedJobId] = useState(jobs[0]?.id ?? "");
     const job = jobs.find((item) => item.id === selectedJobId) ?? jobs[0] ?? null;
@@ -114,11 +119,36 @@ export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasR
                         <h2 className="text-lg font-extrabold text-slate-950">Angaben zum Inserat</h2>
                         <p className="mt-1 text-sm text-slate-600">Diese Angaben werden vor der Vorbereitung gespeichert. Unbekannte Werte bleiben offen; die Steuerbehandlung wird nicht aus dem Einkauf abgeleitet.</p>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Fahrzeugklasse<select name="listing_listingVehicleClass" defaultValue={normalizeClass(listingDetails)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium"><option value="">Bitte auswählen</option><option value="heavy_truck">Schwerer Lkw</option><option value="tractor_unit">Sattelzugmaschine</option></select></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Fahrzeugkategorie<input name="listing_vehicleCategory" defaultValue={vehicleCategory} maxLength={120} placeholder="z. B. Betonmischer" className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <div className="space-y-1.5 text-xs font-bold text-slate-700">Marke<div className="flex h-10 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-medium">{manufacturer || "Noch nicht hinterlegt"}</div></div>
                         <label className="space-y-1.5 text-xs font-bold text-slate-700">Aktueller Kilometerstand (km)<input name="listing_mileage" type="number" min="0" max="10000000" step="1" defaultValue={mileage ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
-                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Verkaufspreis netto (€)<input name="listing_salePriceNet" type="number" min="0" max="100000000" step="0.01" defaultValue={salePriceNet ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /><span className="block font-medium text-slate-500">Netto-Betrag; die zutreffende Steuerbehandlung wird beim Verkauf festgelegt.</span></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Unreparierte Schäden vorhanden<select name="listing_currentDamageStatus" defaultValue={normalizeDetails(listingDetails).currentDamageStatus} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium"><option value="unknown">Unbekannt</option><option value="known">Ja</option><option value="none">Nein</option></select></label>
+                        <PriceTypeFields value={normalizeDetails(listingDetails).priceType ?? (salePriceNet === null ? "" : "fixed")} salePriceNet={salePriceNet} />
                     </div>
-                    <VehicleListingDetailsFields namePrefix="listing_" vehicleType={vehicleType} value={listingDetails} title="Fahrzeug, Zustand, Ausstattung und Aufbau" />
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Erstzulassung<input name="listing_firstRegistration" type="date" defaultValue={firstRegistration ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Motorleistung (kW)<input name="listing_enginePowerKw" type="number" min="1" max="3000" step="1" defaultValue={normalizeDetails(listingDetails).enginePowerKw ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Kraftstoff<input name="listing_fuelType" maxLength={80} defaultValue={normalizeDetails(listingDetails).fuelType ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Getriebe<input name="listing_transmission" maxLength={120} defaultValue={normalizeDetails(listingDetails).transmission ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Schadstoffklasse<input name="listing_emissionClass" maxLength={80} defaultValue={normalizeDetails(listingDetails).emissionClass ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">Achsformel<input name="listing_axleFormula" maxLength={80} defaultValue={normalizeDetails(listingDetails).axleFormula ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                        <label className="space-y-1.5 text-xs font-bold text-slate-700">F.2 zulässiges Gesamtgewicht (kg)<input name="listing_permittedMassF2Kg" type="number" min="1" max="100000" step="1" defaultValue={normalizeDetails(listingDetails).permittedMassF2Kg ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /></label>
+                    </div>
+                    <label className="block space-y-1.5 text-xs font-bold text-slate-700">Zusätzliche Angaben für die Beschreibung
+                        <textarea name="listing_descriptionAdditionalDetails" maxLength={4000} defaultValue={normalizeDetails(listingDetails).descriptionAdditionalDetails ?? ""} rows={5} placeholder={"• Aufbauhersteller und bestätigtes Nennvolumen\n• Bekannte Schäden und Mängel\n• Durchgeführte Reparaturen\n• Retarder, Klimaanlage oder weitere Ausstattung\n• Enthaltenes und nicht enthaltenes Zubehör\n• HU/SP gültig bis"} className="min-h-28 w-full rounded-xl border border-slate-200 bg-white p-3 text-sm font-medium" />
+                        <span className="block font-medium text-slate-500">Stichpunkte reichen. Trage hier Zustand, Schäden, Reparaturen, Wartung, Ausstattung, Aufbau, Zubehör und weitere Besonderheiten ein. Nur Angaben eintragen, die im Inserat erscheinen dürfen.</span>
+                    </label>
+                    <details className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <summary className="cursor-pointer text-sm font-extrabold text-slate-800">Weitere gespeicherte Angaben</summary>
+                        <div className="mt-4 space-y-4">
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                <label className="space-y-1.5 text-xs font-bold text-slate-700">Modell<div className="flex h-10 items-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium">{model || "Noch nicht hinterlegt"}</div></label>
+                            </div>
+                            <details className="rounded-xl border border-slate-200 bg-white p-3"><summary className="cursor-pointer text-xs font-extrabold text-slate-700">Alle weiteren vorhandenen Detailfelder anzeigen und bearbeiten</summary><div className="mt-3"><VehicleListingDetailsFields namePrefix="listing_" vehicleType={vehicleType} value={listingDetails} excludedFields={["enginePowerKw", "fuelType", "transmission", "emissionClass", "axleFormula", "permittedMassF2Kg", "currentDamageStatus"]} title="Weitere gespeicherte Fahrzeug-, Zustands- und Aufbaudaten" /></div></details>
+                        </div>
+                    </details>
                     <div className="flex flex-wrap items-center gap-3">
                         <Button type="submit" variant="outline" disabled={isStarting} className="rounded-xl font-bold"><Save className="mr-2 size-4" />{isStarting ? "Speichert …" : "Angaben speichern"}</Button>
                     </div>
@@ -177,6 +207,21 @@ export function PurchaseListingPreparationCard({ purchaseId, purchaseLabel, hasR
             </CardContent>
         </Card>
     );
+}
+
+function PriceTypeFields({ value, salePriceNet }: { value: "fixed" | "on_request" | ""; salePriceNet: number | null }) {
+    const [priceType, setPriceType] = useState(value);
+    return <>
+        <label className="space-y-1.5 text-xs font-bold text-slate-700">Preisart<select name="listing_priceType" value={priceType} onChange={(event) => setPriceType(event.target.value as typeof priceType)} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium"><option value="">Bitte auswählen</option><option value="fixed">Festpreis</option><option value="on_request">Preis auf Anfrage</option></select></label>
+        {priceType === "fixed" ? <label className="space-y-1.5 text-xs font-bold text-slate-700">Netto-Verkaufspreis (€)<input name="listing_salePriceNet" type="number" min="0" max="100000000" step="0.01" defaultValue={salePriceNet ?? ""} className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium" /><span className="block font-medium text-slate-500">Netto, kein Bruttopreis; es wird keine Steuerart abgeleitet.</span></label> : <input type="hidden" name="listing_salePriceNet" value={salePriceNet ?? ""} />}
+    </>;
+}
+
+function normalizeDetails(value: unknown) {
+    return normalizeVehicleListingDetails(value);
+}
+function normalizeClass(value: unknown) {
+    return normalizeDetails(value).listingVehicleClass ?? "";
 }
 
 function ListingDraftEditor({ job, purchaseId, onMessage, onSaved }: {

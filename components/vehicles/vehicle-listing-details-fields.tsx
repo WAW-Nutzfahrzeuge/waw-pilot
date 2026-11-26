@@ -3,6 +3,7 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Children, cloneElement, Fragment, isValidElement } from "react";
 import { normalizeVehicleListingDetails, vehicleListingDetailLabels, type VehicleListingDetails } from "@/lib/vehicles/listing-details";
 
 type Props = {
@@ -10,13 +11,15 @@ type Props = {
     vehicleType: string;
     value?: unknown;
     title?: string;
+    excludedFields?: readonly string[];
 };
 
-export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, title = "Inseratsdaten (optional)" }: Props) {
+export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, title = "Inseratsdaten (optional)", excludedFields = [] }: Props) {
     const details = normalizeVehicleListingDetails(value);
     const type = vehicleType.toLocaleLowerCase("de-DE");
     const isMixer = type.includes("mischer") || type.includes("betonmixer") || type.includes("betonmischer");
     const isTractor = type.includes("sattelzugmaschine");
+    const excluded = new Set(excludedFields);
 
     return (
         <section className="space-y-5 rounded-3xl border border-cyan-100 bg-cyan-50/40 p-4 md:p-5">
@@ -25,7 +28,7 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, ti
                 <p className="mt-1 text-sm leading-6 text-slate-600">Nur bestätigte Angaben eintragen. Einheiten sind ausdrücklich angegeben; es erfolgt keine automatische Umrechnung. Diese Felder sind keine Voraussetzung, um den Ankauf zu speichern.</p>
             </div>
 
-            <FieldGroup title="Fahrzeugtechnik">
+            <FieldGroup title="Fahrzeugtechnik" excluded={excluded}>
                 <NumberField namePrefix={namePrefix} name="enginePowerKw" label={vehicleListingDetailLabels.enginePowerKw} value={details.enginePowerKw} step="1" />
                 <TextField namePrefix={namePrefix} name="fuelType" label="Kraftstoff" value={details.fuelType} />
                 <NumberField namePrefix={namePrefix} name="engineDisplacementCc" label="Hubraum (cm³)" value={details.engineDisplacementCc} step="1" />
@@ -53,7 +56,7 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, ti
                 </> : null}
             </FieldGroup>
 
-            <FieldGroup title={isMixer ? "Betonmischeraufbau" : isTractor ? "Weiterer Aufbau" : "Aufbau und Fahrzeugart"}>
+            <FieldGroup title={isMixer ? "Betonmischeraufbau" : isTractor ? "Weiterer Aufbau" : "Aufbau und Fahrzeugart"} excluded={excluded}>
                 <TextField namePrefix={namePrefix} name="bodyManufacturer" label={vehicleListingDetailLabels.bodyManufacturer} value={details.bodyManufacturer} />
                 <TextField namePrefix={namePrefix} name="bodyType" label={vehicleListingDetailLabels.bodyType} value={details.bodyType} />
                 <NumberField namePrefix={namePrefix} name="bodyYear" label={vehicleListingDetailLabels.bodyYear} value={details.bodyYear} step="1" min="1900" max="2100" />
@@ -73,7 +76,7 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, ti
                 <TextAreaField namePrefix={namePrefix} name="excludedItems" label="Ausdrücklich nicht enthalten" value={details.excludedItems} />
             </FieldGroup>
 
-            <FieldGroup title="Ausstattung, Zustand und Historie">
+            <FieldGroup title="Ausstattung, Zustand und Historie" excluded={excluded}>
                 <TextAreaField namePrefix={namePrefix} name="equipment" label={vehicleListingDetailLabels.equipment} value={details.equipment} />
                 <TextAreaField namePrefix={namePrefix} name="vehicleCondition" label={vehicleListingDetailLabels.vehicleCondition} value={details.vehicleCondition} />
                 <TextAreaField namePrefix={namePrefix} name="bodyCondition" label={vehicleListingDetailLabels.bodyCondition} value={details.bodyCondition} />
@@ -97,7 +100,7 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, ti
                 <TextAreaField namePrefix={namePrefix} name="repairHistory" label={vehicleListingDetailLabels.repairHistory} value={details.repairHistory} />
             </FieldGroup>
 
-            <FieldGroup title="Besichtigung und Verfügbarkeit">
+            <FieldGroup title="Besichtigung und Verfügbarkeit" excluded={excluded}>
                 <ChoiceField namePrefix={namePrefix} name="availabilityStatus" label="Verfügbarkeit" value={details.availabilityStatus} choices={[["unknown", "Unbekannt"], ["immediate", "Sofort"], ["from_date", "Ab Datum"]]} />
                 <TextField namePrefix={namePrefix} name="availableFrom" label="Verfügbar ab (JJJJ-MM-TT)" value={details.availableFrom} placeholder="2026-12-01" />
                 <TextField namePrefix={namePrefix} name="vehicleLocation" label={vehicleListingDetailLabels.vehicleLocation} value={details.vehicleLocation} />
@@ -106,8 +109,16 @@ export function VehicleListingDetailsFields({ namePrefix, vehicleType, value, ti
     );
 }
 
-function FieldGroup({ title, children }: { title: string; children: React.ReactNode }) {
-    return <fieldset className="space-y-3"><legend className="mb-2 text-sm font-extrabold text-slate-800">{title}</legend><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{children}</div></fieldset>;
+function FieldGroup({ title, children, excluded }: { title: string; children: React.ReactNode; excluded: Set<string> }) {
+    function filter(child: React.ReactNode): React.ReactNode {
+        return Children.map(child, (item) => {
+            if (!isValidElement<{ name?: string; children?: React.ReactNode }>(item)) return item;
+            if (item.type === Fragment) return cloneElement(item, {}, filter(item.props.children));
+            if (item.props.name && excluded.has(item.props.name)) return null;
+            return item;
+        });
+    }
+    return <fieldset className="space-y-3"><legend className="mb-2 text-sm font-extrabold text-slate-800">{title}</legend><div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{filter(children)}</div></fieldset>;
 }
 
 function TextField({ namePrefix, name, label, value, placeholder }: { namePrefix: string; name: string; label: string; value: string | null; placeholder?: string }) {

@@ -1,4 +1,7 @@
 export type VehicleListingDetails = {
+    listingVehicleClass: "heavy_truck" | "tractor_unit" | null;
+    priceType: "fixed" | "on_request" | null;
+    descriptionAdditionalDetails: string | null;
     enginePowerKw: number | null;
     transmission: string | null;
     emissionClass: string | null;
@@ -66,6 +69,7 @@ export type VehicleListingDetails = {
 };
 
 export const emptyVehicleListingDetails: VehicleListingDetails = {
+    listingVehicleClass: null, priceType: null, descriptionAdditionalDetails: null,
     enginePowerKw: null, transmission: null, emissionClass: null, cab: null, retarder: null,
     hydraulics: null, axleFormula: null,
     frontSuspension: null, rearSuspension: null, grossVehicleWeightKg: null,
@@ -103,6 +107,7 @@ const numericLimits: Record<string, { max: number; label: string }> = {
 };
 
 const textLimits: Record<string, number> = {
+    descriptionAdditionalDetails: 4000,
     transmission: 120, emissionClass: 80, cab: 120, retarder: 120, hydraulics: 160,
     axleFormula: 80, frontSuspension: 120,
     rearSuspension: 120, huUntil: 7, spUntil: 7, bodyManufacturer: 160,
@@ -116,6 +121,7 @@ const textLimits: Record<string, number> = {
 };
 
 const choiceValues = {
+    listingVehicleClass: ["heavy_truck", "tractor_unit"], priceType: ["fixed", "on_request"],
     availabilityStatus: ["unknown", "immediate", "from_date"], vehicleReadiness: ["unknown", "ready", "limited", "not_ready"],
     currentDamageStatus: ["unknown", "none", "known"], repairedDamageStatus: ["unknown", "none", "known"],
     maintenanceProofStatus: ["unknown", "yes", "no"], featureAirConditioning: ["unknown", "yes", "no"],
@@ -155,6 +161,14 @@ export function parseVehicleListingDetailsForm(formData: FormData, prefix: strin
     };
 
     try {
+        for (const key of ["listingVehicleClass", "priceType"] as const) {
+            const raw = formData.get(`${prefix}${key}`);
+            if (typeof raw === "string" && raw !== "") {
+                const allowed = choiceValues[key] as readonly string[];
+                if (!allowed.includes(raw)) throw new Error("Eine Auswahl für die Inseratsangaben ist ungültig.");
+                mutableValue[key] = raw;
+            }
+        }
         for (const key of Object.keys(numericLimits) as Array<keyof typeof numericLimits>) {
             if (formData.has(`${prefix}${key}`)) mutableValue[key] = getNumber(key);
         }
@@ -181,12 +195,17 @@ export function parseVehicleListingDetailsForm(formData: FormData, prefix: strin
         }
         const availability = formData.get(`${prefix}availabilityStatus`);
         if (availability === null && formData.get(`${prefix}availabilityConfirmed`) === "on") value.availabilityStatus = "immediate";
-        if (value.availabilityStatus === "from_date" && (!value.availableFrom || !isValidCalendarDate(value.availableFrom))) throw new Error("Bitte ein gültiges Datum für die Verfügbarkeit ab eintragen.");
-        if (value.availabilityStatus !== "from_date") value.availableFrom = null;
-        if (value.currentDamageStatus === "none" && value.knownDamages) throw new Error("Bei „Keine bekannt“ darf keine Beschreibung aktueller Schäden eingetragen sein.");
-        if (value.currentDamageStatus === "known" && !value.knownDamages) throw new Error("Bitte bekannte aktuelle Schäden beschreiben.");
-        if (value.repairedDamageStatus === "none" && value.repairedDamageDescription) throw new Error("Bei „Keine bekannt“ darf keine Beschreibung reparierter Vorschäden eingetragen sein.");
-        if (value.repairedDamageStatus === "known" && !value.repairedDamageDescription) throw new Error("Bitte reparierte Vorschäden beschreiben.");
+        if (formData.has(`${prefix}availabilityStatus`)) {
+            if (value.availabilityStatus === "from_date" && (!value.availableFrom || !isValidCalendarDate(value.availableFrom))) throw new Error("Bitte ein gültiges Datum für die Verfügbarkeit ab eintragen.");
+            if (value.availabilityStatus !== "from_date" && existingDetails.availabilityStatus === "from_date") value.availableFrom = null;
+        }
+        if (formData.has(`${prefix}currentDamageStatus`) || formData.has(`${prefix}knownDamages`)) {
+            if (value.currentDamageStatus === "none" && value.knownDamages) throw new Error("Bei „Keine bekannt“ darf keine Beschreibung aktueller Schäden eingetragen sein.");
+        }
+        if (formData.has(`${prefix}repairedDamageStatus`) || formData.has(`${prefix}repairedDamageDescription`)) {
+            if (value.repairedDamageStatus === "none" && value.repairedDamageDescription) throw new Error("Bei „Keine bekannt“ darf keine Beschreibung reparierter Vorschäden eingetragen sein.");
+            if (value.repairedDamageStatus === "known" && !value.repairedDamageDescription) throw new Error("Bitte reparierte Vorschäden beschreiben.");
+        }
         value.availabilityConfirmed = value.availabilityStatus !== "unknown"
             || (existingDetails.availabilityStatus === "unknown" && existingDetails.availabilityConfirmed);
         return { ok: true, value };
@@ -216,6 +235,10 @@ export function normalizeVehicleListingDetails(value: unknown): VehicleListingDe
         if (typeof candidate === "string" && candidate.length <= textLimits[key]) mutableOutput[key] = candidate.trim() || null;
     }
     output.availabilityConfirmed = source.availabilityConfirmed === true;
+    for (const key of ["listingVehicleClass", "priceType"] as const) {
+        const candidate = source[key];
+        if ((choiceValues[key] as readonly string[]).includes(String(candidate))) mutableOutput[key] = candidate;
+    }
     for (const [key, allowed] of Object.entries(choiceValues)) {
         const candidate = source[key];
         if (typeof candidate === "string" && allowed.includes(candidate as never)) (output as unknown as Record<string, unknown>)[key] = candidate;
