@@ -79,7 +79,7 @@ export function getListingAutomationConfig() {
     });
 }
 
-export async function loadPurchaseListingSource(companyId: string, purchaseId: string, contractVersion: 1 | 2 | 3 | 4 = 2): Promise<ListingSource> {
+export async function loadPurchaseListingSource(companyId: string, purchaseId: string, contractVersion: 1 | 2 | 3 | 4 | 5 = 2, operation: "registration_ocr" | "draft_generation" = "draft_generation"): Promise<ListingSource> {
     const supabase = createAutomationSupabaseClient({ requestTimeoutMs: 12_000 });
     const { data: purchase, error: purchaseError } = await supabase
         .from("purchase_cases")
@@ -99,14 +99,14 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
     if (vehicleResult.error) throw new Error("VEHICLE_LOOKUP_FAILED");
     if (!vehicleResult.data) throw new Error("VEHICLE_NOT_FOUND");
     if (documentsResult.error) throw new Error("DOCUMENT_LOOKUP_FAILED");
-    if (folderResult.error) throw new Error("FOLDER_LOOKUP_FAILED");
+    if (folderResult.error && !(contractVersion === 5 && operation === "registration_ocr")) throw new Error("FOLDER_LOOKUP_FAILED");
 
     const document = selectCurrentVehicleDocument(documentsResult.data ?? [], "vehicle_registration");
     if (!document || document.status !== "available" || !document.file_path) throw new Error("REGISTRATION_MISSING");
     if (document.purchase_case_id !== purchaseId && document.vehicle_id !== purchase.vehicle_id) throw new Error("REGISTRATION_LINK_INVALID");
 
     const folder = folderResult.data;
-    if (!folder || folder.status !== "ready" || !folder.drive_id || !folder.folder_id || !folder.images_folder_id || !folder.folder_url) {
+    if (!(contractVersion === 5 && operation === "registration_ocr") && (!folder || folder.status !== "ready" || !folder.drive_id || !folder.folder_id || !folder.images_folder_id || !folder.folder_url)) {
         throw new Error("ONEDRIVE_FOLDER_MISSING");
     }
 
@@ -127,13 +127,14 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
     const listingDetails = normalizeVehicleListingDetails(v.listing_details);
     const revision = buildPurchaseListingSourceRevision({
         contractVersion,
+        ...(contractVersion === 5 ? { operation } : {}),
         purchase: { id: purchase.id, purchaseNumber: purchase.purchase_number, purchaseDate: purchase.purchase_date },
         vehicle: { id: v.id, ...confirmed, listingDetails },
         databaseListingDetails: v.listing_details ?? {},
         sellingPriceNet: v.sale_price_net === null ? null : Number(v.sale_price_net),
         vehicleCategory: v.vehicle_category ?? null,
         registration: { id: document.id, filePath: document.file_path, createdAt: document.created_at, fileSize: document.file_size },
-        oneDrive: { driveId: folder.drive_id, folderId: folder.folder_id, imagesFolderId: folder.images_folder_id },
+        oneDrive: { driveId: folder?.drive_id ?? "", folderId: folder?.folder_id ?? "", imagesFolderId: folder?.images_folder_id ?? "" },
     });
     return {
         purchase: purchase as ListingSource["purchase"],
@@ -142,10 +143,21 @@ export async function loadPurchaseListingSource(companyId: string, purchaseId: s
             id: document.id, file_path: document.file_path, file_name: document.file_name,
             mime_type: document.mime_type, file_size: document.file_size, created_at: document.created_at,
         },
-        folder: { drive_id: folder.drive_id, folder_id: folder.folder_id, folder_url: folder.folder_url, images_folder_id: folder.images_folder_id },
+        folder: { drive_id: folder?.drive_id ?? "", folder_id: folder?.folder_id ?? "", folder_url: folder?.folder_url ?? "", images_folder_id: folder?.images_folder_id ?? "" },
         databaseListingDetails: v.listing_details ?? {},
         sourceRevision: revision,
     };
+}
+
+export async function getCurrentPurchaseListingOcrJob(companyId: string, purchaseId: string, jobs: ListingJobRecord[]): Promise<ListingJobRecord | null> {
+    const latest = jobs.find((job) => job.contract_version === 5 && job.source_snapshot?.operation === "registration_ocr" && ["queued", "processing", "needs_input", "failed"].includes(job.status));
+    if (!latest) return null;
+    try {
+        const current = await loadPurchaseListingSource(companyId, purchaseId, 5, "registration_ocr");
+        return current.sourceRevision === latest.source_revision ? latest : null;
+    } catch {
+        return null;
+    }
 }
 
 export async function verifyRegistrationFileIsReadable(filePath: string): Promise<boolean> {

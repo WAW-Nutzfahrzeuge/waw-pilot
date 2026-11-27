@@ -9,6 +9,7 @@ import type {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 import { hasRequiredPurchaseDocuments } from "@/lib/purchases/purchase-document-requirements";
+import { getCurrentPurchaseListingOcrJob, type ListingJobRecord } from "@/lib/purchases/purchase-listing-server";
 
 export type PurchaseListingImage = {
     id: string;
@@ -23,6 +24,7 @@ export type PurchaseListingJob = {
     contract_version: number;
     status: "queued" | "processing" | "needs_input" | "draft_ready" | "failed";
     source_revision: string;
+    source_snapshot?: Record<string, unknown>;
     confirmed_vehicle_data: Record<string, unknown>;
     extracted_suggestions: Record<string, unknown>;
     confirmed_suggestions: Record<string, unknown>;
@@ -36,6 +38,7 @@ export type PurchaseListingJob = {
     last_error_code: string | null;
     last_error: string | null;
     updated_at: string;
+    created_at?: string;
     images: PurchaseListingImage[];
 };
 
@@ -210,6 +213,7 @@ export type PurchaseCaseDetail = {
     } | null;
     listingJob: PurchaseListingJob | null;
     listingJobs: PurchaseListingJob[];
+    currentListingOcrJob: PurchaseListingJob | null;
 };
 
 function getSingleRelation<T>(relation: SupabaseRelation<T>): T | null {
@@ -362,12 +366,12 @@ export async function getPurchaseCaseDetail(
             const automationSupabase = createAutomationSupabaseClient();
             const { data: jobs } = await automationSupabase
                 .from("purchase_listing_jobs")
-                .select("id, contract_version, status, source_revision, confirmed_vehicle_data, extracted_suggestions, confirmed_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, lease_expires_at, last_error_code, last_error, updated_at")
+                .select("id, contract_version, status, source_revision, source_snapshot, confirmed_vehicle_data, extracted_suggestions, confirmed_suggestions, conflicts, missing_fields, title, description, selected_image_ids, manual_revision, lease_expires_at, last_error_code, last_error, updated_at, created_at")
                 .eq("company_id", companyId)
                 .eq("purchase_case_id", purchaseId)
                 .order("created_at", { ascending: false })
                 .limit(10);
-            if (!jobs?.length) return { latest: null, history: [] };
+            if (!jobs?.length) return { latest: null, history: [], currentOcrId: null };
             const history = await Promise.all(jobs.map(async (job) => {
                 const { data: images } = await automationSupabase
                     .from("purchase_listing_job_images")
@@ -377,10 +381,11 @@ export async function getPurchaseCaseDetail(
                     .order("created_at", { ascending: true });
                 return { ...job, images: images ?? [] } as PurchaseListingJob;
             }));
-            return { latest: history[0] ?? null, history };
+            const currentOcr = await getCurrentPurchaseListingOcrJob(companyId, purchaseId, history as unknown as ListingJobRecord[]);
+            return { latest: history[0] ?? null, history, currentOcrId: currentOcr?.id ?? null };
         } catch {
             // Until the additive migration is applied, the rest of the purchase remains usable.
-            return { latest: null, history: [] };
+            return { latest: null, history: [], currentOcrId: null };
         }
     })();
 
@@ -507,5 +512,6 @@ export async function getPurchaseCaseDetail(
         vehicleFolder,
         listingJob: listingJobsResult?.latest ?? null,
         listingJobs: listingJobsResult?.history ?? [],
+        currentListingOcrJob: listingJobsResult?.history.find((item) => item.id === listingJobsResult.currentOcrId) ?? null,
     };
 }

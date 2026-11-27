@@ -12,6 +12,7 @@ import {
     inspectListingImageBytes,
     isListingV3RolloutEnabled,
     isListingV4RolloutEnabled,
+    isListingV5RolloutEnabled,
     isListingJobLeaseExpired,
     isSupportedListingImageMime,
     isValidListingAutomationToken,
@@ -21,6 +22,7 @@ import {
     validateListingAcceptanceAck,
     validateListingAutomationEnvironment,
     validateListingCallback,
+    validateListingOcrCallback,
 } from "../lib/purchases/purchase-listing-contract.ts";
 import sharp from "sharp";
 import { emptyVehicleListingDetails } from "../lib/vehicles/listing-details.ts";
@@ -46,6 +48,12 @@ test("contract v4 requires an explicit rollout switch", () => {
     assert.equal(isListingV4RolloutEnabled(undefined), false);
     assert.equal(isListingV4RolloutEnabled("3"), false);
     assert.equal(isListingV4RolloutEnabled(" 4 "), true);
+});
+
+test("contract v5 rollout remains closed until the split n8n workflow is enabled", () => {
+    assert.equal(isListingV5RolloutEnabled(undefined), false);
+    assert.equal(isListingV5RolloutEnabled("4"), false);
+    assert.equal(isListingV5RolloutEnabled(" 5 "), true);
 });
 
 test("WAW listing template uses known facts only and leaves missing sales facts open", () => {
@@ -178,6 +186,52 @@ test("acceptance response must be HTTP-202 contract complete and match all job i
     assert.equal(validateListingAcceptanceAck({ status: "accepted", contractVersion: 2, ...identity }, { ...identity, contractVersion: 2 }), true);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", contractVersion: 3, ...identity }, { ...identity, contractVersion: 3 }), true);
     assert.equal(validateListingAcceptanceAck({ status: "accepted", ...identity }, { ...identity, contractVersion: 2 }), false);
+    assert.equal(validateListingAcceptanceAck({ status: "accepted", contractVersion: 5, operation: "registration_ocr", ...identity }, { ...identity, contractVersion: 5, operation: "registration_ocr" }), true);
+    assert.equal(validateListingAcceptanceAck({ status: "accepted", contractVersion: 5, operation: "draft_generation", ...identity }, { ...identity, contractVersion: 5, operation: "registration_ocr" }), false);
+});
+
+test("v5 OCR and draft revisions are separate and OCR revision ignores OneDrive", () => {
+    const input = {
+        purchase: { id: "purchase", purchaseNumber: "EK-1", purchaseDate: "2026-01-01" },
+        vehicle: { ...vehicle, id: "vehicle", listingDetails: emptyVehicleListingDetails },
+        databaseListingDetails: emptyVehicleListingDetails,
+        registration: { id: "document", filePath: "private/path", createdAt: "2026-01-01", fileSize: 10 },
+        oneDrive: { driveId: "drive", folderId: "folder", imagesFolderId: "images" },
+    };
+    const ocr = buildPurchaseListingSourceRevision({ ...input, contractVersion: 5, operation: "registration_ocr" });
+    const ocrWithDifferentDrive = buildPurchaseListingSourceRevision({ ...input, contractVersion: 5, operation: "registration_ocr", oneDrive: { driveId: "other", folderId: "other", imagesFolderId: "other" } });
+    const draft = buildPurchaseListingSourceRevision({ ...input, contractVersion: 5, operation: "draft_generation" });
+    assert.equal(ocr, ocrWithDifferentDrive);
+    assert.notEqual(ocr, draft);
+});
+
+test("contract v5 keeps the editorial template version separate", () => {
+    const input = {
+        purchase: { id: "purchase", purchaseNumber: "EK-1", purchaseDate: "2026-01-01" },
+        vehicle: { ...vehicle, id: "vehicle", listingDetails: emptyVehicleListingDetails },
+        databaseListingDetails: emptyVehicleListingDetails,
+        registration: { id: "document", filePath: "private/path", createdAt: "2026-01-01", fileSize: 10 },
+        oneDrive: { driveId: "drive", folderId: "folder", imagesFolderId: "images" },
+    };
+    const ocr = buildPurchaseListingSourceRevision({ ...input, contractVersion: 5, operation: "registration_ocr" });
+    const draft = buildPurchaseListingSourceRevision({ ...input, contractVersion: 5, operation: "draft_generation" });
+    assert.notEqual(ocr, draft);
+    const action = readFileSync(new URL("../app/dashboard/ankauf/[purchaseId]/listing-actions.ts", import.meta.url), "utf8");
+    assert.match(action, /templateVersion: listingTemplateVersionV4/);
+    assert.doesNotMatch(action, /waw-mobile-listing-v5/);
+});
+
+test("v5 OCR callback stores only allowlisted technical suggestions and checks operation identity", () => {
+    const job = { id: "job", purchase_case_id: "purchase", vehicle_id: "vehicle", source_revision: "revision", contract_version: 5 };
+    const identity = { schemaVersion: 1, contractVersion: 5, operation: "registration_ocr", status: "ocr_ready", jobId: "job", purchaseId: "purchase", vehicleId: "vehicle", sourceRevision: "revision", dispatchToken: "dispatch", extractedSuggestions: { firstRegistration: "2021-02-03", constructionYear: 2020, mileage: 245000, ownerName: "Private person", permittedMassF2Kg: 18000 } };
+    const valid = validateListingOcrCallback(identity, { job, dispatchToken: "dispatch" });
+    assert.equal(valid.ok, true);
+    if (valid.ok) {
+        assert.deepEqual(valid.result.suggestions, { firstRegistration: "2021-02-03", constructionYear: 2020 });
+        assert.equal(valid.result.status, "needs_input");
+    }
+    assert.equal(validateListingOcrCallback({ ...identity, operation: "draft_generation" }, { job, dispatchToken: "dispatch" }).ok, false);
+    assert.equal(validateListingOcrCallback({ ...identity, dispatchToken: "old" }, { job, dispatchToken: "dispatch" }).ok, false);
 });
 
 test("listing automation configuration reports only missing or invalid variable names", () => {
@@ -314,6 +368,7 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     const newMigration = readFileSync("supabase/migrations/20261106110000_add_vehicle_listing_details_and_confirmations.sql", "utf8");
     const v3Migration = readFileSync("supabase/migrations/20261106120000_add_purchase_listing_information_v3.sql", "utf8");
     const v4Migration = readFileSync("supabase/migrations/20261126120000_purchase_listing_compact_v4.sql", "utf8");
+    const v5Migration = readFileSync("supabase/migrations/20261127130000_purchase_listing_split_ocr_v5.sql", "utf8");
     assert.match(migration, /purchase_listing_jobs_active_revision_uidx/);
     assert.match(migration, /claim_purchase_listing_job/);
     assert.match(migration, /lease_expires_at/);
@@ -326,16 +381,20 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(action, /AbortSignal\.timeout\(8_000\)/);
     assert.match(callback, /eq\("manual_revision", 0\)/);
     assert.match(callback, /eq\("dispatch_token", dispatchToken\)/);
-    assert.match(callback, /job\.contract_version === 4 \? 4 : job\.contract_version === 3 \? 3 : job\.contract_version === 2 \? 2 : 1/);
+    assert.match(callback, /job\.contract_version === 5 \? 5 : job\.contract_version === 4 \? 4 : job\.contract_version === 3 \? 3 : job\.contract_version === 2 \? 2 : 1/);
     assert.match(callback, /eq\("source_revision", job\.source_revision\)/);
+    assert.match(callback, /SOURCE_REVISION_CHANGED/);
+    assert.match(callback, /lease_expires_at: null/);
     assert.match(imageApi, /createSignedUploadUrl/);
     assert.equal(imageApi.includes("companies/${companyId}/purchase-listings/${jobId}/${imageId}"), true);
     assert.match(ui, /router\.refresh\(\)/);
-    assert.match(ui, /Neue Vorschau vorbereiten/);
+    assert.match(ui, /Angaben übernehmen und neue Vorschau vorbereiten/);
     assert.match(ui, /Titelbild/);
     assert.match(action, /confirm_purchase_listing_suggestions/);
     assert.match(action, /sanitizeListingSuggestions\(job\.extracted_suggestions, job\.contract_version\)/);
-    assert.match(ui, /Ausgewählte Vorschläge in Fahrzeugakte übernehmen/);
+    assert.doesNotMatch(ui, /Diesen Wert ausdrücklich übernehmen|Ausgewählte Vorschläge in Fahrzeugakte übernehmen|Vorschlag und bestätigte Fahrzeugdaten/);
+    assert.match(ui, /Fahrzeugschein auslesen/);
+    assert.match(ui, /Angaben übernehmen und Inserat vorbereiten/);
     assert.match(newMigration, /contract_version is distinct from old\.contract_version/);
     assert.match(newMigration, /confirmed_suggestions/);
     assert.match(v3Migration, /save_purchase_listing_information/);
@@ -345,7 +404,15 @@ test("database/API/UI preserve active drafts, manual edits, private image paths 
     assert.match(details, /payloadKg/);
     assert.match(v4Migration, /contract_version in \(1, 2, 3, 4\)/);
     assert.match(v4Migration, /p_expected_first_registration date/);
-    assert.match(action, /isListingV4RolloutEnabled/);
+    assert.match(v5Migration, /contract_version in \(1, 2, 3, 4, 5\)/);
+    assert.match(v5Migration, /save_purchase_listing_form_v5/);
+    assert.match(v5Migration, /confirmedAt/);
+    assert.match(v5Migration, /p_expected_registration_document_id/);
+    assert.match(v5Migration, /registration document changed concurrently/);
+    assert.match(v5Migration, /is distinct from p_expected_vehicle/);
+    assert.match(action, /listing_expected_source/);
+    assert.match(action, /p_expected_vehicle: expectedSource\.vehicle/);
+    assert.match(action, /isListingV5RolloutEnabled/);
     assert.match(ui, /Zusätzliche Angaben für die Beschreibung/);
     assert.doesNotMatch(action, /purchaseNotes: source\.vehicle|damageNotes: source\.vehicle/);
 });

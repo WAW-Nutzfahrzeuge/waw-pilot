@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentCompanyId } from "@/lib/company";
 import { automationError } from "@/lib/automation/http";
 import { isUuid } from "@/lib/automation/validation";
-import { fingerprintListingCallback, validateListingCallback } from "@/lib/purchases/purchase-listing-contract";
+import { fingerprintListingCallback, validateListingCallback, validateListingOcrCallback } from "@/lib/purchases/purchase-listing-contract";
 import { isListingAutomationRequestAuthorized, loadPurchaseListingSource, type ListingJobRecord } from "@/lib/purchases/purchase-listing-server";
 import { createAutomationSupabaseClient } from "@/lib/supabase/automation";
 
@@ -31,16 +31,36 @@ export async function POST(request: Request, context: Context) {
 
     let currentSource;
     try {
-        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id, job.contract_version === 4 ? 4 : job.contract_version === 3 ? 3 : job.contract_version === 2 ? 2 : 1);
+        const operation = job.contract_version === 5 && job.source_snapshot?.operation === "registration_ocr" ? "registration_ocr" : "draft_generation";
+        currentSource = await loadPurchaseListingSource(companyId, job.purchase_case_id, job.contract_version === 5 ? 5 : job.contract_version === 4 ? 4 : job.contract_version === 3 ? 3 : job.contract_version === 2 ? 2 : 1, operation);
     } catch {
+        await supabase.from("purchase_listing_jobs").update({
+            status: "failed", last_error_code: "SOURCE_NO_LONGER_AVAILABLE",
+            last_error: "Die Quelldaten sind inzwischen nicht mehr vollständig verfügbar.",
+            lease_expires_at: null, completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq("id", job.id).eq("company_id", companyId).eq("dispatch_token", dispatchToken).in("status", ["queued", "processing"]);
         return automationError(409, "source_no_longer_available", "Die Quelldaten sind inzwischen nicht mehr vollständig verfügbar.");
     }
-    if (currentSource.sourceRevision !== job.source_revision) return automationError(409, "source_revision_changed", "Die Quelldaten haben sich seit dem Auftrag geändert. Bitte bereite den Entwurf erneut vor.");
+    if (currentSource.sourceRevision !== job.source_revision) {
+        await supabase.from("purchase_listing_jobs").update({
+            status: "failed", last_error_code: "SOURCE_REVISION_CHANGED",
+            last_error: "Die Quelldaten haben sich seit dem Auftrag geändert. Bitte bereite den Entwurf erneut vor.",
+            lease_expires_at: null, completed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq("id", job.id).eq("company_id", companyId).eq("source_revision", job.source_revision)
+            .eq("dispatch_token", dispatchToken).in("status", ["queued", "processing"]);
+        return automationError(409, "source_revision_changed", "Die Quelldaten haben sich seit dem Auftrag geändert. Bitte bereite den Entwurf erneut vor.");
+    }
 
-    const { data: imageRows, error: imageError } = await supabase.from("purchase_listing_job_images").select("id")
-        .eq("company_id", companyId).eq("job_id", job.id).eq("upload_status", "available");
-    if (imageError) return automationError(500, "image_lookup_failed", "Die gespeicherten Bildversionen konnten nicht geprüft werden.");
-    const validated = validateListingCallback(body, { job, dispatchToken, imageIds: new Set((imageRows ?? []).map((image) => String(image.id))) });
+    const isOcr = job.contract_version === 5 && job.source_snapshot?.operation === "registration_ocr";
+    let validated;
+    if (isOcr) {
+        validated = validateListingOcrCallback(body, { job, dispatchToken });
+    } else {
+        const { data: imageRows, error: imageError } = await supabase.from("purchase_listing_job_images").select("id")
+            .eq("company_id", companyId).eq("job_id", job.id).eq("upload_status", "available");
+        if (imageError) return automationError(500, "image_lookup_failed", "Die gespeicherten Bildversionen konnten nicht geprüft werden.");
+        validated = validateListingCallback(body, { job, dispatchToken, imageIds: new Set((imageRows ?? []).map((image) => String(image.id))) });
+    }
     if (!validated.ok) return automationError(validated.code === "identity_conflict" ? 409 : 422, validated.code, "Die Callback-Daten sind ungültig oder gehören nicht zu diesem Auftrag.");
 
     const result = validated.result;
@@ -51,8 +71,8 @@ export async function POST(request: Request, context: Context) {
             extracted_suggestions: result.suggestions,
             conflicts: result.conflicts,
             missing_fields: result.missingFields,
-            title: result.title,
-            description: result.description,
+            title: result.title || null,
+            description: result.description || null,
             selected_image_ids: result.selectedImageIds,
             result_fingerprint: result.fingerprint,
             last_error_code: null,

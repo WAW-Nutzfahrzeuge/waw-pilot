@@ -9,6 +9,7 @@ export const listingTemplateVersionV4 = "waw-mobile-listing-v4";
 export const listingContractVersion = 2 as const;
 export const listingContractVersionV3 = 3 as const;
 export const listingContractVersionV4 = 4 as const;
+export const listingContractVersionV5 = 5 as const;
 export const listingJobStatuses = ["queued", "processing", "needs_input", "draft_ready", "failed"] as const;
 export type ListingJobStatus = (typeof listingJobStatuses)[number];
 
@@ -17,6 +18,9 @@ export function isListingV3RolloutEnabled(value: unknown): boolean {
 }
 export function isListingV4RolloutEnabled(value: unknown): boolean {
     return typeof value === "string" && value.trim() === "4";
+}
+export function isListingV5RolloutEnabled(value: unknown): boolean {
+    return typeof value === "string" && value.trim() === "5";
 }
 
 export type ListingConfirmedVehicleData = {
@@ -84,7 +88,8 @@ export function stableListingRevision(value: unknown): string {
 }
 
 export function buildPurchaseListingSourceRevision(input: {
-    contractVersion: 1 | 2 | 3 | 4;
+    contractVersion: 1 | 2 | 3 | 4 | 5;
+    operation?: "registration_ocr" | "draft_generation";
     purchase: { id: string; purchaseNumber: string | null; purchaseDate: string };
     vehicle: ListingConfirmedVehicleData & { id: string; listingDetails: import("@/lib/vehicles/listing-details").VehicleListingDetails };
     databaseListingDetails: unknown;
@@ -93,6 +98,14 @@ export function buildPurchaseListingSourceRevision(input: {
     registration: { id: string; filePath: string; createdAt: string; fileSize: number | null };
     oneDrive: { driveId: string; folderId: string; imagesFolderId: string };
 }): string {
+    if (input.contractVersion === 5 && input.operation === "registration_ocr") return stableListingRevision({
+        contractVersion: 5,
+        operation: "registration_ocr",
+        purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
+        vehicle: toPublicListingVehicleData(input.vehicle, 4),
+        databaseListingDetails: input.databaseListingDetails,
+        registration: input.registration,
+    });
     if (input.contractVersion === 1) return stableListingRevision({
         purchase: { id: input.purchase.id, purchaseNumber: input.purchase.purchaseNumber, purchaseDate: input.purchase.purchaseDate },
         vehicle: {
@@ -132,7 +145,8 @@ export function buildPurchaseListingSourceRevision(input: {
         templateVersion: listingTemplateVersionV3,
     });
     return stableListingRevision({
-        contractVersion: 4,
+        contractVersion: input.contractVersion,
+        ...(input.contractVersion === 5 ? { operation: input.operation ?? "draft_generation" } : {}),
         purchase: { id: input.purchase.id, purchaseDate: input.purchase.purchaseDate },
         vehicle: { ...toPublicListingVehicleData(input.vehicle, 4), vehicleCategory: input.vehicleCategory ?? input.vehicle.vehicleCategory },
         listingInformation: {
@@ -394,10 +408,11 @@ export function isSupportedListingImageMime(mimeType: string): boolean {
 export function validateListingAcceptanceAck(value: unknown, expected: {
     jobId: string; purchaseId: string; vehicleId: string; sourceRevision: string; dispatchToken: string;
     contractVersion?: number;
+    operation?: string;
 }): boolean {
     if (!value || typeof value !== "object") return false;
     const ack = value as Record<string, unknown>;
-    return ack.status === "accepted" && (expected.contractVersion === undefined || ack.contractVersion === expected.contractVersion) && ack.jobId === expected.jobId && ack.purchaseId === expected.purchaseId &&
+    return ack.status === "accepted" && (expected.contractVersion === undefined || ack.contractVersion === expected.contractVersion) && (expected.operation === undefined || ack.operation === expected.operation) && ack.jobId === expected.jobId && ack.purchaseId === expected.purchaseId &&
         ack.vehicleId === expected.vehicleId && ack.sourceRevision === expected.sourceRevision && ack.dispatchToken === expected.dispatchToken;
 }
 
@@ -479,6 +494,7 @@ export function validateListingCallback(body: unknown, expected: {
     const contractVersion = expected.job.contract_version ?? 1;
     if ((contractVersion === 1 && value.contractVersion !== undefined && value.contractVersion !== 1) ||
         (contractVersion >= 2 && value.contractVersion !== contractVersion)) return { ok: false as const, code: "contract_version_conflict" };
+    if (contractVersion === 5 && value.operation !== "draft_generation") return { ok: false as const, code: "operation_conflict" };
     if (!["needs_input", "draft_ready", "failed"].includes(String(value.status))) return { ok: false as const, code: "invalid_status" };
     if (value.status === "failed") {
         const allowedErrorCodes = new Set(["ONEDRIVE_ACCESS_DENIED", "ONEDRIVE_TIMEOUT", "ONEDRIVE_FOLDER_MISSING", "REGISTRATION_UNREADABLE", "OCR_FAILED", "PROCESSING_TIMEOUT"]);
@@ -517,6 +533,26 @@ export function validateListingCallback(body: unknown, expected: {
             fingerprint: fingerprintListingCallback(value),
         },
     };
+}
+
+export function validateListingOcrCallback(body: unknown, expected: {
+    job: { id: string; purchase_case_id: string; vehicle_id: string; source_revision: string; contract_version: number };
+    dispatchToken: string;
+}) {
+    if (!body || typeof body !== "object") return { ok: false as const, code: "invalid_json" };
+    const value = body as Record<string, unknown>;
+    if (value.schemaVersion !== 1 || value.contractVersion !== 5 || value.operation !== "registration_ocr" ||
+        value.jobId !== expected.job.id || value.purchaseId !== expected.job.purchase_case_id ||
+        value.vehicleId !== expected.job.vehicle_id || value.sourceRevision !== expected.job.source_revision ||
+        value.dispatchToken !== expected.dispatchToken) return { ok: false as const, code: "identity_conflict" };
+    if (expected.job.contract_version !== 5) return { ok: false as const, code: "contract_version_conflict" };
+    if (value.status === "failed") {
+        const code = value.errorCode === "REGISTRATION_UNREADABLE" || value.errorCode === "OCR_FAILED" ? value.errorCode : "OCR_FAILED";
+        return { ok: true as const, result: { status: "failed" as const, errorCode: code, fingerprint: fingerprintListingCallback(value) } };
+    }
+    if (value.status !== "ocr_ready") return { ok: false as const, code: "invalid_status" };
+    const suggestions = sanitizeListingSuggestions(value.extractedSuggestions, 4);
+    return { ok: true as const, result: { status: "needs_input" as const, suggestions, conflicts: [], missingFields: [], title: "", description: "", selectedImageIds: [], fingerprint: fingerprintListingCallback(value) } };
 }
 
 export function sanitizeListingSuggestions(value: unknown, contractVersion: number = 1): Record<string, string | number> {

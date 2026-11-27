@@ -166,9 +166,13 @@ export function PurchaseDetail({
                 hasRegistration={purchase.documents.some((document) => document.document_type === "vehicle_registration" && document.status === "available" && Boolean(document.file_path))}
                 oneDriveReady={purchase.vehicleFolder?.status === "ready" && Boolean(purchase.vehicleFolder.images_folder_id && purchase.vehicleFolder.drive_id && purchase.vehicleFolder.folder_id)}
                 jobs={purchase.listingJobs}
+                currentOcrJob={purchase.currentListingOcrJob}
                 vehicleType={purchase.vehicle?.vehicle_type ?? ""}
                 manufacturer={purchase.vehicle?.manufacturer ?? ""}
                 model={purchase.vehicle?.model ?? ""}
+                vin={purchase.vehicle?.vin ?? ""}
+                constructionYear={purchase.vehicle?.construction_year ?? null}
+                color={purchase.vehicle?.color ?? null}
                 vehicleCategory={purchase.vehicle?.vehicle_category ?? ""}
                 firstRegistration={purchase.vehicle?.first_registration ?? null}
                 listingDetails={purchase.vehicle?.listing_details}
