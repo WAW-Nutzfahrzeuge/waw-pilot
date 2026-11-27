@@ -318,18 +318,31 @@ export function PurchasesOverview({
                         </div>
 
                         <div className="hidden overflow-x-auto md:block">
-                            <table className="w-full min-w-[1180px] text-left">
+                            <table className="w-full min-w-[1280px] table-fixed text-left">
+                                <colgroup>
+                                    <col className="w-[135px]" />
+                                    <col className="w-[150px]" />
+                                    <col className="w-[190px]" />
+                                    <col className="w-[105px]" />
+                                    <col className="w-[115px]" />
+                                    <col className="w-[115px]" />
+                                    <col className="w-[110px]" />
+                                    <col className="w-[110px]" />
+                                    <col className="w-[110px]" />
+                                    <col className="w-[140px]" />
+                                </colgroup>
                                 <thead className="bg-slate-50 text-xs font-extrabold uppercase tracking-wide text-slate-500">
                                 <tr>
-                                    <th className="px-5 py-4">Ankauf</th>
-                                    <th className="px-5 py-4">Verkäufer</th>
-                                    <th className="px-5 py-4">Fahrzeug</th>
-                                    <th className="px-5 py-4">Datum</th>
-                                    <th className="px-5 py-4">Betrag</th>
-                                    <th className="px-5 py-4">Status</th>
-                                    <th className="px-5 py-4">Zahlung</th>
-                                    <th className="px-5 py-4">Dokumente</th>
-                                    <th className="px-5 py-4 text-right">Aktionen</th>
+                                    <th className="px-3 py-4">Ankauf</th>
+                                    <th className="px-3 py-4">Verkäufer</th>
+                                    <th className="px-3 py-4">Fahrzeug</th>
+                                    <th className="px-3 py-4">Datum</th>
+                                    <th className="px-3 py-4">Netto</th>
+                                    <th className="px-3 py-4">Umsatzsteuer</th>
+                                    <th className="px-3 py-4">Status</th>
+                                    <th className="px-3 py-4">Zahlung</th>
+                                    <th className="px-3 py-4">Dokumente</th>
+                                    <th className="px-3 py-4 text-right">Aktionen</th>
                                 </tr>
                                 </thead>
 
@@ -342,52 +355,55 @@ export function PurchasesOverview({
                                         }}
                                         className="group cursor-pointer bg-white transition-colors hover:bg-cyan-50/30"
                                     >
-                                        <td className="px-5 py-5">
+                                        <td className="px-3 py-5">
                                             <p className="font-extrabold text-cyan-700">
                                                 {purchase.purchase_number ?? "Ohne Nummer"}
                                             </p>
-                                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                                            <p className="mt-1 break-all text-xs font-semibold text-slate-500">
                                                 {purchase.id}
                                             </p>
                                         </td>
 
-                                        <td className="px-5 py-5">
-                                            <p className="font-bold text-slate-950">
+                                        <td className="truncate px-3 py-5" title={purchase.seller_name ?? "—"}>
+                                            <p className="truncate font-bold text-slate-950">
                                                 {purchase.seller_name ?? "—"}
                                             </p>
                                         </td>
 
-                                        <td className="px-5 py-5">
-                                            <p className="font-bold text-slate-950">
+                                        <td className="px-3 py-5">
+                                            <p className="truncate font-bold text-slate-950" title={purchase.vehicle_name ?? "—"}>
                                                 {purchase.vehicle_name ?? "—"}
                                             </p>
-                                            <p className="mt-1 font-mono text-xs font-semibold text-slate-500">
+                                            <p className="mt-1 break-all font-mono text-xs font-semibold text-slate-500">
                                                 {purchase.vin ?? "—"}
                                             </p>
                                         </td>
 
-                                        <td className="px-5 py-5">
+                                        <td className="whitespace-nowrap px-3 py-5">
                                             <p className="text-sm font-semibold text-slate-700">
                                                 {formatDate(purchase.purchase_date)}
                                             </p>
                                         </td>
 
-                                        <td className="px-5 py-5">
+                                        <td className="whitespace-nowrap px-3 py-5">
                                             <p className="font-extrabold text-slate-950">
                                                 {formatCurrency(purchase.net_amount)}
                                             </p>
-                                            <p className="mt-1 text-xs font-semibold text-slate-500">
-                                                Netto
+                                        </td>
+
+                                        <td className="whitespace-nowrap px-3 py-5">
+                                            <p className="font-extrabold text-slate-950">
+                                                {formatCurrency(purchase.vat_amount)}
                                             </p>
                                         </td>
 
-                                        <td className="px-5 py-5">
+                                        <td className="px-3 py-5">
                                             <StatusBadge tone={getPurchaseStatusTone(purchase.status)}>
                                                 {getPurchaseStatusLabel(purchase.status)}
                                             </StatusBadge>
                                         </td>
 
-                                        <td className="px-5 py-5">
+                                        <td className="px-3 py-5">
                                             <StatusBadge
                                                 tone={getPurchasePaymentStatusTone(
                                                     purchase.payment_status,
@@ -397,7 +413,7 @@ export function PurchasesOverview({
                                             </StatusBadge>
                                         </td>
 
-                                        <td className="px-5 py-5">
+                                        <td className="px-3 py-5">
                                             <StatusBadge
                                                 tone={getPurchaseDocumentStatusTone(
                                                     purchase.document_check_status,
@@ -410,7 +426,7 @@ export function PurchasesOverview({
                                         </td>
 
                                         <td
-                                            className="px-5 py-5"
+                                            className="px-3 py-5"
                                             onClick={(event) => event.stopPropagation()}
                                         >
                                             <div className="flex justify-end gap-2">
