@@ -338,7 +338,7 @@ export function PurchasesOverview({
                                     <th className="px-3 py-4">Fahrzeug</th>
                                     <th className="px-3 py-4">Datum</th>
                                     <th className="px-3 py-4">Netto</th>
-                                    <th className="px-3 py-4">Umsatzsteuer</th>
+                                    <th className="bg-amber-100/70 px-3 py-4">Umsatzsteuer</th>
                                     <th className="px-3 py-4">Status</th>
                                     <th className="px-3 py-4">Zahlung</th>
                                     <th className="px-3 py-4">Dokumente</th>
@@ -391,7 +391,7 @@ export function PurchasesOverview({
                                             </p>
                                         </td>
 
-                                        <td className="whitespace-nowrap px-3 py-5">
+                                        <td className="whitespace-nowrap bg-amber-50/70 px-3 py-5">
                                             <p className="font-extrabold text-slate-950">
                                                 {formatCurrency(purchase.vat_amount)}
                                             </p>
