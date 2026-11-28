@@ -87,7 +87,6 @@ export function CashbookEntryForm({
     );
     const [depositAmount, setDepositAmount] = useState("");
     const [selectedCashAllocations, setSelectedCashAllocations] = useState<Record<string, SelectedCashAllocation>>({});
-    const [remainderType, setRemainderType] = useState<"" | "existing_cash_balance">("");
     const [suggestionApplied, setSuggestionApplied] = useState(false);
     const [suggestionTieCount, setSuggestionTieCount] = useState(0);
 
@@ -103,14 +102,13 @@ export function CashbookEntryForm({
             sourceFinancialEntryId,
             amount: toCents(allocation.amount) / 100,
         })),
-        ...(remainderCents > 0 && remainderType
-            ? [{ type: remainderType, amount: remainderCents / 100 }]
+        ...(remainderCents > 0
+            ? [{ type: "existing_cash_balance", amount: remainderCents / 100 }]
             : []),
     ];
     const depositAllocationInvalid = isBankDeposit && (
         depositCents <= 0 ||
-        remainderCents < 0 ||
-        (remainderCents > 0 && !remainderType)
+        remainderCents < 0
     );
     const orderedCashInflowCandidates = [...cashInflowCandidates].sort((left, right) => {
         const leftSelected = Boolean(selectedCashAllocations[left.financialEntryId]);
@@ -151,7 +149,6 @@ export function CashbookEntryForm({
         }
 
         setSelectedCashAllocations(suggested);
-        setRemainderType("");
         setSuggestionApplied(true);
         setSuggestionTieCount(hasEqualValueTie ? suggestedCandidates.length : 0);
     }
@@ -472,21 +469,12 @@ export function CashbookEntryForm({
                                 </div>
 
                                 {remainderCents > 0 ? (
-                                    <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                        <Label htmlFor="cash-remainder-type" className="font-bold text-amber-950">
-                                            Noch zu erklären: {formatCashEuro(remainderCents / 100)}
-                                        </Label>
-                                        <select
-                                            id="cash-remainder-type"
-                                            value={remainderType}
-                                            onChange={(event) => setRemainderType(event.target.value as "" | "existing_cash_balance")}
-                                            className="h-11 w-full rounded-xl border border-amber-300 bg-white px-3 text-sm font-semibold text-slate-900"
-                                        >
-                                            <option value="">Herkunft auswählen</option>
-                                            <option value="existing_cash_balance">Bereits vorher in der Kasse vorhanden</option>
-                                        </select>
+                                    <div className="space-y-1 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                        <p className="font-bold text-amber-950">
+                                            Restbetrag {formatCashEuro(remainderCents / 100)} wird automatisch dem bereits vorhandenen Kassenbestand zugeordnet.
+                                        </p>
                                         <p className="text-xs font-medium text-amber-900">
-                                            Frühere Bareinnahmen aus Verkäufen oder sonstigen Zahlungseingängen kannst du oben zusätzlich auswählen.
+                                            Wenn der Rest aus einer früheren Bareinnahme stammt, kannst du diese oben auswählen. Die Auswahl verringert den automatisch zugeordneten Restbetrag.
                                         </p>
                                     </div>
                                 ) : null}
